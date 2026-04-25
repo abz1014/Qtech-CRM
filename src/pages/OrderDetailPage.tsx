@@ -174,10 +174,14 @@ export default function OrderDetailPage() {
 
           {originRFQ && (
             <div className="pt-3 border-t border-border">
-              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><FileText className="w-3 h-3" /> Originating RFQ</p>
-              <button onClick={() => navigate('/rfqs')} className="text-xs text-primary hover:underline">
-                {originRFQ.company_name} — {formatPKR(originRFQ.estimated_value)}
+              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1"><FileText className="w-4 h-4" /> Source RFQ</p>
+              <button
+                onClick={() => navigate(`/rfqs/${originRFQ.id}`)}
+                className="w-full px-3 py-2 rounded-lg bg-primary/10 border border-primary/30 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+              >
+                View RFQ Details →
               </button>
+              <p className="text-xs text-muted-foreground mt-2">{originRFQ.company_name} • {formatPKR(originRFQ.estimated_value)}</p>
             </div>
           )}
 

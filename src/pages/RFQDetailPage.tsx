@@ -220,6 +220,25 @@ export default function RFQDetailPage() {
         ))}
       </div>
 
+      {/* Related Order */}
+      {order && (
+        <div className="glass-card p-5 border border-primary/30 bg-primary/5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">📦 Order Created from This RFQ</p>
+              <p className="text-sm font-semibold text-foreground">{getClientName(order.client_id)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{order.product_type} • {formatPKR(order.order_value)}</p>
+            </div>
+            <button
+              onClick={() => navigate(`/orders/${order.id}`)}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              View Order →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Quote Comparison (only show when there are quotes) */}
       {quotes.length > 1 && (
         <div className="glass-card p-5">
