@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
-import { BarChart3, Calendar, Download, Filter } from 'lucide-react';
+import { BarChart3, Calendar, Download, Filter, ChevronRight } from 'lucide-react';
 import { formatDate, formatPKR } from '@/lib/format';
 
 interface FilterState {
@@ -11,7 +12,8 @@ interface FilterState {
 }
 
 export function DailyRFQReportPage() {
-  const { rfqs, supplierInquiries, supplierQuotes, getClientName } = useCRM();
+  const navigate = useNavigate();
+  const { rfqs, supplierInquiries, supplierQuotes, orders, getClientName } = useCRM();
   const today = new Date().toISOString().split('T')[0];
 
   const [filters, setFilters] = useState<FilterState>({
@@ -111,7 +113,7 @@ export function DailyRFQReportPage() {
     }
   };
 
-  const RFQTable = ({ rfqs, title }: { rfqs: any[]; title: string }) => (
+  const RFQTable = ({ rfqs, title, isConverted }: { rfqs: any[]; title: string; isConverted?: boolean }) => (
     <div className="glass-card p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-foreground">{title}</h3>
@@ -132,32 +134,49 @@ export function DailyRFQReportPage() {
                 <th className="text-right py-3 px-4 font-semibold text-muted-foreground">Est. Value</th>
                 <th className="text-center py-3 px-4 font-semibold text-muted-foreground">Inquiries</th>
                 <th className="text-center py-3 px-4 font-semibold text-muted-foreground">Responses</th>
+                <th className="text-center py-3 px-4 font-semibold text-muted-foreground"></th>
               </tr>
             </thead>
             <tbody>
-              {rfqs.map(rfq => (
-                <tr key={rfq.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                  <td className="py-3 px-4 font-medium text-foreground">RFQ #{rfq.id.slice(0, 8)}</td>
-                  <td className="py-3 px-4 text-foreground">{getClientName(rfq.client_id)}</td>
-                  <td className="py-3 px-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      rfq.priority === 'high' ? 'bg-destructive/20 text-destructive' :
-                      rfq.priority === 'medium' ? 'bg-warning/20 text-warning' :
-                      'bg-info/20 text-info'
-                    }`}>
-                      {rfq.priority}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-muted-foreground">{rfq.rfq_date}</td>
-                  <td className="py-3 px-4 text-right font-semibold text-foreground">{formatPKR(rfq.estimated_value)}</td>
-                  <td className="py-3 px-4 text-center font-medium text-foreground">
-                    {supplierInquiries.filter(si => si.rfq_id === rfq.id).length}
-                  </td>
-                  <td className="py-3 px-4 text-center font-medium text-success">
-                    {supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length}
-                  </td>
-                </tr>
-              ))}
+              {rfqs.map(rfq => {
+                const relatedOrder = orders.find(o => o.rfq_id === rfq.id);
+                return (
+                  <tr
+                    key={rfq.id}
+                    onClick={() => {
+                      if (isConverted && relatedOrder) {
+                        navigate(`/orders/${relatedOrder.id}`);
+                      } else {
+                        navigate(`/rfqs/${rfq.id}`);
+                      }
+                    }}
+                    className="border-b border-border/50 hover:bg-muted/50 transition-colors cursor-pointer"
+                  >
+                    <td className="py-3 px-4 font-medium text-foreground">RFQ #{rfq.id.slice(0, 8)}</td>
+                    <td className="py-3 px-4 text-foreground">{getClientName(rfq.client_id)}</td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        rfq.priority === 'high' ? 'bg-destructive/20 text-destructive' :
+                        rfq.priority === 'medium' ? 'bg-warning/20 text-warning' :
+                        'bg-info/20 text-info'
+                      }`}>
+                        {rfq.priority}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-muted-foreground">{rfq.rfq_date}</td>
+                    <td className="py-3 px-4 text-right font-semibold text-foreground">{formatPKR(rfq.estimated_value)}</td>
+                    <td className="py-3 px-4 text-center font-medium text-foreground">
+                      {supplierInquiries.filter(si => si.rfq_id === rfq.id).length}
+                    </td>
+                    <td className="py-3 px-4 text-center font-medium text-success">
+                      {supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length}
+                    </td>
+                    <td className="py-3 px-4 text-center text-muted-foreground">
+                      <ChevronRight className="w-4 h-4" />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -291,10 +310,10 @@ export function DailyRFQReportPage() {
 
       {/* RFQ Tables by Status */}
       <div className="space-y-6">
-        <RFQTable rfqs={metrics.notFloated} title="🔴 Not Yet Floated to Suppliers" />
-        <RFQTable rfqs={metrics.floated} title="🟡 Floated - Awaiting Response" />
+        <RFQTable rfqs={metrics.converted} title="✅ Converted to Orders" isConverted={true} />
         <RFQTable rfqs={metrics.responded} title="🟢 Responses Received" />
-        <RFQTable rfqs={metrics.converted} title="✅ Converted to Orders" />
+        <RFQTable rfqs={metrics.floated} title="🟡 Floated - Awaiting Response" />
+        <RFQTable rfqs={metrics.notFloated} title="🔴 Not Yet Floated to Suppliers" />
       </div>
     </div>
   );
