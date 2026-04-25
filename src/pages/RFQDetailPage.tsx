@@ -4,9 +4,11 @@ import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR, formatDate } from '@/lib/format';
 import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart } from 'lucide-react';
-import { SupplierInquiryStatus, RFQStatus, RFQPriority } from '@/types/crm';
+import { SupplierInquiryStatus, RFQStatus, RFQPriority, ProductType } from '@/types/crm';
 import { SupplierComparisonTable } from '@/components/rfq/SupplierComparisonTable';
 import { cn } from '@/lib/utils';
+
+const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
 
 const inquiryStatusColors: Record<SupplierInquiryStatus, string> = {
   pending: 'bg-warning/15 text-warning',
@@ -64,7 +66,7 @@ export default function RFQDetailPage() {
   const [convertForm, setConvertForm] = useState({
     vendor_id: quotes.length > 0 ? quotes[0].vendor_id : '',
     order_value: rfq?.estimated_value?.toString() || '',
-    product_type: 'Custom',
+    product_type: 'DVR' as ProductType,
     notes: '',
   });
   const [isConverting, setIsConverting] = useState(false);
@@ -783,13 +785,17 @@ export default function RFQDetailPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Product Type</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-foreground mb-2">Product Type *</label>
+                <select
                   value={convertForm.product_type}
-                  onChange={(e) => setConvertForm(p => ({ ...p, product_type: e.target.value }))}
+                  onChange={(e) => setConvertForm(p => ({ ...p, product_type: e.target.value as ProductType }))}
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
+                  required
+                >
+                  {productTypes.map(pt => (
+                    <option key={pt} value={pt}>{pt}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
