@@ -1,372 +1,303 @@
 import React, { useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
-import { Pagination } from '@/components/Pagination';
-import { BarChart3, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
-import { RFQ, RFQLineItem } from '@/types/crm';
+import { BarChart3, Calendar, Download, Filter } from 'lucide-react';
+import { formatDate, formatPKR } from '@/lib/format';
 
-interface MetricsCard {
-  label: string;
-  value: number | string;
-  color: string;
+interface FilterState {
+  status: string;
+  priority: string;
+  client: string;
+  dateRange: 'today' | 'week' | 'month' | 'custom';
 }
 
 export function DailyRFQReportPage() {
-  const { rfqs, rfqLineItems, supplierInquiries, supplierQuotes, getRFQMetricsByDateRange, getClientName, getVendorName } = useCRM();
+  const { rfqs, supplierInquiries, supplierQuotes, getClientName } = useCRM();
   const today = new Date().toISOString().split('T')[0];
+
+  const [filters, setFilters] = useState<FilterState>({
+    status: 'all',
+    priority: 'all',
+    client: 'all',
+    dateRange: 'today'
+  });
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
-  const [expandedRFQs, setExpandedRFQs] = useState<string[]>([]);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [currentPageNotFloated, setCurrentPageNotFloated] = useState(1);
-  const [currentPageFloated, setCurrentPageFloated] = useState(1);
-  const [currentPageResponded, setCurrentPageResponded] = useState(1);
-  const [currentPageConverted, setCurrentPageConverted] = useState(1);
 
+  // Get filtered RFQs
+  const filteredRFQs = useMemo(() => {
+    let result = rfqs;
+
+    // Date range filter
+    if (filters.dateRange === 'today') {
+      result = result.filter(r => r.rfq_date === today);
+    } else if (filters.dateRange === 'week') {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekAgoStr = weekAgo.toISOString().split('T')[0];
+      result = result.filter(r => r.rfq_date >= weekAgoStr && r.rfq_date <= today);
+    } else if (filters.dateRange === 'month') {
+      const monthAgo = new Date();
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+      const monthAgoStr = monthAgo.toISOString().split('T')[0];
+      result = result.filter(r => r.rfq_date >= monthAgoStr && r.rfq_date <= today);
+    } else if (filters.dateRange === 'custom') {
+      result = result.filter(r => r.rfq_date >= startDate && r.rfq_date <= endDate);
+    }
+
+    // Status filter
+    if (filters.status !== 'all') {
+      if (filters.status === 'not_floated') {
+        result = result.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
+      } else if (filters.status === 'floated') {
+        result = result.filter(r => supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
+      } else if (filters.status === 'responded') {
+        result = result.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id));
+      } else if (filters.status === 'converted') {
+        result = result.filter(r => r.status === 'converted');
+      }
+    }
+
+    // Priority filter
+    if (filters.priority !== 'all') {
+      result = result.filter(r => r.priority === filters.priority);
+    }
+
+    // Client filter
+    if (filters.client !== 'all') {
+      result = result.filter(r => r.client_id === filters.client);
+    }
+
+    return result;
+  }, [rfqs, filters, startDate, endDate, today, supplierInquiries, supplierQuotes]);
+
+  // Get unique clients for filter dropdown
+  const uniqueClients = useMemo(() => {
+    return Array.from(new Set(rfqs.map(r => r.client_id)))
+      .map(id => ({ id, name: getClientName(id) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [rfqs, getClientName]);
+
+  // Calculate metrics
   const metrics = useMemo(() => {
-    return getRFQMetricsByDateRange(startDate, endDate);
-  }, [startDate, endDate, getRFQMetricsByDateRange]);
+    const notFloated = filteredRFQs.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
+    const floated = filteredRFQs.filter(r => supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
+    const responded = filteredRFQs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id) && r.status !== 'converted');
+    const converted = filteredRFQs.filter(r => r.status === 'converted');
 
-  const rfqsInRange = useMemo(() => {
-    return rfqs.filter(r => {
-      const rDate = r.rfq_date;
-      return rDate >= startDate && rDate <= endDate;
-    });
-  }, [rfqs, startDate, endDate]);
+    return { notFloated, floated, responded, converted };
+  }, [filteredRFQs, supplierInquiries, supplierQuotes]);
 
-  // Count total supplier inquiries (not just unique RFQs)
-  const totalInquiries = useMemo(() => {
-    return rfqsInRange.reduce((count, rfq) => {
-      return count + supplierInquiries.filter(si => si.rfq_id === rfq.id).length;
-    }, 0);
-  }, [rfqsInRange, supplierInquiries]);
+  const handleExport = (format: 'csv' | 'pdf') => {
+    if (format === 'csv') {
+      const headers = ['RFQ ID', 'Client', 'Status', 'Priority', 'Date', 'Value', 'Inquiries Sent', 'Responses'];
+      const rows = filteredRFQs.map(rfq => [
+        rfq.id.slice(0, 8),
+        getClientName(rfq.client_id),
+        rfq.status,
+        rfq.priority,
+        rfq.rfq_date,
+        `Rs ${rfq.estimated_value.toLocaleString('en-PK')}`,
+        supplierInquiries.filter(si => si.rfq_id === rfq.id).length,
+        supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length,
+      ]);
 
-  const rfqsByCategory = useMemo(() => {
-    const notFloatedList = rfqsInRange.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
-    const floatedList = rfqsInRange.filter(r => supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
-    const respondedList = rfqsInRange.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id) && r.status !== 'converted');
-    const convertedList = rfqsInRange.filter(r => r.status === 'converted');
-
-    const paginatedNotFloated = notFloatedList.slice((currentPageNotFloated - 1) * itemsPerPage, currentPageNotFloated * itemsPerPage);
-    const paginatedFloated = floatedList.slice((currentPageFloated - 1) * itemsPerPage, currentPageFloated * itemsPerPage);
-    const paginatedResponded = respondedList.slice((currentPageResponded - 1) * itemsPerPage, currentPageResponded * itemsPerPage);
-    const paginatedConverted = convertedList.slice((currentPageConverted - 1) * itemsPerPage, currentPageConverted * itemsPerPage);
-
-    return {
-      notFloatedList, floatedList, respondedList, convertedList,
-      paginatedNotFloated, paginatedFloated, paginatedResponded, paginatedConverted
-    };
-  }, [rfqsInRange, supplierInquiries, supplierQuotes, itemsPerPage, currentPageNotFloated, currentPageFloated, currentPageResponded, currentPageConverted]);
-
-  const toggleRFQExpand = (rfqId: string) => {
-    setExpandedRFQs(prev =>
-      prev.includes(rfqId) ? prev.filter(id => id !== rfqId) : [...prev, rfqId]
-    );
+      const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+      const element = document.createElement('a');
+      element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+      element.setAttribute('download', `rfq-report-${today}.csv`);
+      element.click();
+    } else if (format === 'pdf') {
+      alert('PDF export coming soon!');
+    }
   };
 
-  const getSupplierInquiriesForRFQ = (rfqId: string) => {
-    return supplierInquiries.filter(si => si.rfq_id === rfqId);
-  };
-
-  const getQuotesForRFQ = (rfqId: string) => {
-    return supplierQuotes.filter(sq => sq.rfq_id === rfqId);
-  };
-
-  const cards: MetricsCard[] = [
-    { label: 'Total RFQs Received', value: metrics.total, color: 'text-primary' },
-    { label: 'Not Yet Floated', value: metrics.notFloated, color: 'text-warning' },
-    { label: 'Unique RFQs Floated', value: metrics.floated, color: 'text-info' },
-    { label: 'Total Supplier Contacts', value: totalInquiries, color: 'text-info' },
-    { label: 'Received Responses', value: metrics.responded, color: 'text-success' },
-  ];
-
-  const RFQDetailRow = ({ rfq }: { rfq: RFQ }) => {
-    const isExpanded = expandedRFQs.includes(rfq.id);
-    const inquiries = getSupplierInquiriesForRFQ(rfq.id);
-    const quotes = getQuotesForRFQ(rfq.id);
-    const lineItems: RFQLineItem[] = rfqLineItems.filter(li => li.rfq_id === rfq.id);
-
-    return (
-      <div key={rfq.id} className="bg-background border border-border rounded-md overflow-hidden">
-        <button
-          onClick={() => toggleRFQExpand(rfq.id)}
-          className="w-full p-3 hover:bg-background/80 transition-colors flex items-center justify-between"
-        >
-          <div className="flex-1 text-left">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-foreground">RFQ #{rfq.id.slice(0, 8)}</p>
-              <span className="text-xs px-2 py-1 bg-primary/15 text-primary rounded">
-                {rfq.priority}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Client: {getClientName(rfq.client_id)}</p>
-            <p className="text-xs text-muted-foreground">Date: {rfq.rfq_date}</p>
-          </div>
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          )}
-        </button>
-
-        {isExpanded && (
-          <div className="border-t border-border p-3 bg-background/50 space-y-3">
-            {/* RFQ Details */}
-            <div>
-              <p className="text-xs font-semibold text-foreground mb-2">RFQ Details:</p>
-              <div className="space-y-1 text-xs">
-                <p><span className="text-muted-foreground">Status:</span> <span className="text-foreground capitalize">{rfq.status}</span></p>
-                <p><span className="text-muted-foreground">Notes:</span> <span className="text-foreground">{rfq.notes || 'N/A'}</span></p>
-              </div>
-            </div>
-
-            {/* Line Items */}
-            {lineItems.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-foreground mb-2">Line Items:</p>
-                <div className="space-y-1 text-xs">
-                  {lineItems.map((item, idx) => (
-                    <div key={idx} className="bg-background border border-border rounded p-2">
-                      <p className="text-foreground font-medium">{item.product_type}</p>
-                      <p className="text-muted-foreground">Qty: {item.quantity} | Specs: {item.specification || 'N/A'}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Supplier Inquiries */}
-            {inquiries.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-foreground mb-2">Suppliers Contacted ({inquiries.length}):</p>
-                <div className="space-y-2">
-                  {inquiries.map((inquiry) => {
-                    const quote = quotes.find(q => q.inquiry_id === inquiry.id);
-                    return (
-                      <div key={inquiry.id} className="bg-background border border-border rounded p-2 space-y-1 text-xs">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-foreground">{getVendorName(inquiry.vendor_id)}</p>
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                            inquiry.status === 'pending' ? 'bg-warning/15 text-warning' :
-                            inquiry.status === 'responded' ? 'bg-success/15 text-success' :
-                            'bg-muted text-muted-foreground'
-                          }`}>
-                            {inquiry.status}
-                          </span>
-                        </div>
-                        <p className="text-muted-foreground">Sent: {inquiry.sent_at}</p>
-
-                        {quote && (
-                          <div className="bg-background border border-border rounded p-2 mt-2 space-y-0.5">
-                            <p className="text-foreground font-medium">Quote Details:</p>
-                            <p className="text-muted-foreground">Unit Price: {quote.unit_price || 'N/A'}</p>
-                            <p className="text-muted-foreground">Lead Time: {quote.lead_time_days || 'N/A'} days</p>
-                            <p className="text-muted-foreground">MOQ: {quote.moq || 'N/A'}</p>
-                            <p className="text-muted-foreground">Validity: {quote.validity_days || 'N/A'} days</p>
-                            {quote.notes && <p className="text-muted-foreground">Notes: {quote.notes}</p>}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+  const RFQTable = ({ rfqs, title }: { rfqs: any[]; title: string }) => (
+    <div className="glass-card p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+        <span className="px-3 py-1 bg-primary/20 text-primary rounded-full text-sm font-medium">{rfqs.length}</span>
       </div>
-    );
-  };
+
+      {rfqs.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No RFQs in this category</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-3 px-4 font-semibold text-muted-foreground">RFQ ID</th>
+                <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Client</th>
+                <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Priority</th>
+                <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Date</th>
+                <th className="text-right py-3 px-4 font-semibold text-muted-foreground">Est. Value</th>
+                <th className="text-center py-3 px-4 font-semibold text-muted-foreground">Inquiries</th>
+                <th className="text-center py-3 px-4 font-semibold text-muted-foreground">Responses</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rfqs.map(rfq => (
+                <tr key={rfq.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                  <td className="py-3 px-4 font-medium text-foreground">RFQ #{rfq.id.slice(0, 8)}</td>
+                  <td className="py-3 px-4 text-foreground">{getClientName(rfq.client_id)}</td>
+                  <td className="py-3 px-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      rfq.priority === 'high' ? 'bg-destructive/20 text-destructive' :
+                      rfq.priority === 'medium' ? 'bg-warning/20 text-warning' :
+                      'bg-info/20 text-info'
+                    }`}>
+                      {rfq.priority}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-muted-foreground">{rfq.rfq_date}</td>
+                  <td className="py-3 px-4 text-right font-semibold text-foreground">{formatPKR(rfq.estimated_value)}</td>
+                  <td className="py-3 px-4 text-center font-medium text-foreground">
+                    {supplierInquiries.filter(si => si.rfq_id === rfq.id).length}
+                  </td>
+                  <td className="py-3 px-4 text-center font-medium text-success">
+                    {supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Daily RFQ Report</h1>
-        <p className="text-muted-foreground mt-1">Comprehensive overview of RFQ status and metrics</p>
+        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+          <BarChart3 className="w-8 h-8" />
+          Daily RFQ Report
+        </h1>
+        <p className="text-muted-foreground mt-1">Track RFQ status and progression through the sales pipeline</p>
       </div>
 
-      {/* Date Range Filter */}
-      <div className="glass-card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Calendar className="w-5 h-5 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">Date Range</h3>
+      {/* Summary Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="glass-card p-5">
+          <p className="text-sm text-muted-foreground">Total RFQs</p>
+          <p className="text-3xl font-bold text-primary mt-2">{filteredRFQs.length}</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-muted-foreground mb-2">Start Date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+        <div className="glass-card p-5">
+          <p className="text-sm text-muted-foreground">Not Floated</p>
+          <p className="text-3xl font-bold text-warning mt-2">{metrics.notFloated.length}</p>
+        </div>
+        <div className="glass-card p-5">
+          <p className="text-sm text-muted-foreground">Floated</p>
+          <p className="text-3xl font-bold text-info mt-2">{metrics.floated.length}</p>
+        </div>
+        <div className="glass-card p-5">
+          <p className="text-sm text-muted-foreground">Responses</p>
+          <p className="text-3xl font-bold text-success mt-2">{metrics.responded.length}</p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="glass-card p-5 space-y-4">
+        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <Filter className="w-5 h-5" />
+          Filters
+        </h3>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Date Range</label>
+            <select
+              value={filters.dateRange}
+              onChange={(e) => setFilters(f => ({ ...f, dateRange: e.target.value as any }))}
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="today">Today</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+              <option value="custom">Custom</option>
+            </select>
           </div>
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-muted-foreground mb-2">End Date</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+
+          {filters.dateRange === 'custom' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">From</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">To</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Priority</label>
+            <select
+              value={filters.priority}
+              onChange={(e) => setFilters(f => ({ ...f, priority: e.target.value }))}
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="all">All</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Client</label>
+            <select
+              value={filters.client}
+              onChange={(e) => setFilters(f => ({ ...f, client: e.target.value }))}
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="all">All Clients</option>
+              {uniqueClients.map(client => (
+                <option key={client.id} value={client.id}>{client.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Export Buttons */}
+        <div className="flex gap-2 pt-4 border-t border-border">
           <button
-            onClick={() => {
-              setStartDate(today);
-              setEndDate(today);
-            }}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+            onClick={() => handleExport('csv')}
+            className="flex items-center gap-2 px-4 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
           >
-            Today
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+          <button
+            onClick={() => handleExport('pdf')}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export PDF (Coming Soon)
           </button>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">Summary</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {cards.map((card) => (
-            <div key={card.label} className="glass-card p-5">
-              <p className="text-xs text-muted-foreground mb-2">{card.label}</p>
-              <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Not Yet Floated */}
-      {rfqsByCategory.notFloatedList.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Not Yet Floated ({rfqsByCategory.notFloatedList.length})</h2>
-          <div className="space-y-2">
-            {rfqsByCategory.paginatedNotFloated.map((rfq) => (
-              <RFQDetailRow key={rfq.id} rfq={rfq} />
-            ))}
-          </div>
-          <Pagination
-            currentPage={currentPageNotFloated}
-            totalItems={rfqsByCategory.notFloatedList.length}
-            itemsPerPage={itemsPerPage}
-            onPageChange={setCurrentPageNotFloated}
-            onItemsPerPageChange={(items) => {
-              setItemsPerPage(items);
-              setCurrentPageNotFloated(1);
-            }}
-          />
-        </div>
-      )}
-
-      {/* Floated to Suppliers */}
-      {rfqsByCategory.floatedList.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Floated to Suppliers ({rfqsByCategory.floatedList.length} RFQs)</h2>
-          <div className="space-y-2">
-            {rfqsByCategory.paginatedFloated.map((rfq) => (
-              <RFQDetailRow key={rfq.id} rfq={rfq} />
-            ))}
-          </div>
-          <Pagination
-            currentPage={currentPageFloated}
-            totalItems={rfqsByCategory.floatedList.length}
-            itemsPerPage={itemsPerPage}
-            onPageChange={setCurrentPageFloated}
-            onItemsPerPageChange={(items) => {
-              setItemsPerPage(items);
-              setCurrentPageFloated(1);
-            }}
-          />
-        </div>
-      )}
-
-      {/* Received Responses */}
-      {rfqsByCategory.respondedList.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Received Responses ({rfqsByCategory.respondedList.length} RFQs)</h2>
-          <div className="space-y-2">
-            {rfqsByCategory.paginatedResponded.map((rfq) => (
-              <RFQDetailRow key={rfq.id} rfq={rfq} />
-            ))}
-          </div>
-          <Pagination
-            currentPage={currentPageResponded}
-            totalItems={rfqsByCategory.respondedList.length}
-            itemsPerPage={itemsPerPage}
-            onPageChange={setCurrentPageResponded}
-            onItemsPerPageChange={(items) => {
-              setItemsPerPage(items);
-              setCurrentPageResponded(1);
-            }}
-          />
-        </div>
-      )}
-
-      {/* Converted RFQs */}
-      {rfqsByCategory.convertedList.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Converted to Orders ({rfqsByCategory.convertedList.length})</h2>
-          <div className="space-y-2">
-            {rfqsByCategory.paginatedConverted.map((rfq) => (
-              <RFQDetailRow key={rfq.id} rfq={rfq} />
-            ))}
-          </div>
-          <Pagination
-            currentPage={currentPageConverted}
-            totalItems={rfqsByCategory.convertedList.length}
-            itemsPerPage={itemsPerPage}
-            onPageChange={setCurrentPageConverted}
-            onItemsPerPageChange={(items) => {
-              setItemsPerPage(items);
-              setCurrentPageConverted(1);
-            }}
-          />
-        </div>
-      )}
-
-      {/* Statistics */}
-      <div className="glass-card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-5 h-5 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">Statistics</h3>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Total RFQs</p>
-            <p className="text-xl font-bold text-primary">{metrics.total}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Not Floated</p>
-            <p className="text-xl font-bold text-warning">{metrics.notFloated}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Floated (Unique)</p>
-            <p className="text-xl font-bold text-info">{metrics.floated}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Responses</p>
-            <p className="text-xl font-bold text-success">{metrics.responded}</p>
-          </div>
-          {metrics.total > 0 && (
-            <>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Floated Rate</p>
-                <p className="text-lg font-bold text-info">{((metrics.floated / metrics.total) * 100).toFixed(1)}%</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Response Rate</p>
-                <p className="text-lg font-bold text-success">{((metrics.responded / metrics.floated) * 100 || 0).toFixed(1)}%</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Total Inquiries</p>
-                <p className="text-lg font-bold text-info">{totalInquiries}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Conversion Rate</p>
-                <p className="text-lg font-bold text-success">{((rfqsByCategory.convertedList.length / metrics.total) * 100 || 0).toFixed(1)}%</p>
-              </div>
-            </>
-          )}
-        </div>
+      {/* RFQ Tables by Status */}
+      <div className="space-y-6">
+        <RFQTable rfqs={metrics.notFloated} title="🔴 Not Yet Floated to Suppliers" />
+        <RFQTable rfqs={metrics.floated} title="🟡 Floated - Awaiting Response" />
+        <RFQTable rfqs={metrics.responded} title="🟢 Responses Received" />
+        <RFQTable rfqs={metrics.converted} title="✅ Converted to Orders" />
       </div>
     </div>
   );
 }
+
+export default DailyRFQReportPage;
