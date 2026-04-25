@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR, formatDate } from '@/lib/format';
-import { Plus, ArrowLeft, CheckCircle, Edit2, X } from 'lucide-react';
+import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart } from 'lucide-react';
 import { SupplierInquiryStatus, RFQStatus, RFQPriority } from '@/types/crm';
 import { SupplierComparisonTable } from '@/components/rfq/SupplierComparisonTable';
+import { cn } from '@/lib/utils';
 
 const inquiryStatusColors: Record<SupplierInquiryStatus, string> = {
   pending: 'bg-warning/15 text-warning',
@@ -16,11 +17,11 @@ const inquiryStatusColors: Record<SupplierInquiryStatus, string> = {
 export default function RFQDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const {
     rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateInquiryStatus,
-    getVendorName, updateRFQStatus, updateRFQ, getClientName, addVendor,
+    getVendorName, updateRFQStatus, updateRFQ, getClientName, addVendor, convertRFQToOrder,
   } = useCRM();
 
   const rfq = rfqs.find(r => r.id === id);
@@ -33,6 +34,7 @@ export default function RFQDetailPage() {
   const [showInquiryForm, setShowInquiryForm] = useState(false);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [showEditRFQ, setShowEditRFQ] = useState(false);
+  const [showConvertOrder, setShowConvertOrder] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [viewingEmailId, setViewingEmailId] = useState<string | null>(null);
 
@@ -58,6 +60,14 @@ export default function RFQDetailPage() {
     priority: rfq?.priority || 'medium' as RFQPriority,
     notes: rfq?.notes || '',
   });
+
+  const [convertForm, setConvertForm] = useState({
+    vendor_id: quotes.length > 0 ? quotes[0].vendor_id : '',
+    order_value: rfq?.estimated_value?.toString() || '',
+    product_type: 'Custom',
+    notes: '',
+  });
+  const [isConverting, setIsConverting] = useState(false);
 
   if (!rfq) {
     return (
@@ -177,6 +187,42 @@ export default function RFQDetailPage() {
     setShowEditRFQ(false);
   };
 
+  const handleConvertToOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!convertForm.vendor_id || !rfq) {
+      alert('Please select a vendor');
+      return;
+    }
+
+    try {
+      setIsConverting(true);
+      await convertRFQToOrder(rfq.id, {
+        client_id: rfq.client_id,
+        vendor_id: convertForm.vendor_id,
+        order_value: Number(convertForm.order_value),
+        product_type: convertForm.product_type,
+        cost_value: 0,
+        notes: convertForm.notes,
+        status: 'confirmed',
+        sales_person_id: user?.id || '',
+        confirmed_date: new Date().toISOString().split('T')[0],
+      });
+      setShowConvertOrder(false);
+      // Navigate to the new order
+      setTimeout(() => {
+        const newOrder = orders.find(o => o.rfq_id === rfq.id);
+        if (newOrder) {
+          navigate(`/orders/${newOrder.id}`);
+        }
+      }, 500);
+    } catch (error) {
+      console.error('Failed to convert RFQ to order:', error);
+      alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
   const cheapestQuote = quotes.length > 0
     ? quotes.reduce((min, q) => q.unit_price < min.unit_price ? q : min)
     : null;
@@ -194,6 +240,11 @@ export default function RFQDetailPage() {
           <p className="text-muted-foreground mt-1">{rfq.contact_person} · {rfq.email}</p>
         </div>
         <div className="flex items-center gap-2">
+          {rfq.status !== 'converted' && quotes.length > 0 && (
+            <button onClick={() => setShowConvertOrder(true)} className="flex items-center gap-1 px-3 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors">
+              <ShoppingCart className="w-4 h-4" /> Convert to Order
+            </button>
+          )}
           {isAdmin && (
             <button onClick={() => setShowEditRFQ(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit
@@ -677,6 +728,96 @@ export default function RFQDetailPage() {
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowEditRFQ(false)} className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Convert RFQ to Order Modal */}
+      {showConvertOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background rounded-lg shadow-lg max-w-2xl w-full">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="text-xl font-bold text-foreground">Convert RFQ to Order</h2>
+              <button onClick={() => setShowConvertOrder(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConvertToOrder} className="p-6 space-y-4">
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                <p className="text-sm font-semibold text-foreground">RFQ Details</p>
+                <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
+                  <div><span className="text-muted-foreground">Client:</span> <span className="text-foreground font-medium">{getClientName(rfq!.client_id)}</span></div>
+                  <div><span className="text-muted-foreground">Est. Value:</span> <span className="text-foreground font-medium">{formatPKR(rfq!.estimated_value)}</span></div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Select Vendor *</label>
+                <select
+                  value={convertForm.vendor_id}
+                  onChange={(e) => setConvertForm(p => ({ ...p, vendor_id: e.target.value }))}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  required
+                >
+                  <option value="">Choose a vendor...</option>
+                  {quotes.map(q => (
+                    <option key={q.vendor_id} value={q.vendor_id}>
+                      {getVendorName(q.vendor_id)} • {formatPKR(q.unit_price)}/unit
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Order Value (Rs) *</label>
+                <input
+                  type="number"
+                  value={convertForm.order_value}
+                  onChange={(e) => setConvertForm(p => ({ ...p, order_value: e.target.value }))}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Product Type</label>
+                <input
+                  type="text"
+                  value={convertForm.product_type}
+                  onChange={(e) => setConvertForm(p => ({ ...p, product_type: e.target.value }))}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Notes</label>
+                <textarea
+                  value={convertForm.notes}
+                  onChange={(e) => setConvertForm(p => ({ ...p, notes: e.target.value }))}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowConvertOrder(false)}
+                  disabled={isConverting}
+                  className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isConverting}
+                  className="flex-1 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50"
+                >
+                  {isConverting ? 'Creating Order...' : 'Create Order'}
+                </button>
               </div>
             </form>
           </div>
