@@ -204,6 +204,227 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setPaymentRecords((paymentsData ?? []) as PaymentRecord[]);
       setPayables((payablesData ?? []) as Payable[]);
       setLoading(false);
+
+      // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
+      const channel = supabase.channel('crm-changes');
+
+      // Subscribe to clients changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'clients' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setClients(prev => [...prev, payload.new as Client]);
+          } else if (payload.eventType === 'UPDATE') {
+            setClients(prev => prev.map(c => c.id === payload.new.id ? payload.new as Client : c));
+          } else if (payload.eventType === 'DELETE') {
+            setClients(prev => prev.filter(c => c.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to prospects changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prospects' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setProspects(prev => [...prev, payload.new as Prospect]);
+          } else if (payload.eventType === 'UPDATE') {
+            setProspects(prev => prev.map(p => p.id === payload.new.id ? payload.new as Prospect : p));
+          } else if (payload.eventType === 'DELETE') {
+            setProspects(prev => prev.filter(p => p.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to vendors changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vendors' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setVendors(prev => [...prev, payload.new as Vendor]);
+          } else if (payload.eventType === 'UPDATE') {
+            setVendors(prev => prev.map(v => v.id === payload.new.id ? payload.new as Vendor : v));
+          } else if (payload.eventType === 'DELETE') {
+            setVendors(prev => prev.filter(v => v.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to orders changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setOrders(prev => [payload.new as Order, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new as Order : o));
+          } else if (payload.eventType === 'DELETE') {
+            setOrders(prev => prev.filter(o => o.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to order_engineers changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_engineers' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setOrderEngineers(prev => [...prev, payload.new as OrderEngineer]);
+          } else if (payload.eventType === 'UPDATE') {
+            setOrderEngineers(prev => prev.map(oe => oe.id === payload.new.id ? payload.new as OrderEngineer : oe));
+          } else if (payload.eventType === 'DELETE') {
+            setOrderEngineers(prev => prev.filter(oe => oe.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to rfqs changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rfqs' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setRFQs(prev => [payload.new as RFQ, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setRFQs(prev => prev.map(r => r.id === payload.new.id ? payload.new as RFQ : r));
+          } else if (payload.eventType === 'DELETE') {
+            setRFQs(prev => prev.filter(r => r.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to supplier_inquiries changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'supplier_inquiries' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setSupplierInquiries(prev => [payload.new as SupplierInquiry, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setSupplierInquiries(prev => prev.map(si => si.id === payload.new.id ? payload.new as SupplierInquiry : si));
+          } else if (payload.eventType === 'DELETE') {
+            setSupplierInquiries(prev => prev.filter(si => si.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to supplier_quotes changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'supplier_quotes' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setSupplierQuotes(prev => [payload.new as SupplierQuote, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setSupplierQuotes(prev => prev.map(sq => sq.id === payload.new.id ? payload.new as SupplierQuote : sq));
+          } else if (payload.eventType === 'DELETE') {
+            setSupplierQuotes(prev => prev.filter(sq => sq.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to rfq_line_items changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rfq_line_items' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setRFQLineItems(prev => [...prev, payload.new as RFQLineItem]);
+          } else if (payload.eventType === 'UPDATE') {
+            setRFQLineItems(prev => prev.map(li => li.id === payload.new.id ? payload.new as RFQLineItem : li));
+          } else if (payload.eventType === 'DELETE') {
+            setRFQLineItems(prev => prev.filter(li => li.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to follow_up_actions changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'follow_up_actions' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setFollowUpActions(prev => [payload.new, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setFollowUpActions(prev => prev.map(fa => fa.id === payload.new.id ? payload.new : fa));
+          } else if (payload.eventType === 'DELETE') {
+            setFollowUpActions(prev => prev.filter(fa => fa.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to invoices changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'invoices' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setInvoices(prev => [payload.new as Invoice, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setInvoices(prev => prev.map(inv => inv.invoice_id === payload.new.invoice_id ? payload.new as Invoice : inv));
+          } else if (payload.eventType === 'DELETE') {
+            setInvoices(prev => prev.filter(inv => inv.invoice_id !== payload.old.invoice_id));
+          }
+        }
+      );
+
+      // Subscribe to expenses changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'expenses' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setExpenses(prev => [payload.new as Expense, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setExpenses(prev => prev.map(exp => exp.expense_id === payload.new.expense_id ? payload.new as Expense : exp));
+          } else if (payload.eventType === 'DELETE') {
+            setExpenses(prev => prev.filter(exp => exp.expense_id !== payload.old.expense_id));
+          }
+        }
+      );
+
+      // Subscribe to payment_records changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payment_records' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setPaymentRecords(prev => [payload.new as PaymentRecord, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setPaymentRecords(prev => prev.map(pr => pr.payment_id === payload.new.payment_id ? payload.new as PaymentRecord : pr));
+          } else if (payload.eventType === 'DELETE') {
+            setPaymentRecords(prev => prev.filter(pr => pr.payment_id !== payload.old.payment_id));
+          }
+        }
+      );
+
+      // Subscribe to payables changes
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payables' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            setPayables(prev => [payload.new as Payable, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setPayables(prev => prev.map(p => p.payable_id === payload.new.payable_id ? payload.new as Payable : p));
+          } else if (payload.eventType === 'DELETE') {
+            setPayables(prev => prev.filter(p => p.payable_id !== payload.old.payable_id));
+          }
+        }
+      );
+
+      // Subscribe to the channel
+      await channel.subscribe();
+
+      // Cleanup: unsubscribe when component unmounts
+      return () => {
+        supabase.removeChannel(channel);
+      };
     };
     load();
   }, []);
