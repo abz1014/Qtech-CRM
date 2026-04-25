@@ -19,9 +19,9 @@ export default function RFQDetailPage() {
   const navigate = useNavigate();
   const { isAdmin, user } = useAuth();
   const {
-    rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients,
+    rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients, users,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateInquiryStatus,
-    getVendorName, updateRFQStatus, updateRFQ, getClientName, addVendor, convertRFQToOrder,
+    getVendorName, updateRFQStatus, updateRFQ, getClientName, addVendor, convertRFQToOrder, getUserName,
   } = useCRM();
 
   const rfq = rfqs.find(r => r.id === id);
@@ -65,6 +65,7 @@ export default function RFQDetailPage() {
     vendor_id: quotes.length > 0 ? quotes[0].vendor_id : '',
     order_value: rfq?.estimated_value?.toString() || '',
     product_type: '',
+    sales_person_id: user?.id || '',
     notes: '',
   });
   const [isConverting, setIsConverting] = useState(false);
@@ -189,8 +190,8 @@ export default function RFQDetailPage() {
 
   const handleConvertToOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!convertForm.vendor_id || !rfq) {
-      alert('Please select a vendor');
+    if (!convertForm.vendor_id || !rfq || !convertForm.sales_person_id) {
+      alert('Please select a vendor and sales person');
       return;
     }
 
@@ -204,7 +205,7 @@ export default function RFQDetailPage() {
         cost_value: 0,
         notes: convertForm.notes,
         status: 'confirmed',
-        sales_person_id: user?.id || '',
+        sales_person_id: convertForm.sales_person_id,
         confirmed_date: new Date().toISOString().split('T')[0],
       });
       setShowConvertOrder(false);
@@ -767,6 +768,21 @@ export default function RFQDetailPage() {
                     <option key={q.vendor_id} value={q.vendor_id}>
                       {getVendorName(q.vendor_id)} • {formatPKR(q.unit_price)}/unit
                     </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Assign to Sales Person *</label>
+                <select
+                  value={convertForm.sales_person_id}
+                  onChange={(e) => setConvertForm(p => ({ ...p, sales_person_id: e.target.value }))}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  required
+                >
+                  <option value="">Choose a sales person...</option>
+                  {users.filter(u => u.role === 'sales' || u.role === 'admin').map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
                   ))}
                 </select>
               </div>
