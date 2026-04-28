@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { Loader } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CRMProvider } from "@/contexts/CRMContext";
 import { AppLayout } from "@/components/AppLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -26,6 +27,30 @@ import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Protected route wrapper that shows loading during auth initialization
+function ProtectedRoutes() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="flex flex-col items-center gap-4">
+          <Loader className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return (
+    <AppLayout />
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -35,8 +60,8 @@ const App = () => (
         <CRMProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<LoginPage />} />
-              <Route element={<AppLayout />}>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route element={<ProtectedRoutes />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/clients" element={<ClientsPage />} />
                 <Route path="/clients/:id" element={<ClientDetailPage />} />

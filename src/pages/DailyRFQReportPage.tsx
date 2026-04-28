@@ -89,6 +89,16 @@ export function DailyRFQReportPage() {
     return { notFloated, floated, responded, converted };
   }, [filteredRFQs, supplierInquiries, supplierQuotes]);
 
+  // Sanitize cell values to prevent CSV formula injection
+  const sanitizeCSVCell = (cell: any): string => {
+    const str = String(cell ?? '');
+    // Escape cells that start with =, +, @, or - (formula injection risk)
+    if (str.match(/^[=+@\-]/)) {
+      return `'${str}`;
+    }
+    return str;
+  };
+
   const handleExport = (format: 'csv' | 'pdf') => {
     if (format === 'csv') {
       const headers = ['RFQ ID', 'Client', 'Status', 'Priority', 'Date', 'Value', 'Inquiries Sent', 'Responses'];
@@ -103,7 +113,15 @@ export function DailyRFQReportPage() {
         supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length,
       ]);
 
-      const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+      // Sanitize all cells to prevent formula injection
+      const sanitizedRows = rows.map(row =>
+        row.map(cell => sanitizeCSVCell(cell))
+      );
+
+      const csv = [headers, ...sanitizedRows]
+        .map(row => row.map(cell => `"${cell}"`).join(','))
+        .join('\n');
+
       const element = document.createElement('a');
       element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
       element.setAttribute('download', `rfq-report-${today}.csv`);

@@ -5,7 +5,8 @@
       "mcp__Claude_in_Chrome__tabs_context_mcp",
       "Bash(cat)",
       "Read(//tmp/**)",
-      "Bash(grep -n \"^    </div>$\" src/pages/RFQDetailPage.tsx)"
+      "Bash(grep -n \"^    </div>$\" src/pages/RFQDetailPage.tsx)",
+      "Bash(git add *)"
     ]
   }
 }
