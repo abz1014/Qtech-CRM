@@ -18,47 +18,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Check if user is already logged in on mount
+  // Listen for auth state changes — fires immediately with current session on mount
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        // Get current session from Supabase Auth
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          setLoading(false);
-          return;
-        }
-
-        if (session?.user) {
-          // Fetch user profile from users table
-          const { data: userProfile, error: profileError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          if (profileError) {
-            console.error('Profile fetch error:', profileError);
-            setLoading(false);
-            return;
-          }
-
-          if (userProfile) {
-            setUser(userProfile as User);
-          }
-        }
-      } catch (err) {
-        console.error('Auth initialization error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initAuth();
-
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
@@ -69,12 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .eq('id', session.user.id)
             .maybeSingle();
 
-          if (userProfile) {
-            setUser(userProfile as User);
-          }
+          setUser((userProfile as User) ?? null);
         } else {
           setUser(null);
         }
+        // Always clear loading after first auth event
+        setLoading(false);
       }
     );
 
