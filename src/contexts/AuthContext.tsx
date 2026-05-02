@@ -20,16 +20,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Listen for auth state changes — fires immediately with current session on mount
   useEffect(() => {
+    let mounted = true;
+
+    // Hard fallback: if onAuthStateChange never resolves, clear loading after 6s
+    const fallbackTimer = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth fallback timer fired – clearing loading state');
+        setLoading(false);
+      }
+    }, 6000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
         try {
           if (session?.user) {
-            // Fetch user profile from users table
-            const { data: userProfile, error } = await supabase
+            // Fetch user profile from users table with a 5s timeout race
+            const profilePromise = supabase
               .from('users')
               .select('*')
               .eq('id', session.user.id)
               .maybeSingle();
+
+            const timeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+            );
+
+            const { data: userProfile, error } = await Promise.race([
+              profilePromise,
+              timeoutPromise,
+            ]) as Awaited<typeof profilePromise>;
+
+            if (!mounted) return;
 
             if (error) {
               console.error('Profile fetch error:', error);
@@ -38,19 +60,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setUser((userProfile as User) ?? null);
             }
           } else {
-            setUser(null);
+            if (mounted) setUser(null);
           }
         } catch (err) {
           console.error('Auth error:', err);
-          setUser(null);
+          if (mounted) setUser(null);
         } finally {
-          // Always clear loading after first auth event
-          setLoading(false);
+          clearTimeout(fallbackTimer);
+          if (mounted) setLoading(false);
         }
       }
     );
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(fallbackTimer);
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
