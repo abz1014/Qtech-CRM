@@ -23,6 +23,7 @@ export default function RFQDetailPage() {
     rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients, users,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateInquiryStatus,
     getVendorName, updateRFQStatus, updateRFQ, getClientName, addVendor, convertRFQToOrder, getUserName,
+    getFollowUpsForEntity,
   } = useCRM();
 
   const rfq = rfqs.find(r => r.id === id);
@@ -58,6 +59,7 @@ export default function RFQDetailPage() {
     email: rfq?.email || '',
     rfq_date: rfq?.rfq_date || '',
     priority: rfq?.priority || 'medium' as RFQPriority,
+    status: rfq?.status || 'new' as RFQStatus,
     notes: rfq?.notes || '',
   });
 
@@ -175,6 +177,20 @@ export default function RFQDetailPage() {
 
   const handleEditRFQ = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // "No open action" guard: warn when marking RFQ as in_progress with no follow-up scheduled
+    const statusChangingToInProgress = editForm.status === 'in_progress' && rfq?.status !== 'in_progress';
+    if (statusChangingToInProgress && id) {
+      const existingActions = await getFollowUpsForEntity('rfq', id);
+      const hasOpenAction = existingActions.some(a => a.status === 'pending');
+      if (!hasOpenAction) {
+        const proceed = confirm(
+          '⚠️ No follow-up action is scheduled for this RFQ.\n\nIt\'s recommended to add a follow-up before marking as "In Progress" so no opportunity is missed.\n\nContinue without a follow-up?'
+        );
+        if (!proceed) return;
+      }
+    }
+
     await updateRFQ(id!, {
       company_name: editForm.company_name,
       contact_person: editForm.contact_person,
@@ -184,6 +200,7 @@ export default function RFQDetailPage() {
       estimated_value: 0,
       priority: editForm.priority,
       notes: editForm.notes,
+      status: editForm.status,
     });
     setShowEditRFQ(false);
   };
@@ -705,6 +722,16 @@ export default function RFQDetailPage() {
                 <label className="block text-sm font-medium text-foreground mb-1">RFQ Date</label>
                 <input type="date" value={editForm.rfq_date} onChange={e => setEditForm(p => ({ ...p, rfq_date: e.target.value }))}
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Status</label>
+                <select value={editForm.status} onChange={e => setEditForm(p => ({ ...p, status: e.target.value as RFQStatus }))}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+                  <option value="new">New</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="quoted">Quoted</option>
+                  <option value="lost">Lost</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Priority</label>

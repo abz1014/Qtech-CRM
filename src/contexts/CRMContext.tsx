@@ -128,10 +128,13 @@ interface CRMContextType {
     assigned_to?: string;
   }) => Promise<any>;
   getPendingFollowUps: (userId?: string) => Promise<any[]>;
-  completeFollowUp: (followUpId: string) => Promise<void>;
+  getAllFollowUps: () => Promise<any[]>;
+  completeFollowUp: (followUpId: string, outcomeNote?: string) => Promise<void>;
+  snoozeFollowUp: (followUpId: string, newDueDate: string) => Promise<void>;
   deleteFollowUp: (followUpId: string) => Promise<void>;
   getOverdueFollowUps: () => Promise<any[]>;
   getFollowUpsForEntity: (entityType: string, entityId: string) => Promise<any[]>;
+  getUserWorkload: (userId: string) => Promise<number>;
 }
 
 const CRMContext = createContext<CRMContextType | null>(null);
@@ -1461,6 +1464,52 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Snooze: push due_date to a later date, action resurfaces then
+  const snoozeFollowUp = useCallback(async (followUpId: string, newDueDate: string) => {
+    try {
+      const { error } = await supabase
+        .from('follow_up_actions')
+        .update({ due_date: newDueDate, status: 'pending' })
+        .eq('id', followUpId);
+      if (error) throw error;
+      setFollowUpActions(prev => prev.map(fa =>
+        fa.id === followUpId ? { ...fa, due_date: newDueDate } : fa
+      ));
+    } catch (err) {
+      console.error('Error snoozing follow-up:', err);
+    }
+  }, []);
+
+  // Get ALL pending actions regardless of user (for admin oversight)
+  const getAllFollowUps = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('follow_up_actions')
+        .select('*')
+        .eq('status', 'pending')
+        .order('due_date', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Count open actions for a user (for workload indicator)
+  const getUserWorkload = useCallback(async (userId: string): Promise<number> => {
+    try {
+      const { count, error } = await supabase
+        .from('follow_up_actions')
+        .select('*', { count: 'exact', head: true })
+        .eq('assigned_to', userId)
+        .eq('status', 'pending');
+      if (error) return 0;
+      return count ?? 0;
+    } catch {
+      return 0;
+    }
+  }, []);
+
   const deleteFollowUp = useCallback(async (followUpId: string) => {
     try {
       const { error } = await supabase
@@ -1533,7 +1582,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       getCashflowStatement, getARAgingBuckets, getAPAgingBuckets, getNextInvoiceNumber,
       updateOrderCosts, getOrderWithProfitability, getOrdersWithProfitability, getProfitabilityMetrics,
       getQuotesForRFQ, calculateValueScore, updateQuoteRecommendation, getRecommendedQuote,
-      createFollowUp, getPendingFollowUps, completeFollowUp, deleteFollowUp, getOverdueFollowUps, getFollowUpsForEntity,
+      createFollowUp, getPendingFollowUps, getAllFollowUps, completeFollowUp, snoozeFollowUp,
+      deleteFollowUp, getOverdueFollowUps, getFollowUpsForEntity, getUserWorkload,
     }}>
       {children}
     </CRMContext.Provider>

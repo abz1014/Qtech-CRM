@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { X, Link2 } from 'lucide-react';
+import { X, Link2, AlertTriangle } from 'lucide-react';
 
 export type EntityType = 'rfq' | 'order' | 'client' | 'prospect' | 'vendor';
 
@@ -62,9 +62,17 @@ function addDays(days: number) {
 }
 
 export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: FollowUpFormProps) {
-  const { createFollowUp } = useCRM();
+  const { createFollowUp, getUserWorkload } = useCRM();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [workload, setWorkload] = useState<number | null>(null);
+
+  // Load current user's workload on mount
+  useEffect(() => {
+    if (user?.id) {
+      getUserWorkload(user.id).then(setWorkload);
+    }
+  }, [user?.id]);
 
   const resolvedEntityType: EntityType = entityType || 'rfq';
   const actionTypes = ACTION_TYPES_BY_ENTITY[resolvedEntityType];
@@ -131,6 +139,26 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
               <p className="text-xs text-muted-foreground capitalize">{resolvedEntityType}</p>
               <p className="text-sm font-medium text-primary">{entityLabel}</p>
             </div>
+          </div>
+        )}
+
+        {/* Workload indicator — warn if user already has many open actions */}
+        {workload !== null && workload >= 5 && (
+          <div className={`flex items-start gap-2 px-3 py-2 rounded-lg mb-2 border ${
+            workload >= 10
+              ? 'bg-red-500/10 border-red-500/30 text-red-600'
+              : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-700'
+          }`}>
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <p className="text-xs">
+              <span className="font-semibold">
+                {workload >= 10 ? 'High load: ' : 'Heads up: '}
+              </span>
+              You already have <span className="font-bold">{workload} open actions</span>.
+              {workload >= 10
+                ? ' Consider completing some before adding more.'
+                : ' Make sure this is a priority.'}
+            </p>
           </div>
         )}
 
