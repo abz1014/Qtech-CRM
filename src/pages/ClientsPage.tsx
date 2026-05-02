@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -112,7 +112,7 @@ export default function ClientsPage() {
               const clientRFQs = getClientRFQs(c.id);
               const isExpanded = expandedClient === c.id;
               return (
-                <>
+                <Fragment key={c.id}>
                   <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer">
                     <td className="px-5 py-3 text-sm font-medium text-foreground">{c.company_name}</td>
                     <td className="px-5 py-3 text-sm text-muted-foreground">{c.industry}</td>
@@ -159,7 +159,7 @@ export default function ClientsPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>

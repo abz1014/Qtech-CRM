@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Edit2, X } from 'lucide-react';
 
 export default function ClientDetailPage() {
@@ -12,6 +12,7 @@ export default function ClientDetailPage() {
 
   const client = clients.find(c => c.id === id);
   const [showEdit, setShowEdit] = useState(false);
+  const [editError, setEditError] = useState('');
   const [editForm, setEditForm] = useState({
     company_name: client?.company_name || '',
     industry: client?.industry || '',
@@ -20,6 +21,20 @@ export default function ClientDetailPage() {
     email: client?.email || '',
     address: client?.address || '',
   });
+
+  // Sync editForm when client data loads (e.g. direct URL navigation while data loads)
+  useEffect(() => {
+    if (client) {
+      setEditForm({
+        company_name: client.company_name || '',
+        industry: client.industry || '',
+        contact_person: client.contact_person || '',
+        phone: client.phone || '',
+        email: client.email || '',
+        address: client.address || '',
+      });
+    }
+  }, [client]);
 
   if (!client) {
     return (
@@ -32,15 +47,20 @@ export default function ClientDetailPage() {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateClient(id!, {
-      company_name: editForm.company_name,
-      industry: editForm.industry,
-      contact_person: editForm.contact_person,
-      phone: editForm.phone,
-      email: editForm.email,
-      address: editForm.address,
-    });
-    setShowEdit(false);
+    setEditError('');
+    try {
+      await updateClient(id!, {
+        company_name: editForm.company_name,
+        industry: editForm.industry,
+        contact_person: editForm.contact_person,
+        phone: editForm.phone,
+        email: editForm.email,
+        address: editForm.address,
+      });
+      setShowEdit(false);
+    } catch (err) {
+      setEditError('Failed to update client. Please try again.');
+    }
   };
 
   return (

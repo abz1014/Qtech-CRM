@@ -29,6 +29,7 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -43,7 +44,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     const ok = await login(data.email, data.password);
     if (!ok) {
-      // Error is handled by form state in login function
+      setError('root', { message: 'Invalid email or password. Please try again.' });
     }
   };
 
@@ -111,6 +112,13 @@ export default function LoginPage() {
               {isSubmitting && <Loader className="w-4 h-4 animate-spin" />}
               Sign In
             </button>
+
+            {errors.root && (
+              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {errors.root.message}
+              </div>
+            )}
 
             {isSubmitting && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">

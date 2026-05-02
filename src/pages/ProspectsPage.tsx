@@ -118,7 +118,7 @@ export default function ProspectsPage() {
                 <td className="px-5 py-3 text-sm text-foreground">{getUserName(p.assigned_to)}</td>
                 <td className="px-5 py-3 flex gap-2">
                   <button
-                    onClick={() => convertProspect(p.id, user?.id ?? '')}
+                    onClick={(e) => { e.stopPropagation(); convertProspect(p.id, user?.id ?? ''); }}
                     className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
                     title="Convert to Client"
                   >

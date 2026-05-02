@@ -108,7 +108,7 @@ export function DailyRFQReportPage() {
         rfq.status,
         rfq.priority,
         rfq.rfq_date,
-        `Rs ${rfq.estimated_value.toLocaleString('en-PK')}`,
+        `Rs ${(rfq.estimated_value ?? 0).toLocaleString('en-PK')}`,
         supplierInquiries.filter(si => si.rfq_id === rfq.id).length,
         supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length,
       ]);

@@ -39,7 +39,7 @@ export default function DashboardPage() {
     .reduce((s, o) => s + o.order_value, 0);
 
   const confirmedThisMonth = orders.filter(o => {
-    if (o.status !== 'confirmed' && o.confirmed_date === null) return false;
+    if (o.status !== 'confirmed') return false;
     if (!o.confirmed_date) return false;
     const d = new Date(o.confirmed_date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -51,7 +51,7 @@ export default function DashboardPage() {
   }).length;
 
   const totalRevenue = orders.reduce((s, o) => s + o.order_value, 0);
-  const totalProfit = orders.reduce((s, o) => s + (o.order_value - o.cost_value), 0);
+  const totalProfit = orders.reduce((s, o) => s + (o.order_value - (o.cost_value || 0)), 0);
 
   // Top clients by RFQ count
   const rfqCountByClient: Record<string, number> = {};
