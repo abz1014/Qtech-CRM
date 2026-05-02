@@ -56,14 +56,13 @@ export default function RFQDetailPage() {
     phone: rfq?.phone || '',
     email: rfq?.email || '',
     rfq_date: rfq?.rfq_date || '',
-    estimated_value: rfq?.estimated_value?.toString() || '',
     priority: rfq?.priority || 'medium' as RFQPriority,
     notes: rfq?.notes || '',
   });
 
   const [convertForm, setConvertForm] = useState({
     vendor_id: quotes.length > 0 ? quotes[0].vendor_id : '',
-    order_value: rfq?.estimated_value?.toString() || '',
+    order_value: '',
     product_type: '',
     sales_person_id: user?.id || '',
     notes: '',
@@ -181,7 +180,7 @@ export default function RFQDetailPage() {
       phone: editForm.phone,
       email: editForm.email,
       rfq_date: editForm.rfq_date,
-      estimated_value: Number(editForm.estimated_value),
+      estimated_value: 0,
       priority: editForm.priority,
       notes: editForm.notes,
     });
@@ -256,7 +255,6 @@ export default function RFQDetailPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'RFQ Date', value: formatDate(rfq.rfq_date) },
-          { label: 'Est. Value', value: formatPKR(rfq.estimated_value) },
           { label: 'Inquiries Sent', value: inquiries.length },
           { label: 'Quotes Received', value: quotes.length },
         ].map(kpi => (
@@ -703,11 +701,6 @@ export default function RFQDetailPage() {
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Estimated Value (PKR)</label>
-                <input type="number" value={editForm.estimated_value} onChange={e => setEditForm(p => ({ ...p, estimated_value: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Priority</label>
                 <select value={editForm.priority} onChange={e => setEditForm(p => ({ ...p, priority: e.target.value as RFQPriority }))}
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
@@ -746,7 +739,6 @@ export default function RFQDetailPage() {
                 <p className="text-sm font-semibold text-foreground">RFQ Details</p>
                 <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
                   <div><span className="text-muted-foreground">Client:</span> <span className="text-foreground font-medium">{getClientName(rfq!.client_id)}</span></div>
-                  <div><span className="text-muted-foreground">Est. Value:</span> <span className="text-foreground font-medium">{formatPKR(rfq!.estimated_value)}</span></div>
                 </div>
               </div>
 

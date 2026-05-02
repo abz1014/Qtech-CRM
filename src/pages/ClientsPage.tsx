@@ -151,7 +151,6 @@ export default function ClientsPage() {
                             <div key={rfq.id} className="flex items-center gap-4 text-sm p-2 bg-card rounded">
                               <span className="text-foreground flex-1">{rfq.notes || 'No description'}</span>
                               <span className="text-muted-foreground">{formatDate(rfq.rfq_date)}</span>
-                              <span className="text-foreground">{formatPKR(rfq.estimated_value)}</span>
                               <span className={`status-badge capitalize ${rfqStatusColors[rfq.status]}`}>{rfq.status.replace('_', ' ')}</span>
                             </div>
                           ))}

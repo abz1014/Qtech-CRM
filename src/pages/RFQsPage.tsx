@@ -42,7 +42,7 @@ export default function RFQsPage() {
 
   const [form, setForm] = useState({
     client_id: '', company_name: '', contact_person: '', phone: '', email: '',
-    rfq_date: '', estimated_value: '', assigned_to: user?.id ?? '',
+    rfq_date: '', assigned_to: user?.id ?? '',
     priority: 'medium' as RFQPriority, status: 'new' as RFQStatus, notes: '',
   });
 
@@ -69,12 +69,11 @@ export default function RFQsPage() {
   );
 
   const handleExportCSV = () => {
-    const headers = ['Company', 'Contact', 'RFQ Date', 'Est. Value (PKR)', 'Status', 'Priority', 'Assigned To', 'Description'];
+    const headers = ['Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To', 'Description'];
     const rows = filtered.map(r => [
       r.company_name,
       r.contact_person,
       r.rfq_date,
-      r.estimated_value,
       r.status,
       r.priority,
       getUserName(r.assigned_to),
@@ -103,10 +102,10 @@ export default function RFQsPage() {
     e.preventDefault();
     addRFQ({
       ...form,
-      estimated_value: Number(form.estimated_value),
+      estimated_value: 0,
     });
     setShowForm(false);
-    setForm({ client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', estimated_value: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '' });
+    setForm({ client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '' });
   };
 
   const handleDelete = async (rfqId: string) => {
@@ -176,7 +175,7 @@ export default function RFQsPage() {
         vendor_id: vendorId,
         sales_person_id: rfq.assigned_to,
         product_type: convertForm.product_type.trim(),
-        order_value: rfq.estimated_value,
+        order_value: 0,
         cost_value: Number(convertForm.cost_value) || 0,
         status: 'quotation',
         notes: convertForm.notes || rfq.notes,
@@ -231,7 +230,7 @@ export default function RFQsPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              {['Company', 'Contact', 'RFQ Date', 'Est. Value', 'Status', 'Priority', 'Assigned To', 'Actions'].map(h => (
+              {['Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To', 'Actions'].map(h => (
                 <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
               ))}
             </tr>
@@ -242,7 +241,6 @@ export default function RFQsPage() {
                 <td className="px-5 py-3 text-sm font-medium text-foreground">{rfq.company_name}</td>
                 <td className="px-5 py-3 text-sm text-foreground">{rfq.contact_person}</td>
                 <td className="px-5 py-3 text-sm text-muted-foreground">{formatDate(rfq.rfq_date)}</td>
-                <td className="px-5 py-3 text-sm text-foreground">{formatPKR(rfq.estimated_value)}</td>
                 <td className="px-5 py-3">
                   <span className={`status-badge capitalize ${rfqStatusColors[rfq.status]}`}>{rfq.status.replace('_', ' ')}</span>
                 </td>
@@ -389,11 +387,6 @@ export default function RFQsPage() {
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Estimated Value (PKR)</label>
-                <input type="number" value={form.estimated_value} onChange={e => setForm(p => ({ ...p, estimated_value: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Assigned To</label>
                 <select value={form.assigned_to} onChange={e => setForm(p => ({ ...p, assigned_to: e.target.value }))}
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required>
@@ -441,7 +434,6 @@ export default function RFQsPage() {
                 <form onSubmit={handleConvert} className="space-y-3">
                   <div className="p-3 bg-muted/50 rounded-lg space-y-1 text-sm">
                     <div className="flex justify-between"><span className="text-muted-foreground">Client</span><span className="text-foreground font-medium">{rfq.company_name}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Est. Value</span><span className="text-foreground font-medium">{formatPKR(rfq.estimated_value)}</span></div>
                   </div>
                   {(() => {
                     const q = vendorQuery.trim().toLowerCase();
