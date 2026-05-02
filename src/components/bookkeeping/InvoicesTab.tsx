@@ -56,8 +56,8 @@ export function InvoicesTab() {
     }
   };
 
-  const totalRevenue = filtered.reduce((sum, inv) => sum + inv.invoice_amount, 0);
-  const totalPaid = filtered.reduce((sum, inv) => sum + inv.amount_paid, 0);
+  const totalRevenue = filtered.reduce((sum, inv) => sum + (inv.invoice_amount ?? 0), 0);
+  const totalPaid = filtered.reduce((sum, inv) => sum + (inv.amount_paid ?? 0), 0);
   const outstanding = totalRevenue - totalPaid;
 
   return (
@@ -149,7 +149,7 @@ export function InvoicesTab() {
           </thead>
           <tbody>
             {paginatedInvoices.map(inv => {
-              const balance = inv.invoice_amount - inv.amount_paid;
+              const balance = (inv.invoice_amount ?? 0) - (inv.amount_paid ?? 0);
               return (
                 <tr key={inv.invoice_id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                   <td className="px-5 py-3 text-sm font-medium text-foreground">{inv.invoice_number}</td>
@@ -160,7 +160,7 @@ export function InvoicesTab() {
                   <td className="px-5 py-3 text-sm text-muted-foreground">{inv.issued_date}</td>
                   <td className="px-5 py-3 text-sm text-muted-foreground">{inv.due_date}</td>
                   <td className="px-5 py-3">
-                    <span className={cn('px-2 py-1 rounded-full text-xs font-medium', STATUS_COLORS[inv.payment_status])}>
+                    <span className={cn('px-2 py-1 rounded-full text-xs font-medium', STATUS_COLORS[inv.payment_status] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200')}>
                       {inv.payment_status}
                     </span>
                   </td>

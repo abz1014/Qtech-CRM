@@ -52,11 +52,11 @@ export function ExpensesTab() {
     }
   };
 
-  const totalExpenses = filtered.reduce((sum, exp) => sum + exp.amount, 0);
+  const totalExpenses = filtered.reduce((sum, exp) => sum + (exp.amount ?? 0), 0);
   const byCategory = Array.from(
     filtered.reduce((map, exp) => {
       const current = map.get(exp.category) || 0;
-      map.set(exp.category, current + exp.amount);
+      map.set(exp.category, current + (exp.amount ?? 0));
       return map;
     }, new Map<string, number>())
   ).sort((a, b) => b[1] - a[1]);
@@ -138,7 +138,7 @@ export function ExpensesTab() {
               <tr key={exp.expense_id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                 <td className="px-5 py-3 text-sm text-muted-foreground">{exp.date}</td>
                 <td className="px-5 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${CATEGORY_COLORS[exp.category as ExpenseCategory]}`}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${CATEGORY_COLORS[exp.category as ExpenseCategory] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'}`}>
                     {exp.category}
                   </span>
                 </td>

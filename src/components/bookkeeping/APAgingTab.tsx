@@ -67,10 +67,11 @@ export function APAgingTab() {
                             style: 'currency',
                             currency: 'PKR',
                             minimumFractionDigits: 0,
-                          }).format(inv.invoice_amount - inv.amount_paid)}
+                          }).format((inv.invoice_amount ?? 0) - (inv.amount_paid ?? 0))}
                         </span>
                       </div>
                       <p className="text-muted-foreground">
+                        {/* client_id holds vendor_id in the AP aging mock invoice object */}
                         {getVendorName(inv.client_id)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">Due: {inv.due_date}</p>

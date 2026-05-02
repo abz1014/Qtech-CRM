@@ -51,7 +51,7 @@ export function ARTab() {
                       <div className="flex justify-between items-start mb-1">
                         <span className="font-medium text-foreground">{inv.invoice_number}</span>
                         <span className="font-bold text-foreground">
-                          {new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', minimumFractionDigits: 0 }).format(inv.invoice_amount - inv.amount_paid)}
+                          {new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', minimumFractionDigits: 0 }).format((inv.invoice_amount ?? 0) - (inv.amount_paid ?? 0))}
                         </span>
                       </div>
                       <p className="text-muted-foreground">{getClientName(inv.client_id)}</p>

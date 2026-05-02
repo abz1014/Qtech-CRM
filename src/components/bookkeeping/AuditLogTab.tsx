@@ -133,7 +133,11 @@ export function AuditLogTab() {
       }
     });
 
-    return entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return entries.sort((a, b) => {
+      const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return (isNaN(tb) ? 0 : tb) - (isNaN(ta) ? 0 : ta);
+    });
   }, [invoices, expenses, payables, users, getUserName]);
 
   // Filter
@@ -164,7 +168,7 @@ export function AuditLogTab() {
       entry.entity_name,
       entry.action,
       entry.user_name,
-      new Date(entry.timestamp).toLocaleString('en-PK'),
+      entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-PK') : '-',
       entry.field_changed || '-',
     ]);
     const csv = generateCSV(headers, rows);
@@ -289,7 +293,7 @@ export function AuditLogTab() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{entry.user_name}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {new Date(entry.timestamp).toLocaleString('en-PK')}
+                    {entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-PK') : '-'}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{entry.field_changed || '-'}</td>
                 </tr>

@@ -355,7 +355,7 @@ export function DashboardTab() {
               <Tooltip
                 contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151' }}
                 labelStyle={{ color: '#f3f4f6' }}
-                formatter={(value: any) => `Rs ${value.toLocaleString('en-PK')}`}
+                formatter={(value: any) => `Rs ${Number(value || 0).toLocaleString('en-PK')}`}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -373,7 +373,7 @@ export function DashboardTab() {
             <Tooltip
               contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151' }}
               labelStyle={{ color: '#f3f4f6' }}
-              formatter={(value: any) => `Rs ${value.toLocaleString('en-PK')}`}
+              formatter={(value: any) => `Rs ${Number(value || 0).toLocaleString('en-PK')}`}
             />
             <Legend />
             <Bar dataKey="revenue" fill="#10b981" name="Revenue" />

@@ -896,9 +896,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const outstandingAR = outstandingInvoices.reduce((sum, inv) => sum + (inv.invoice_amount - inv.amount_paid), 0);
 
     // Overdue metrics
-    const overdueInvoices = invoices.filter(inv =>
-      inv.payment_status !== 'Paid' && new Date(inv.due_date) < now
-    );
+    const overdueInvoices = invoices.filter(inv => {
+      if (inv.payment_status === 'Paid' || !inv.due_date) return false;
+      const d = new Date(inv.due_date);
+      return !isNaN(d.getTime()) && d < now;
+    });
     const overdueAmount = overdueInvoices.reduce((sum, inv) => sum + (inv.invoice_amount - inv.amount_paid), 0);
 
     return {
@@ -995,11 +997,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     ];
 
     pending.forEach(inv => {
-      const daysOverdue = Math.floor((now.getTime() - new Date(inv.due_date).getTime()) / (1000 * 60 * 60 * 24));
-      const outstanding = inv.invoice_amount - inv.amount_paid;
+      const dueDateMs = inv.due_date ? new Date(inv.due_date).getTime() : NaN;
+      const daysOverdue = isNaN(dueDateMs) ? 0 : Math.floor((now.getTime() - dueDateMs) / (1000 * 60 * 60 * 24));
+      const outstanding = (inv.invoice_amount ?? 0) - (inv.amount_paid ?? 0);
       let bucketIndex = 0;
 
-      if (daysOverdue < 0) {
+      if (isNaN(dueDateMs) || daysOverdue < 0) {
         bucketIndex = 0; // Not yet due
       } else if (daysOverdue <= 30) {
         bucketIndex = 1;
@@ -1105,11 +1108,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     ];
 
     pending.forEach(payable => {
-      const daysOverdue = Math.floor((now.getTime() - new Date(payable.due_date).getTime()) / (1000 * 60 * 60 * 24));
-      const outstanding = payable.amount - payable.amount_paid;
+      const dueDateMs = payable.due_date ? new Date(payable.due_date).getTime() : NaN;
+      const daysOverdue = isNaN(dueDateMs) ? 0 : Math.floor((now.getTime() - dueDateMs) / (1000 * 60 * 60 * 24));
+      const outstanding = (payable.amount ?? 0) - (payable.amount_paid ?? 0);
       let bucketIndex = 0;
 
-      if (daysOverdue < 0) {
+      if (isNaN(dueDateMs) || daysOverdue < 0) {
         bucketIndex = 0; // Not yet due
       } else if (daysOverdue <= 30) {
         bucketIndex = 1;

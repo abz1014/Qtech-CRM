@@ -42,7 +42,7 @@ export function ReportsTab() {
   const exportProjects = () => {
     const headers = ['Project', 'Client', 'Revenue', 'Cost', 'Profit', 'Margin %'];
     const rows = projectsData.map(p => [
-      p.rfq_number || p.rfq_id,
+      p.rfq_number ?? p.rfq_id ?? '',
       p.client_name,
       p.total_revenue,
       p.total_expenses,

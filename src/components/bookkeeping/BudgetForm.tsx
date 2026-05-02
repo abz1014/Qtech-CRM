@@ -143,7 +143,7 @@ export function BudgetForm({ onClose, onSuccess, userId }: BudgetFormProps) {
               type="number"
               step="0.01"
               min="0"
-              {...register('expected_amount', { required: true, min: 0.01 })}
+              {...register('expected_amount', { required: true, valueAsNumber: true, min: 0.01 })}
               className="w-full px-3 py-2 bg-muted border border-border rounded text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="0.00"
             />

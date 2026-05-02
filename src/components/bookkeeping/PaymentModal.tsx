@@ -98,6 +98,7 @@ export function PaymentModal({ invoice, onClose, onSuccess }: PaymentModalProps)
               type="number"
               {...register('amount', {
                 required: 'Amount is required',
+                valueAsNumber: true,
                 min: { value: 1, message: 'Amount must be greater than 0' },
                 max: {
                   value: remainingAmount,

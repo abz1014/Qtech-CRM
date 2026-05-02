@@ -135,6 +135,7 @@ export function PayablePaymentModal({
               max={remaining}
               {...register('amount', {
                 required: true,
+                valueAsNumber: true,
                 min: 0.01,
                 max: remaining,
               })}

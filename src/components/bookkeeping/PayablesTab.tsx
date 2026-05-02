@@ -42,8 +42,8 @@ export function PayablesTab() {
 
   // Summary
   const summary = useMemo(() => {
-    const total = filteredPayables.reduce((sum, p) => sum + p.amount, 0);
-    const paid = filteredPayables.reduce((sum, p) => sum + p.amount_paid, 0);
+    const total = filteredPayables.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+    const paid = filteredPayables.reduce((sum, p) => sum + (p.amount_paid ?? 0), 0);
     const outstanding = total - paid;
 
     return { total, paid, outstanding };
@@ -203,7 +203,7 @@ export function PayablesTab() {
           <tbody>
             {paginatedPayables.length > 0 ? (
               paginatedPayables.map(payable => {
-                const outstanding = payable.amount - payable.amount_paid;
+                const outstanding = (payable.amount ?? 0) - (payable.amount_paid ?? 0);
                 return (
                   <tr key={payable.payable_id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 text-foreground font-medium">

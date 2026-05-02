@@ -89,7 +89,7 @@ export function InvoiceForm({ onClose, onSuccess }: InvoiceFormProps) {
                 const client = clients.find(c => c.id === o.client_id);
                 return (
                   <option key={o.id} value={o.id}>
-                    Order #{o.id.slice(0, 8)} - {client?.company_name}
+                    Order #{o.id.slice(0, 8)} - {client?.company_name ?? 'Unknown Client'}
                   </option>
                 );
               })}
@@ -117,6 +117,7 @@ export function InvoiceForm({ onClose, onSuccess }: InvoiceFormProps) {
               type="number"
               {...register('invoice_amount', {
                 required: 'Amount is required',
+                valueAsNumber: true,
                 min: { value: 1, message: 'Amount must be greater than 0' },
               })}
               placeholder="100000"

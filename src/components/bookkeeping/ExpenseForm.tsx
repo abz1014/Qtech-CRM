@@ -113,6 +113,7 @@ export function ExpenseForm({ onClose, onSuccess }: ExpenseFormProps) {
               type="number"
               {...register('amount', {
                 required: 'Amount is required',
+                valueAsNumber: true,
                 min: { value: 1, message: 'Amount must be greater than 0' },
               })}
               placeholder="50000"
