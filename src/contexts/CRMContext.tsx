@@ -448,8 +448,20 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const addProspect = useCallback(async (p: Omit<Prospect, 'id' | 'converted_client_id'>) => {
     const { data } = await supabase.from('prospects').insert({ ...p, converted_client_id: null }).select().single();
-    if (data) setProspects(prev => [...prev, data as Prospect]);
-  }, []);
+    if (data) {
+      setProspects(prev => [...prev, data as Prospect]);
+      // Auto-trigger: new prospect → schedule initial outreach
+      autoFollowUp({
+        title: `Initial outreach to ${p.company_name}`,
+        action_type: 'rfq_followup',
+        entity_type: 'prospect',
+        entity_id: data.id,
+        assigned_to: p.assigned_to as string ?? null,
+        priority: p.status === 'hot' ? 'high' : 'medium',
+        daysFromNow: 1,
+      });
+    }
+  }, [autoFollowUp]);
 
   const addVendor = useCallback(async (v: Omit<Vendor, 'id'>): Promise<Vendor> => {
     const { data, error } = await supabase.from('vendors').insert(v).select().single();
@@ -508,8 +520,34 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const updates: Partial<Order> = { status };
     if (status === 'confirmed') updates.confirmed_date = new Date().toISOString().split('T')[0];
     const { data } = await supabase.from('orders').update(updates).eq('id', orderId).select().single();
-    if (data) setOrders(prev => prev.map(o => o.id === orderId ? data as Order : o));
-  }, [orders]);
+    if (data) {
+      setOrders(prev => prev.map(o => o.id === orderId ? data as Order : o));
+      // Auto-trigger: procurement stage → confirm vendor delivery
+      if (status === 'procurement') {
+        autoFollowUp({
+          title: `Confirm delivery timeline with vendor — ${order.product_type}`,
+          action_type: 'order_status',
+          entity_type: 'order',
+          entity_id: orderId,
+          assigned_to: order.sales_person_id ?? null,
+          priority: 'medium',
+          daysFromNow: 2,
+        });
+      }
+      // Auto-trigger: installation stage → check progress
+      if (status === 'installation') {
+        autoFollowUp({
+          title: `Check installation progress — ${order.product_type}`,
+          action_type: 'order_status',
+          entity_type: 'order',
+          entity_id: orderId,
+          assigned_to: order.sales_person_id ?? null,
+          priority: 'medium',
+          daysFromNow: 3,
+        });
+      }
+    }
+  }, [orders, autoFollowUp]);
 
   const updateCommissioningStatus = useCallback(async (oeId: string, status: CommissioningStatus) => {
     const { data } = await supabase
@@ -523,13 +561,40 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const addRFQ = useCallback(async (rfq: Omit<RFQ, 'id' | 'converted_order_id'>) => {
     const { data } = await supabase.from('rfqs').insert({ ...rfq, converted_order_id: null }).select().single();
-    if (data) setRFQs(prev => [data as RFQ, ...prev]);
-  }, []);
+    if (data) {
+      setRFQs(prev => [data as RFQ, ...prev]);
+      // Auto-trigger: new RFQ received → float to supplier
+      autoFollowUp({
+        title: `Float RFQ to supplier — ${rfq.company_name}`,
+        action_type: 'supplier_response',
+        entity_type: 'rfq',
+        entity_id: data.id,
+        assigned_to: rfq.assigned_to ?? null,
+        priority: rfq.priority === 'high' ? 'high' : 'medium',
+        daysFromNow: 1,
+      });
+    }
+  }, [autoFollowUp]);
 
   const updateRFQStatus = useCallback(async (rfqId: string, status: RFQStatus) => {
+    const rfq = rfqs.find(r => r.id === rfqId);
     const { data } = await supabase.from('rfqs').update({ status }).eq('id', rfqId).select().single();
-    if (data) setRFQs(prev => prev.map(r => r.id === rfqId ? data as RFQ : r));
-  }, []);
+    if (data) {
+      setRFQs(prev => prev.map(r => r.id === rfqId ? data as RFQ : r));
+      // Auto-trigger: RFQ quoted → follow up with client in 3 days
+      if (status === 'quoted' && rfq) {
+        autoFollowUp({
+          title: `Follow up with ${rfq.company_name} on submitted quote`,
+          action_type: 'rfq_followup',
+          entity_type: 'rfq',
+          entity_id: rfqId,
+          assigned_to: rfq.assigned_to ?? null,
+          priority: rfq.priority === 'high' ? 'high' : 'medium',
+          daysFromNow: 3,
+        });
+      }
+    }
+  }, [rfqs, autoFollowUp]);
 
   const updateRFQPriority = useCallback(async (rfqId: string, priority: RFQPriority) => {
     const { data } = await supabase.from('rfqs').update({ priority }).eq('id', rfqId).select().single();
@@ -1311,6 +1376,41 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error creating follow-up:', error);
       throw error;
+    }
+  }, []);
+
+  // Internal helper for auto-triggered follow-ups from pipeline events
+  const autoFollowUp = useCallback(async (params: {
+    title: string;
+    action_type: string;
+    entity_type: string;
+    entity_id: string;
+    assigned_to?: string | null;
+    priority?: 'low' | 'medium' | 'high';
+    daysFromNow?: number;
+  }) => {
+    try {
+      const due = new Date();
+      due.setDate(due.getDate() + (params.daysFromNow ?? 2));
+      const due_date = due.toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('follow_up_actions')
+        .insert([{
+          action_type: params.action_type,
+          entity_type: params.entity_type,
+          entity_id: params.entity_id,
+          title: params.title,
+          description: 'Auto-created by system',
+          due_date,
+          priority: params.priority ?? 'medium',
+          assigned_to: params.assigned_to ?? null,
+          status: 'pending',
+        }])
+        .select()
+        .single();
+      if (!error && data) setFollowUpActions(prev => [data, ...prev]);
+    } catch {
+      // Auto-triggers are best-effort — never block the main action
     }
   }, []);
 

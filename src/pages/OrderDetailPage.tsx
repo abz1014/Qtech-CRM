@@ -7,6 +7,7 @@ import { OrderStatus, CommissioningStatus, ProductType } from '@/types/crm';
 import { useState, useEffect } from 'react';
 import { CostInputCard } from '@/components/orders/CostInputCard';
 import { ProfitabilityBadge } from '@/components/orders/ProfitabilityBadge';
+import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { cn } from '@/lib/utils';
 
 const statusFlow: OrderStatus[] = ['quotation', 'confirmed', 'procurement', 'installation', 'completed'];
@@ -128,6 +129,11 @@ export default function OrderDetailPage() {
           <p className="text-muted-foreground mt-1">{order.product_type} — {getVendorName(order.vendor_id)}</p>
         </div>
         <div className="flex items-center gap-2">
+          <AddFollowUpButton
+            entityType="order"
+            entityId={order.id}
+            entityLabel={`${getClientName(order.client_id)} — ${order.product_type}`}
+          />
           {isAdmin && (
             <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit

@@ -23,6 +23,7 @@ import RFQsPage from "@/pages/RFQsPage";
 import RFQDetailPage from "@/pages/RFQDetailPage";
 import { DailyRFQReportPage } from "@/pages/DailyRFQReportPage";
 import { BookkeepingPage } from "@/pages/BookkeepingPage";
+import ActionsPage from "@/pages/ActionsPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -70,6 +71,7 @@ const App = () => (
                 <Route path="/rfqs" element={<RFQsPage />} />
                 <Route path="/rfqs/:id" element={<RFQDetailPage />} />
                 <Route path="/daily-rfq-report" element={<DailyRFQReportPage />} />
+                <Route path="/actions" element={<ActionsPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/orders/:id" element={<OrderDetailPage />} />
                 <Route path="/vendors" element={<VendorsPage />} />

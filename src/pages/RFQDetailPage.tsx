@@ -6,6 +6,7 @@ import { formatPKR, formatDate } from '@/lib/format';
 import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart } from 'lucide-react';
 import { SupplierInquiryStatus, RFQStatus, RFQPriority } from '@/types/crm';
 import { SupplierComparisonTable } from '@/components/rfq/SupplierComparisonTable';
+import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { cn } from '@/lib/utils';
 
 const inquiryStatusColors: Record<SupplierInquiryStatus, string> = {
@@ -240,6 +241,11 @@ export default function RFQDetailPage() {
               <ShoppingCart className="w-4 h-4" /> Convert to Order
             </button>
           )}
+          <AddFollowUpButton
+            entityType="rfq"
+            entityId={rfq.id}
+            entityLabel={`${rfq.company_name} — ${rfq.notes?.slice(0, 40) || 'RFQ'}`}
+          />
           {isAdmin && (
             <button onClick={() => setShowEditRFQ(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit

@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Users, Target, ShoppingCart,
-  Factory, UserCog, Wrench, LogOut, Zap, FileText, BarChart3, DollarSign, X
+  Factory, UserCog, Wrench, LogOut, Zap, FileText, BarChart3, DollarSign, X, Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,7 @@ const navItems = [
   { label: 'RFQs', path: '/rfqs', icon: FileText, roles: ['admin', 'sales'] },
   { label: 'Daily RFQ Report', path: '/daily-rfq-report', icon: BarChart3, roles: ['admin', 'sales'] },
   { label: 'Orders', path: '/orders', icon: ShoppingCart, roles: ['admin', 'sales'] },
+  { label: 'Actions', path: '/actions', icon: Bell, roles: ['admin', 'sales'] },
   { label: 'Vendors', path: '/vendors', icon: Factory, roles: ['admin', 'sales'] },
   { label: 'Team', path: '/team', icon: UserCog, roles: ['admin'] },
   { label: 'Bookkeeping', path: '/bookkeeping', icon: DollarSign, roles: ['admin'] },

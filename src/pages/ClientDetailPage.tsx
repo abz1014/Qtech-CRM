@@ -3,6 +3,7 @@ import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Edit2, X } from 'lucide-react';
+import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -74,11 +75,18 @@ export default function ClientDetailPage() {
           <h1 className="text-2xl font-bold text-foreground">{client.company_name}</h1>
           <p className="text-muted-foreground mt-1">{client.industry}</p>
         </div>
-        {isAdmin && (
-          <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
-            <Edit2 className="w-4 h-4" /> Edit
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <AddFollowUpButton
+            entityType="client"
+            entityId={client.id}
+            entityLabel={client.company_name}
+          />
+          {isAdmin && (
+            <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
+              <Edit2 className="w-4 h-4" /> Edit
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
