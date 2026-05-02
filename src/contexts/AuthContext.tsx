@@ -18,47 +18,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Fetch user profile with automatic retry (handles Supabase cold starts on free tier)
+  const fetchUserProfile = useCallback(async (userId: string, attempt = 1): Promise<User | null> => {
+    const TIMEOUT_MS = 15000; // 15s — free tier cold starts can take up to 15s
+    const MAX_ATTEMPTS = 2;
+
+    try {
+      const profilePromise = supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Profile fetch timeout (attempt ${attempt})`)), TIMEOUT_MS)
+      );
+
+      const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as Awaited<typeof profilePromise>;
+
+      if (error) {
+        console.error('Profile fetch error:', error);
+        return null;
+      }
+      return (data as User) ?? null;
+    } catch (err) {
+      console.warn('Auth error:', err);
+      // Retry once on timeout — Supabase may need a warm-up request
+      if (attempt < MAX_ATTEMPTS) {
+        console.info(`Retrying profile fetch (attempt ${attempt + 1})...`);
+        return fetchUserProfile(userId, attempt + 1);
+      }
+      return null;
+    }
+  }, []);
+
   // Listen for auth state changes — fires immediately with current session on mount
   useEffect(() => {
     let mounted = true;
 
-    // Hard fallback: if onAuthStateChange never resolves, clear loading after 6s
+    // Hard fallback: clear loading after 35s maximum (2 attempts × 15s + buffer)
     const fallbackTimer = setTimeout(() => {
       if (mounted) {
         console.warn('Auth fallback timer fired – clearing loading state');
         setLoading(false);
       }
-    }, 6000);
+    }, 35000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
         try {
           if (session?.user) {
-            // Fetch user profile from users table with a 5s timeout race
-            const profilePromise = supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .maybeSingle();
-
-            const timeoutPromise = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
-            );
-
-            const { data: userProfile, error } = await Promise.race([
-              profilePromise,
-              timeoutPromise,
-            ]) as Awaited<typeof profilePromise>;
-
+            const profile = await fetchUserProfile(session.user.id);
             if (!mounted) return;
-
-            if (error) {
-              console.error('Profile fetch error:', error);
-              setUser(null);
-            } else {
-              setUser((userProfile as User) ?? null);
-            }
+            setUser(profile);
           } else {
             if (mounted) setUser(null);
           }
@@ -77,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(fallbackTimer);
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [fetchUserProfile]);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
