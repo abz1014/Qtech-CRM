@@ -14,142 +14,183 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// ─── Profile Cache (localStorage) ────────────────────────────────────────────
+// Stores the user profile locally so page refreshes are instant.
+// The DB is still refreshed in the background to pick up any role changes.
+
+const CACHE_KEY = 'qtcrm_profile';
+const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
+
+function readCache(userId: string): User | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { profile, ts } = JSON.parse(raw) as { profile: User; ts: number };
+    // Reject if stale or belongs to a different user
+    if (!profile || profile.id !== userId || Date.now() - ts > CACHE_TTL) {
+      localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+    return profile;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(profile: User | null) {
+  try {
+    if (profile) {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ profile, ts: Date.now() }));
+    } else {
+      localStorage.removeItem(CACHE_KEY);
+    }
+  } catch {
+    // localStorage may be unavailable (private browsing) — silent fail
+  }
+}
+
+// ─── DB fetch (no retry — cache makes timeout edge-cases rare) ────────────────
+
+async function fetchFromDB(userId: string): Promise<User | null> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) {
+      console.error('[Auth] DB fetch error:', error.message);
+      return null;
+    }
+    return (data as User) ?? null;
+  } catch (err) {
+    console.error('[Auth] DB fetch threw:', err);
+    return null;
+  }
+}
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch user profile with automatic retry (handles Supabase cold starts on free tier)
-  const fetchUserProfile = useCallback(async (userId: string, attempt = 1): Promise<User | null> => {
-    const TIMEOUT_MS = 15000; // 15s — free tier cold starts can take up to 15s
-    const MAX_ATTEMPTS = 2;
-
-    try {
-      const profilePromise = supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Profile fetch timeout (attempt ${attempt})`)), TIMEOUT_MS)
-      );
-
-      const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as Awaited<typeof profilePromise>;
-
-      if (error) {
-        console.error('Profile fetch error:', error);
-        return null;
-      }
-      return (data as User) ?? null;
-    } catch (err) {
-      console.warn('Auth error:', err);
-      // Retry once on timeout — Supabase may need a warm-up request
-      if (attempt < MAX_ATTEMPTS) {
-        console.info(`Retrying profile fetch (attempt ${attempt + 1})...`);
-        return fetchUserProfile(userId, attempt + 1);
-      }
-      return null;
-    }
-  }, []);
-
-  // Listen for auth state changes — fires immediately with current session on mount
   useEffect(() => {
     let mounted = true;
 
-    // Hard fallback: clear loading after 35s maximum (2 attempts × 15s + buffer)
-    const fallbackTimer = setTimeout(() => {
-      if (mounted) {
-        console.warn('Auth fallback timer fired – clearing loading state');
-        setLoading(false);
-      }
-    }, 35000);
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
         if (!mounted) return;
-        try {
-          if (session?.user) {
-            const profile = await fetchUserProfile(session.user.id);
-            if (!mounted) return;
-            setUser(profile);
-          } else {
-            if (mounted) setUser(null);
-          }
-        } catch (err) {
-          console.error('Auth error:', err);
-          if (mounted) setUser(null);
-        } finally {
-          clearTimeout(fallbackTimer);
-          if (mounted) setLoading(false);
+
+        if (!session?.user) {
+          // Signed out
+          writeCache(null);
+          setUser(null);
+          setLoading(false);
+          return;
         }
+
+        const uid = session.user.id;
+
+        // ── Step 1: Serve from cache immediately (0ms loading) ──────────────
+        const cached = readCache(uid);
+        if (cached) {
+          setUser(cached);
+          setLoading(false);   // ← instant — user sees dashboard right away
+
+          // ── Step 2: Background DB refresh (silent, non-blocking) ──────────
+          fetchFromDB(uid).then(fresh => {
+            if (!mounted) return;
+            if (fresh) {
+              // Only update state if something actually changed
+              setUser(prev => {
+                if (JSON.stringify(prev) === JSON.stringify(fresh)) return prev;
+                writeCache(fresh);
+                return fresh;
+              });
+            }
+          });
+          return;
+        }
+
+        // ── No cache (first login or cleared storage) — must wait for DB ────
+        // Show loading while we fetch for the first time
+        const profile = await fetchFromDB(uid);
+        if (!mounted) return;
+
+        if (profile) {
+          writeCache(profile);
+          setUser(profile);
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
       }
     );
 
+    // Safety net: never hang forever (30s max, only hit on first-ever login
+    // with a very slow connection — normal refreshes clear loading in <50ms)
+    const safety = setTimeout(() => {
+      if (mounted) {
+        console.warn('[Auth] Safety timeout fired');
+        setLoading(false);
+      }
+    }, 30000);
+
     return () => {
       mounted = false;
-      clearTimeout(fallbackTimer);
-      subscription?.unsubscribe();
+      clearTimeout(safety);
+      subscription.unsubscribe();
     };
-  }, [fetchUserProfile]);
+  }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
-      // Use Supabase Auth's signInWithPassword - sends password via POST body, handles hashing
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        console.error('Login error:', error.message);
+        console.error('[Auth] Login error:', error.message);
         return false;
       }
 
       if (data.session?.user) {
-        // Fetch user profile from users table
-        const { data: userProfile, error: profileError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', data.session.user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error('Profile fetch error:', profileError);
-          return false;
-        }
-
-        if (userProfile) {
-          setUser(userProfile as User);
+        const profile = await fetchFromDB(data.session.user.id);
+        if (profile) {
+          writeCache(profile);
+          setUser(profile);
           return true;
         }
       }
       return false;
     } catch (err) {
-      console.error('Login exception:', err);
+      console.error('[Auth] Login exception:', err);
       return false;
     }
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      await supabase.auth.signOut();
+      writeCache(null);
       setUser(null);
+      await supabase.auth.signOut();
     } catch (err) {
-      console.error('Logout error:', err);
+      console.error('[Auth] Logout error:', err);
     }
   }, []);
 
-  const value: AuthContextType = {
-    user,
-    login,
-    logout,
-    isAdmin: user?.role === 'admin',
-    isSales: user?.role === 'sales',
-    isEngineer: user?.role === 'engineer',
-    loading,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{
+      user,
+      login,
+      logout,
+      isAdmin:    user?.role === 'admin',
+      isSales:    user?.role === 'sales',
+      isEngineer: user?.role === 'engineer',
+      loading,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextType {
