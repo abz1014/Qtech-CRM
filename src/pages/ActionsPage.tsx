@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { CheckCircle, AlertCircle, Clock, Trash2, Bell, Filter, RotateCcw } from 'lucide-react';
+import { CheckCircle, AlertCircle, Clock, Trash2, Bell, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FollowUpForm } from '@/components/followup/FollowUpForm';
+import { OutcomeModal, OutcomeResult } from '@/components/followup/OutcomeModal';
 
 const PRIORITY_STYLES = {
   high:   'bg-red-500/10 border-red-500/30 text-red-500',
@@ -42,8 +43,11 @@ export default function ActionsPage() {
   const [all, setAll]         = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [filter, setFilter]   = useState<'all' | 'overdue' | 'today' | 'upcoming'>('all');
+  const [filter, setFilter]   = useState<'all' | 'overdue' | 'today' | 'upcoming'>('today');
   const [completing, setCompleting] = useState<string | null>(null);
+  // Outcome modal state
+  const [outcomeAction, setOutcomeAction] = useState<{ id: string; title: string } | null>(null);
+  const [showNextForm, setShowNextForm] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -87,11 +91,36 @@ export default function ActionsPage() {
     upcoming: all.filter(a => a.due_date > todayStr).length,
   };
 
-  const handleComplete = async (id: string) => {
-    setCompleting(id);
-    await completeFollowUp(id);
-    setAll(prev => prev.filter(a => a.id !== id));
+  // Opens the outcome modal instead of completing directly
+  const handleCompleteClick = (id: string, title: string) => {
+    setOutcomeAction({ id, title });
+  };
+
+  // Called when user confirms outcome in the modal
+  const handleOutcomeConfirm = async (
+    outcome: OutcomeResult,
+    note: string,
+    createNextAction: boolean
+  ) => {
+    if (!outcomeAction) return;
+    setCompleting(outcomeAction.id);
+
+    // Build outcome note combining result + any user note
+    const outcomeLabel = {
+      reached:      '✅ Reached them',
+      no_answer:    '📵 No answer',
+      left_message: '💬 Left message',
+      not_required: '',
+    }[outcome];
+    const fullNote = [outcomeLabel, note].filter(Boolean).join(' — ');
+
+    await completeFollowUp(outcomeAction.id, fullNote || undefined);
+    setAll(prev => prev.filter(a => a.id !== outcomeAction.id));
     setCompleting(null);
+    setOutcomeAction(null);
+
+    // If user toggled "schedule next follow-up", open the form
+    if (createNextAction) setShowNextForm(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -232,7 +261,7 @@ export default function ActionsPage() {
                     {/* Action buttons */}
                     <div className="flex gap-2 mt-3">
                       <button
-                        onClick={() => handleComplete(action.id)}
+                        onClick={() => handleCompleteClick(action.id, action.title)}
                         disabled={completing === action.id}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
                       >
@@ -255,12 +284,32 @@ export default function ActionsPage() {
         </div>
       )}
 
+      {/* New action form */}
       {showForm && (
         <FollowUpForm
           onClose={async () => {
             setShowForm(false);
             await load();
           }}
+        />
+      )}
+
+      {/* "Schedule next follow-up" form — opens after completing an action */}
+      {showNextForm && (
+        <FollowUpForm
+          onClose={async () => {
+            setShowNextForm(false);
+            await load();
+          }}
+        />
+      )}
+
+      {/* Outcome capture modal */}
+      {outcomeAction && (
+        <OutcomeModal
+          actionTitle={outcomeAction.title}
+          onConfirm={handleOutcomeConfirm}
+          onCancel={() => setOutcomeAction(null)}
         />
       )}
     </div>

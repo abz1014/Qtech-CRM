@@ -1436,14 +1436,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const completeFollowUp = useCallback(async (followUpId: string) => {
+  const completeFollowUp = useCallback(async (followUpId: string, outcomeNote?: string) => {
     try {
+      const updates: Record<string, any> = {
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+      };
+      if (outcomeNote) updates.description = outcomeNote;
+
       const { error } = await supabase
         .from('follow_up_actions')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
+        .update(updates)
         .eq('id', followUpId);
 
       if (error) throw error;

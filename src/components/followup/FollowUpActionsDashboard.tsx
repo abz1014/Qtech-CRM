@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle, AlertCircle, Clock, Trash2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FollowUpForm } from './FollowUpForm';
+import { OutcomeModal, OutcomeResult } from './OutcomeModal';
 
 export function FollowUpActionsDashboard() {
   const { getPendingFollowUps, getOverdueFollowUps, completeFollowUp, deleteFollowUp } = useCRM();
@@ -13,6 +14,7 @@ export function FollowUpActionsDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<'all' | 'overdue' | 'pending'>('all');
+  const [outcomeAction, setOutcomeAction] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     loadFollowUps();
@@ -29,8 +31,16 @@ export function FollowUpActionsDashboard() {
     setIsLoading(false);
   };
 
-  const handleComplete = async (id: string) => {
-    await completeFollowUp(id);
+  const handleCompleteClick = (id: string, title: string) => {
+    setOutcomeAction({ id, title });
+  };
+
+  const handleOutcomeConfirm = async (outcome: OutcomeResult, note: string) => {
+    if (!outcomeAction) return;
+    const label = { reached: '✅ Reached them', no_answer: '📵 No answer', left_message: '💬 Left message', not_required: '' }[outcome];
+    const fullNote = [label, note].filter(Boolean).join(' — ');
+    await completeFollowUp(outcomeAction.id, fullNote || undefined);
+    setOutcomeAction(null);
     await loadFollowUps();
   };
 
@@ -218,7 +228,7 @@ export function FollowUpActionsDashboard() {
                     {/* Action Buttons */}
                     <div className="flex gap-2 mt-3">
                       <button
-                        onClick={() => handleComplete(action.id)}
+                        onClick={() => handleCompleteClick(action.id, action.title)}
                         className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
                       >
                         <CheckCircle className="w-3 h-3" />
@@ -240,9 +250,14 @@ export function FollowUpActionsDashboard() {
         </div>
       )}
 
-      {/* Follow-Up Form Modal */}
-      {showForm && (
-        <FollowUpForm onClose={handleFormClose} />
+      {showForm && <FollowUpForm onClose={handleFormClose} />}
+
+      {outcomeAction && (
+        <OutcomeModal
+          actionTitle={outcomeAction.title}
+          onConfirm={handleOutcomeConfirm}
+          onCancel={() => setOutcomeAction(null)}
+        />
       )}
     </div>
   );

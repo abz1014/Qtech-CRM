@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import { ArrowLeft, Edit2, X } from 'lucide-react';
 import { ProspectStatus } from '@/types/crm';
+import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 
 export default function ProspectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -67,11 +68,18 @@ export default function ProspectDetailPage() {
           <h1 className="text-2xl font-bold text-foreground">{prospect.company_name}</h1>
           <p className="text-muted-foreground mt-1">{prospect.contact_person} · {prospect.email}</p>
         </div>
-        {isAdmin && (
-          <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
-            <Edit2 className="w-4 h-4" /> Edit
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <AddFollowUpButton
+            entityType="prospect"
+            entityId={prospect.id}
+            entityLabel={`${prospect.company_name} — ${prospect.contact_person}`}
+          />
+          {isAdmin && (
+            <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
+              <Edit2 className="w-4 h-4" /> Edit
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
