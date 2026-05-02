@@ -22,20 +22,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (session?.user) {
-          // Fetch user profile from users table
-          const { data: userProfile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle();
+        try {
+          if (session?.user) {
+            // Fetch user profile from users table
+            const { data: userProfile, error } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .maybeSingle();
 
-          setUser((userProfile as User) ?? null);
-        } else {
+            if (error) {
+              console.error('Profile fetch error:', error);
+              setUser(null);
+            } else {
+              setUser((userProfile as User) ?? null);
+            }
+          } else {
+            setUser(null);
+          }
+        } catch (err) {
+          console.error('Auth error:', err);
           setUser(null);
+        } finally {
+          // Always clear loading after first auth event
+          setLoading(false);
         }
-        // Always clear loading after first auth event
-        setLoading(false);
       }
     );
 
