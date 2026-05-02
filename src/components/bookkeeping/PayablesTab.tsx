@@ -320,14 +320,17 @@ export function PayablesTab() {
         />
       )}
 
-      {selectedPayable && (
-        <PayablePaymentModal
-          payable={payables.find(p => p.payable_id === selectedPayable)!}
-          onClose={() => setSelectedPayable(null)}
-          onSuccess={handleRefresh}
-          userId={user?.id || ''}
-        />
-      )}
+      {selectedPayable && (() => {
+        const foundPayable = payables.find(p => p.payable_id === selectedPayable);
+        return foundPayable ? (
+          <PayablePaymentModal
+            payable={foundPayable}
+            onClose={() => setSelectedPayable(null)}
+            onSuccess={handleRefresh}
+            userId={user?.id || ''}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

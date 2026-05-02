@@ -209,13 +209,8 @@ export default function RFQDetailPage() {
         confirmed_date: new Date().toISOString().split('T')[0],
       });
       setShowConvertOrder(false);
-      // Navigate to the new order
-      setTimeout(() => {
-        const newOrder = orders.find(o => o.rfq_id === rfq.id);
-        if (newOrder) {
-          navigate(`/orders/${newOrder.id}`);
-        }
-      }, 500);
+      // Navigate to orders list — avoid stale closure from setTimeout
+      navigate('/orders');
     } catch (error) {
       console.error('Failed to convert RFQ to order:', error);
       alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));

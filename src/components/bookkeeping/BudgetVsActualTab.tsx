@@ -25,9 +25,10 @@ export function BudgetVsActualTab() {
     new Date().toISOString().split('T')[0].slice(0, 7)
   );
 
-  // Get current month expenses
+  // Get current month expenses — guard against empty selectedMonth
   const monthExpenses = useMemo(() => {
-    return expenses.filter(exp => exp.date.startsWith(selectedMonth));
+    const safeMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+    return expenses.filter(exp => exp.date.startsWith(safeMonth));
   }, [expenses, selectedMonth]);
 
   // Calculate expenses by category
@@ -126,7 +127,7 @@ export function BudgetVsActualTab() {
           <input
             type="month"
             value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
+            onChange={e => setSelectedMonth(e.target.value || new Date().toISOString().slice(0, 7))}
             className="w-full px-3 py-2 bg-muted border border-border rounded text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>

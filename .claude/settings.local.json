@@ -6,7 +6,10 @@
       "Bash(cat)",
       "Read(//tmp/**)",
       "Bash(grep -n \"^    </div>$\" src/pages/RFQDetailPage.tsx)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit -m 'Add comprehensive security implementation overview and quick start guide *)",
+      "Bash(git push *)"
     ]
   }
 }

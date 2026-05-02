@@ -43,6 +43,10 @@ export function ExpensesTab() {
     try {
       await deleteExpense(expenseId);
       setDeleteConfirm(null);
+      // Reset page if we just deleted the last item on current page
+      const newTotal = filtered.length - 1;
+      const maxPage = Math.max(1, Math.ceil(newTotal / itemsPerPage));
+      if (currentPage > maxPage) setCurrentPage(maxPage);
     } catch {
       alert('Failed to delete expense');
     }

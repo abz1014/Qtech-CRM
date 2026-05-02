@@ -19,7 +19,7 @@ export function ReportsTab() {
       months.push({ month, label: date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), ...getMonthlySummary(month) });
     }
     return months;
-  }, []);
+  }, [invoices, expenses, getMonthlySummary]);
 
   // Project profitability
   const projectsData = useMemo(() => {

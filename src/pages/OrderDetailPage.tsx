@@ -85,7 +85,7 @@ export default function OrderDetailPage() {
   const canAdvance = (isAdmin || isSales) && nextStatus !== null;
 
   const profit = order.order_value - order.cost_value;
-  const profitPct = order.cost_value > 0 ? ((profit / order.order_value) * 100).toFixed(1) : '—';
+  const profitPct = order.order_value > 0 ? ((profit / order.order_value) * 100).toFixed(1) : '—';
 
   const originRFQ = order.rfq_id ? rfqs.find(r => r.id === order.rfq_id) : null;
 

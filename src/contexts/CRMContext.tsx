@@ -1061,7 +1061,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         order_id: null,
         rfq_id: null,
         invoice_amount: payable.amount,
-        issued_date: payable.created_at.split('T')[0],
+        issued_date: payable.created_at ? payable.created_at.split('T')[0] : payable.due_date,
         due_date: payable.due_date,
         payment_status: payable.payment_status,
         amount_paid: payable.amount_paid,
