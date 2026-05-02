@@ -18,10 +18,11 @@ export function DashboardTab() {
   // Get metrics for selected period
   const selectedMetrics = useMemo(() => {
     if (periodType === 'current') {
-      // For current month selection
-      const monthStart = `${selectedMonth}-01`;
-      const monthEnd = new Date(parseInt(selectedMonth.split('-')[0]), parseInt(selectedMonth.split('-')[1]), 0)
-        .toISOString().slice(0, 10);
+      // Guard against empty selectedMonth (cleared by browser × button)
+      const safeMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+      const [year, month] = safeMonth.split('-').map(Number);
+      const monthStart = `${safeMonth}-01`;
+      const monthEnd = new Date(year, month, 0).toISOString().slice(0, 10);
 
       let revenue = 0;
       let totalExpenses = 0;
@@ -48,20 +49,25 @@ export function DashboardTab() {
         margin: margin.toFixed(1),
         invoiceCount: invoices.filter(inv => inv.issued_date >= monthStart && inv.issued_date <= monthEnd).length,
         expenseCount: expenses.filter(exp => exp.date >= monthStart && exp.date <= monthEnd).length,
+        safeMonth,
       };
     } else {
-      // Custom date range
+      // Custom date range — guard against empty dates cleared by browser × button
+      const today = new Date().toISOString().slice(0, 10);
+      const safeStart = customStartDate || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
+      const safeEnd = customEndDate || today;
+
       let revenue = 0;
       let totalExpenses = 0;
 
       invoices.forEach(inv => {
-        if (inv.issued_date >= customStartDate && inv.issued_date <= customEndDate) {
+        if (inv.issued_date >= safeStart && inv.issued_date <= safeEnd) {
           revenue += inv.invoice_amount;
         }
       });
 
       expenses.forEach(exp => {
-        if (exp.date >= customStartDate && exp.date <= customEndDate) {
+        if (exp.date >= safeStart && exp.date <= safeEnd) {
           totalExpenses += exp.amount;
         }
       });
@@ -74,8 +80,9 @@ export function DashboardTab() {
         expenses: totalExpenses,
         profit,
         margin: margin.toFixed(1),
-        invoiceCount: invoices.filter(inv => inv.issued_date >= customStartDate && inv.issued_date <= customEndDate).length,
-        expenseCount: expenses.filter(exp => exp.date >= customStartDate && exp.date <= customEndDate).length,
+        invoiceCount: invoices.filter(inv => inv.issued_date >= safeStart && inv.issued_date <= safeEnd).length,
+        expenseCount: expenses.filter(exp => exp.date >= safeStart && exp.date <= safeEnd).length,
+        safeMonth: undefined,
       };
     }
   }, [invoices, expenses, periodType, selectedMonth, customStartDate, customEndDate]);
@@ -104,10 +111,12 @@ export function DashboardTab() {
   const expenseByCategory = useMemo(() => {
     const categoryMap = new Map<string, number>();
     expenses.forEach(exp => {
+      const safeSelectedMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+      const safeCustomStart = customStartDate || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
+      const safeCustomEnd = customEndDate || new Date().toISOString().slice(0, 10);
       const isInRange = periodType === 'current'
-        ? exp.date.startsWith(selectedMonth)
-        : exp.date >= customStartDate && exp.date <= customEndDate;
-
+        ? exp.date.startsWith(safeSelectedMonth)
+        : exp.date >= safeCustomStart && exp.date <= safeCustomEnd;
       if (isInRange) {
         const current = categoryMap.get(exp.category) || 0;
         categoryMap.set(exp.category, current + exp.amount);
@@ -190,7 +199,7 @@ export function DashboardTab() {
             <input
               type="month"
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
+              onChange={(e) => setSelectedMonth(e.target.value || new Date().toISOString().slice(0, 7))}
               className="px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
