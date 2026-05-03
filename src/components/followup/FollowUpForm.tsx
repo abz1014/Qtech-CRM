@@ -61,11 +61,20 @@ function addDays(days: number) {
   return d.toISOString().split('T')[0];
 }
 
+// Smart priority suggestion based on entity type
+function suggestPriority(entityType?: string): 'low' | 'medium' | 'high' {
+  if (entityType === 'prospect') return 'high'; // all prospect outreach is important
+  if (entityType === 'rfq') return 'high';      // RFQs drive revenue
+  return 'medium';
+}
+
 export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: FollowUpFormProps) {
   const { createFollowUp, getUserWorkload } = useCRM();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [workload, setWorkload] = useState<number | null>(null);
+  const [recurrenceDays, setRecurrenceDays] = useState<number | null>(null);
+  const [showRecurrence, setShowRecurrence] = useState(false);
 
   // Load current user's workload on mount
   useEffect(() => {
@@ -76,13 +85,14 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
 
   const resolvedEntityType: EntityType = entityType || 'rfq';
   const actionTypes = ACTION_TYPES_BY_ENTITY[resolvedEntityType];
+  const smartPriority = suggestPriority(entityType);
 
   const [form, setForm] = useState({
     action_type: actionTypes[0].value,
     title: DEFAULT_TITLES[actionTypes[0].value] || '',
     description: '',
     due_date: addDays(2),
-    priority: 'medium' as 'low' | 'medium' | 'high',
+    priority: smartPriority,
   });
 
   const handleActionTypeChange = (value: string) => {
@@ -102,12 +112,17 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
 
     setIsSubmitting(true);
     try {
+      // Encode recurrence in description prefix if set
+      const descParts = [];
+      if (recurrenceDays) descParts.push(`__recur:${recurrenceDays}__`);
+      if (form.description.trim()) descParts.push(form.description.trim());
+
       await createFollowUp({
         action_type: form.action_type,
         entity_type: resolvedEntityType,
         entity_id: entityId || null,
         title: form.title.trim(),
-        description: form.description.trim() || null,
+        description: descParts.join(' ') || null,
         due_date: form.due_date,
         priority: form.priority,
         assigned_to: user?.id,
@@ -253,6 +268,50 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Smart priority hint */}
+          {smartPriority === 'high' && form.priority === 'high' && (
+            <p className="text-xs text-muted-foreground -mt-1">
+              ✨ Priority auto-set to High based on entity type
+            </p>
+          )}
+
+          {/* Recurring toggle */}
+          <div className="border border-border rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowRecurrence(p => !p)}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-muted/50 transition-colors"
+            >
+              <span className="font-medium text-foreground">🔁 Recurring action</span>
+              <span className="text-xs text-muted-foreground">
+                {recurrenceDays ? `Every ${recurrenceDays} days` : 'Off'}
+              </span>
+            </button>
+            {showRecurrence && (
+              <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Auto-creates the next action after this one is completed.
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {[null, 7, 14, 30, 60].map(d => (
+                    <button
+                      key={d ?? 'off'}
+                      type="button"
+                      onClick={() => setRecurrenceDays(d)}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        recurrenceDays === d
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                      }`}
+                    >
+                      {d === null ? 'Off' : d === 7 ? 'Weekly' : d === 14 ? '2 Weeks' : d === 30 ? 'Monthly' : '2 Months'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Buttons */}

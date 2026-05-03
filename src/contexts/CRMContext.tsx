@@ -135,6 +135,9 @@ interface CRMContextType {
   getOverdueFollowUps: () => Promise<any[]>;
   getFollowUpsForEntity: (entityType: string, entityId: string) => Promise<any[]>;
   getUserWorkload: (userId: string) => Promise<number>;
+  applySequence: (steps: Array<{ title: string; action_type: string; daysFromNow: number; priority: 'low'|'medium'|'high'; notes?: string }>, entityType: string, entityId: string | null, assignedTo: string | null) => Promise<void>;
+  getRecentActivity: (limit?: number) => Promise<any[]>;
+  getPatternInsights: () => { actionType: string; avgDays: number; label: string }[];
 }
 
 const CRMContext = createContext<CRMContextType | null>(null);
@@ -1447,6 +1450,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const completeFollowUp = useCallback(async (followUpId: string, outcomeNote?: string) => {
     try {
+      // Find the action to check for recurrence
+      const action = followUpActions.find(fa => fa.id === followUpId);
+
       const updates: Record<string, any> = {
         status: 'completed',
         completed_at: new Date().toISOString(),
@@ -1465,10 +1471,37 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           ? { ...fa, status: 'completed', completed_at: new Date().toISOString() }
           : fa
       ));
+
+      // Handle recurring: auto-create next action if recurrence is set
+      if (action) {
+        // Check description for __recur:N__ pattern
+        const recurMatch = action.description?.match(/__recur:(\d+)__/);
+        const recurDays = recurMatch ? parseInt(recurMatch[1]) : null;
+
+        if (recurDays) {
+          const nextDue = new Date();
+          nextDue.setDate(nextDue.getDate() + recurDays);
+          const nextDueStr = nextDue.toISOString().split('T')[0];
+
+          await supabase.from('follow_up_actions').insert([{
+            action_type: action.action_type,
+            entity_type: action.entity_type,
+            entity_id: action.entity_id,
+            title: action.title,
+            description: action.description, // preserve recur tag
+            due_date: nextDueStr,
+            priority: action.priority,
+            assigned_to: action.assigned_to,
+            status: 'pending',
+          }]).select().then(({ data }) => {
+            if (data?.[0]) setFollowUpActions(prev => [data[0], ...prev]);
+          });
+        }
+      }
     } catch (error) {
       console.error('Error completing follow-up:', error);
     }
-  }, []);
+  }, [followUpActions]);
 
   // Snooze: push due_date to a later date, action resurfaces then
   const snoozeFollowUp = useCallback(async (followUpId: string, newDueDate: string) => {
@@ -1515,6 +1548,84 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       return 0;
     }
   }, []);
+
+  // Apply a sequence — creates multiple follow-up actions in one call
+  const applySequence = useCallback(async (
+    steps: Array<{ title: string; action_type: string; daysFromNow: number; priority: 'low'|'medium'|'high'; notes?: string }>,
+    entityType: string,
+    entityId: string | null,
+    assignedTo: string | null,
+  ) => {
+    const today = new Date();
+    const inserts = steps.map(step => {
+      const due = new Date(today);
+      due.setDate(due.getDate() + step.daysFromNow);
+      return {
+        action_type: step.action_type,
+        entity_type: entityType,
+        entity_id: entityId,
+        title: step.title,
+        description: step.notes || null,
+        due_date: due.toISOString().split('T')[0],
+        priority: step.priority,
+        assigned_to: assignedTo,
+        status: 'pending',
+      };
+    });
+    const { data, error } = await supabase
+      .from('follow_up_actions')
+      .insert(inserts)
+      .select();
+    if (!error && data) {
+      setFollowUpActions(prev => [...data, ...prev]);
+    }
+  }, []);
+
+  // Get recently completed actions for the activity feed
+  const getRecentActivity = useCallback(async (limit = 20): Promise<any[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('follow_up_actions')
+        .select('*')
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(limit);
+      if (error) return [];
+      return data || [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Pattern insights — average days to completion per action type
+  const getPatternInsights = useCallback((): { actionType: string; avgDays: number; label: string }[] => {
+    const completed = followUpActions.filter(a =>
+      a.status === 'completed' && a.completed_at && a.created_at
+    );
+    const byType: Record<string, number[]> = {};
+    completed.forEach(a => {
+      const created = new Date(a.created_at).getTime();
+      const done    = new Date(a.completed_at).getTime();
+      const days    = Math.round((done - created) / 86400000);
+      if (!byType[a.action_type]) byType[a.action_type] = [];
+      byType[a.action_type].push(days);
+    });
+    const LABELS: Record<string, string> = {
+      rfq_followup:      'RFQ follow-ups',
+      supplier_response: 'Supplier follow-ups',
+      order_status:      'Order status checks',
+      overdue_invoice:   'Invoice follow-ups',
+      custom:            'Custom actions',
+    };
+    return Object.entries(byType)
+      .map(([actionType, days]) => ({
+        actionType,
+        avgDays: Math.round(days.reduce((a, b) => a + b, 0) / days.length),
+        label: LABELS[actionType] || actionType,
+      }))
+      .filter(i => i.avgDays > 0)
+      .sort((a, b) => b.avgDays - a.avgDays);
+  }, [followUpActions]);
 
   const deleteFollowUp = useCallback(async (followUpId: string) => {
     try {
@@ -1590,6 +1701,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       getQuotesForRFQ, calculateValueScore, updateQuoteRecommendation, getRecommendedQuote,
       createFollowUp, getPendingFollowUps, getAllFollowUps, completeFollowUp, snoozeFollowUp,
       deleteFollowUp, getOverdueFollowUps, getFollowUpsForEntity, getUserWorkload,
+      applySequence, getRecentActivity, getPatternInsights,
     }}>
       {children}
     </CRMContext.Provider>

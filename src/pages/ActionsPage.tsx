@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -290,13 +290,113 @@ function TeamOverview({ allActions, users, onCompleteClick, onSnooze, onDelete, 
   );
 }
 
+// ─── Activity Feed ────────────────────────────────────────────────────────────
+
+const ACTION_TYPE_SHORT: Record<string, string> = {
+  rfq_followup: 'RFQ follow-up',
+  supplier_response: 'supplier follow-up',
+  order_status: 'order check',
+  overdue_invoice: 'invoice follow-up',
+  custom: 'custom action',
+};
+
+function timeAgo(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function ActivityFeed({ activity, users, patterns }: {
+  activity: any[];
+  users: any[];
+  patterns: { actionType: string; avgDays: number; label: string }[];
+}) {
+  const getName = (uid: string) => users.find(u => u.id === uid)?.name?.split(' ')[0] || 'Someone';
+
+  return (
+    <div className="space-y-4">
+      {/* Pattern insights */}
+      {patterns.length > 0 && (
+        <div className="glass-card p-4 border border-border space-y-3">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            📊 Pattern Insights
+            <span className="text-xs font-normal text-muted-foreground">— based on your completed actions</span>
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {patterns.map(p => (
+              <div key={p.actionType} className="flex items-center justify-between px-3 py-2 bg-muted/50 rounded-lg">
+                <span className="text-sm text-foreground capitalize">{p.label}</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                  p.avgDays <= 2 ? 'bg-green-500/10 text-green-600' :
+                  p.avgDays <= 5 ? 'bg-yellow-500/10 text-yellow-600' :
+                  'bg-red-500/10 text-red-500'
+                }`}>
+                  avg {p.avgDays}d to complete
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Activity list */}
+      <div className="glass-card border border-border">
+        <div className="px-5 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Recent Completions</h3>
+        </div>
+        {activity.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground text-sm">
+            No completed actions yet. Start completing actions to see the feed.
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {activity.map(a => {
+              // Strip recurrence tag from display
+              const desc = a.description?.replace(/__recur:\d+__\s*/g, '') || '';
+              const outcomeMatch = desc.match(/^(✅|📵|💬)[^—]+/);
+              const outcome = outcomeMatch ? outcomeMatch[0].trim() : null;
+
+              return (
+                <div key={a.id} className="flex items-start gap-3 px-5 py-3">
+                  <div className="w-8 h-8 rounded-full bg-green-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-xs font-bold text-green-600">
+                      {getName(a.assigned_to || a.created_by || '').slice(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground">
+                      <span className="font-semibold">{getName(a.assigned_to || a.created_by || '')}</span>
+                      {' '}completed a{' '}
+                      <span className="font-medium">{ACTION_TYPE_SHORT[a.action_type] || 'action'}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">"{a.title}"</p>
+                    {outcome && (
+                      <p className="text-xs text-muted-foreground mt-0.5 italic">{outcome}</p>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground flex-shrink-0 mt-0.5">
+                    {a.completed_at ? timeAgo(a.completed_at) : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ActionsPage() {
-  const { getPendingFollowUps, getAllFollowUps, getOverdueFollowUps, completeFollowUp, snoozeFollowUp, deleteFollowUp, users } = useCRM();
+  const { getPendingFollowUps, getAllFollowUps, getOverdueFollowUps, completeFollowUp, snoozeFollowUp, deleteFollowUp, users, getRecentActivity, getPatternInsights } = useCRM();
   const { user, isAdmin } = useAuth();
 
-  type Tab = 'all' | 'overdue' | 'today' | 'upcoming' | 'team';
+  type Tab = 'all' | 'overdue' | 'today' | 'upcoming' | 'team' | 'activity';
   const [tab, setTab]         = useState<Tab>('today');
   const [myActions, setMyActions]   = useState<any[]>([]);
   const [allActions, setAllActions] = useState<any[]>([]);
@@ -305,13 +405,17 @@ export default function ActionsPage() {
   const [showNextForm, setShowNextForm] = useState(false);
   const [completing, setCompleting]     = useState<string | null>(null);
   const [outcomeAction, setOutcomeAction] = useState<{ id: string; title: string } | null>(null);
+  const [activity, setActivity]         = useState<any[]>([]);
+
+  const patterns = useMemo(() => getPatternInsights(), []);
 
   const load = async () => {
     setLoading(true);
-    const [pending, overdue, all] = await Promise.all([
+    const [pending, overdue, all, recent] = await Promise.all([
       getPendingFollowUps(isAdmin ? undefined : user?.id),
       getOverdueFollowUps(),
       isAdmin ? getAllFollowUps() : Promise.resolve([]),
+      getRecentActivity(25),
     ]);
     // Merge pending + overdue, deduplicate
     const seen = new Set<string>();
@@ -322,6 +426,7 @@ export default function ActionsPage() {
     });
     setMyActions(merged);
     if (isAdmin) setAllActions(all);
+    setActivity(recent);
     setLoading(false);
   };
 
@@ -349,6 +454,7 @@ export default function ActionsPage() {
     today:    myActions.filter(a => a.due_date === todayStr).length,
     upcoming: myActions.filter(a => a.due_date > todayStr).length,
     team:     allActions.length,
+    activity: activity.length,
   };
 
   const handleCompleteClick = (id: string, title: string) => setOutcomeAction({ id, title });
@@ -386,6 +492,7 @@ export default function ActionsPage() {
     { key: 'all',      label: 'All Mine' },
     { key: 'upcoming', label: 'Upcoming' },
     { key: 'team',     label: '👥 Team', adminOnly: true },
+    { key: 'activity', label: '📣 Activity' },
   ];
 
   return (
@@ -468,6 +575,8 @@ export default function ActionsPage() {
       {/* Content */}
       {loading ? (
         <div className="glass-card p-8 text-center text-muted-foreground">Loading actions...</div>
+      ) : tab === 'activity' ? (
+        <ActivityFeed activity={activity} users={users} patterns={patterns} />
       ) : tab === 'team' && isAdmin ? (
         <TeamOverview
           allActions={allActions}
