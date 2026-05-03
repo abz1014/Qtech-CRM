@@ -7,7 +7,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['admin'] },
+  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'sales'] },
   { label: 'Clients', path: '/clients', icon: Users, roles: ['admin', 'sales'] },
   { label: 'Prospects', path: '/prospects', icon: Target, roles: ['admin', 'sales'] },
   { label: 'RFQs', path: '/rfqs', icon: FileText, roles: ['admin', 'sales'] },

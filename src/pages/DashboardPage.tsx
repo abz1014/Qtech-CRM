@@ -78,7 +78,6 @@ export default function DashboardPage() {
     { label: 'Monthly Revenue', value: formatPKR(monthlyRevenue), icon: TrendingUp, color: 'text-primary' },
     { label: 'Confirmed This Month', value: confirmedThisMonth, icon: CheckCircle, color: 'text-info' },
     { label: 'RFQs This Month', value: rfqsThisMonth, icon: FileText, color: 'text-warning' },
-    { label: 'Total Profit', value: formatPKR(totalProfit), icon: BarChart3, color: 'text-success' },
   ];
 
   const recentOrders = [...orders].reverse().slice(0, 5);
