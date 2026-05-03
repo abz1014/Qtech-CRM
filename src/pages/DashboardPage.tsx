@@ -5,7 +5,6 @@ import { formatPKR } from '@/lib/format';
 import { Users, ShoppingCart, Wrench, Target, TrendingUp, ArrowRight, FileText, CheckCircle, BarChart3, Send, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ProfitabilityDashboard } from '@/components/orders/ProfitabilityDashboard';
-import { FollowUpActionsDashboard } from '@/components/followup/FollowUpActionsDashboard';
 import { ProfitTrendChart } from '@/components/dashboard/ProfitTrendChart';
 import { MarginDistributionChart } from '@/components/dashboard/MarginDistributionChart';
 import { OrderHealthChart } from '@/components/dashboard/OrderHealthChart';
@@ -226,11 +225,6 @@ export default function DashboardPage() {
           <ProfitabilityDashboard />
         </div>
       )}
-
-      {/* Follow-Up Actions Dashboard */}
-      <div>
-        <FollowUpActionsDashboard />
-      </div>
 
       {/* Advanced Analytics Section */}
       {isAdmin ? (
