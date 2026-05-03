@@ -1410,9 +1410,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const createFollowUp = useCallback(async (followUp: any) => {
     try {
+      // Ensure entity_id is omitted entirely when null/undefined
+      // so the DB doesn't receive null for a possibly NOT NULL column
+      const payload = { ...followUp };
+      if (!payload.entity_id) delete payload.entity_id;
+
       const { data, error } = await supabase
         .from('follow_up_actions')
-        .insert([followUp])
+        .insert([payload])
         .select()
         .single();
 
