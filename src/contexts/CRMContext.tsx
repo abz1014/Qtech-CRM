@@ -449,6 +449,42 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (data) setClients(prev => [...prev, data as Client]);
   }, []);
 
+  // ── autoFollowUp MUST be defined before any callback that lists it in deps ──
+  // Defining it AFTER causes a Temporal Dead Zone crash in production builds.
+  const autoFollowUp = useCallback(async (params: {
+    title: string;
+    action_type: string;
+    entity_type: string;
+    entity_id: string;
+    assigned_to?: string | null;
+    priority?: 'low' | 'medium' | 'high';
+    daysFromNow?: number;
+  }) => {
+    try {
+      const due = new Date();
+      due.setDate(due.getDate() + (params.daysFromNow ?? 2));
+      const due_date = due.toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('follow_up_actions')
+        .insert([{
+          action_type: params.action_type,
+          entity_type: params.entity_type,
+          entity_id: params.entity_id,
+          title: params.title,
+          description: 'Auto-created by system',
+          due_date,
+          priority: params.priority ?? 'medium',
+          assigned_to: params.assigned_to ?? null,
+          status: 'pending',
+        }])
+        .select()
+        .single();
+      if (!error && data) setFollowUpActions(prev => [data, ...prev]);
+    } catch {
+      // Auto-triggers are best-effort — never block the main action
+    }
+  }, []);
+
   const addProspect = useCallback(async (p: Omit<Prospect, 'id' | 'converted_client_id'>) => {
     const { data } = await supabase.from('prospects').insert({ ...p, converted_client_id: null }).select().single();
     if (data) {
@@ -1386,40 +1422,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Internal helper for auto-triggered follow-ups from pipeline events
-  const autoFollowUp = useCallback(async (params: {
-    title: string;
-    action_type: string;
-    entity_type: string;
-    entity_id: string;
-    assigned_to?: string | null;
-    priority?: 'low' | 'medium' | 'high';
-    daysFromNow?: number;
-  }) => {
-    try {
-      const due = new Date();
-      due.setDate(due.getDate() + (params.daysFromNow ?? 2));
-      const due_date = due.toISOString().split('T')[0];
-      const { data, error } = await supabase
-        .from('follow_up_actions')
-        .insert([{
-          action_type: params.action_type,
-          entity_type: params.entity_type,
-          entity_id: params.entity_id,
-          title: params.title,
-          description: 'Auto-created by system',
-          due_date,
-          priority: params.priority ?? 'medium',
-          assigned_to: params.assigned_to ?? null,
-          status: 'pending',
-        }])
-        .select()
-        .single();
-      if (!error && data) setFollowUpActions(prev => [data, ...prev]);
-    } catch {
-      // Auto-triggers are best-effort — never block the main action
-    }
-  }, []);
 
   const getPendingFollowUps = useCallback(async (userId?: string) => {
     try {
