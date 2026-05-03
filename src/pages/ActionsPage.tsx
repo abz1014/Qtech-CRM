@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -407,7 +407,7 @@ export default function ActionsPage() {
   const [outcomeAction, setOutcomeAction] = useState<{ id: string; title: string } | null>(null);
   const [activity, setActivity]         = useState<any[]>([]);
 
-  const patterns = useMemo(() => getPatternInsights(), []);
+  const patterns = useMemo(() => getPatternInsights(), [getPatternInsights]);
 
   const load = async () => {
     setLoading(true);

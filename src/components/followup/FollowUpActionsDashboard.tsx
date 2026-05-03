@@ -35,7 +35,8 @@ export function FollowUpActionsDashboard() {
     setOutcomeAction({ id, title });
   };
 
-  const handleOutcomeConfirm = async (outcome: OutcomeResult, note: string) => {
+  // Third param (createNextAction) intentionally ignored in dashboard — full flow handled by ActionsPage
+  const handleOutcomeConfirm = async (outcome: OutcomeResult, note: string, _createNext?: boolean) => {
     if (!outcomeAction) return;
     const label = { reached: '✅ Reached them', no_answer: '📵 No answer', left_message: '💬 Left message', not_required: '' }[outcome];
     const fullNote = [label, note].filter(Boolean).join(' — ');
