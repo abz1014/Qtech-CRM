@@ -13,11 +13,11 @@ import {
 } from '@/types/bookkeeping';
 
 const allowedTransitions: Record<OrderStatus, OrderStatus | null> = {
-  quotation: 'confirmed',
-  confirmed: 'procurement',
-  procurement: 'installation',
-  installation: 'completed',
-  completed: null,
+  po_received:      'procurement',
+  procurement:      'in_transit',
+  in_transit:       'delivered',
+  delivered:        'payment_received',
+  payment_received: null,
 };
 
 interface CRMContextType {
@@ -559,12 +559,26 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
     if (allowedTransitions[order.status] !== status) return;
+
+    const today = new Date().toISOString().split('T')[0];
     const updates: Partial<Order> = { status };
-    if (status === 'confirmed') updates.confirmed_date = new Date().toISOString().split('T')[0];
+
+    if (status === 'po_received') updates.confirmed_date = today;
+
+    // When delivered: record delivery date + auto-calculate payment due date
+    if (status === 'delivered') {
+      updates.delivery_date = today;
+      const paymentTerms = order.payment_terms_days ?? 30;
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + paymentTerms);
+      updates.payment_due_date = dueDate.toISOString().split('T')[0];
+    }
+
     const { data } = await supabase.from('orders').update(updates).eq('id', orderId).select().single();
     if (data) {
       setOrders(prev => prev.map(o => o.id === orderId ? data as Order : o));
-      // Auto-trigger: procurement stage → confirm vendor delivery
+
+      // Auto-trigger: procurement → confirm delivery timeline with vendor
       if (status === 'procurement') {
         autoFollowUp({
           title: `Confirm delivery timeline with vendor — ${order.product_type}`,
@@ -572,20 +586,33 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           entity_type: 'order',
           entity_id: orderId,
           assigned_to: order.sales_person_id ?? null,
-          priority: 'medium',
+          priority: 'high',
           daysFromNow: 2,
         });
       }
-      // Auto-trigger: installation stage → check progress
-      if (status === 'installation') {
+      // Auto-trigger: in_transit → check shipment update
+      if (status === 'in_transit') {
         autoFollowUp({
-          title: `Check installation progress — ${order.product_type}`,
+          title: `Check shipment status with vendor — ${order.product_type}`,
           action_type: 'order_status',
           entity_type: 'order',
           entity_id: orderId,
           assigned_to: order.sales_person_id ?? null,
           priority: 'medium',
           daysFromNow: 3,
+        });
+      }
+      // Auto-trigger: delivered → follow up on payment after payment terms window
+      if (status === 'delivered') {
+        const paymentTerms = order.payment_terms_days ?? 30;
+        autoFollowUp({
+          title: `Follow up on payment from ${order.product_type} — payment due`,
+          action_type: 'overdue_invoice',
+          entity_type: 'order',
+          entity_id: orderId,
+          assigned_to: order.sales_person_id ?? null,
+          priority: 'high',
+          daysFromNow: paymentTerms,
         });
       }
     }

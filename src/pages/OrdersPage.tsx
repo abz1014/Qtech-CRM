@@ -9,12 +9,20 @@ import { Plus, X, Search, Trash2, Download, AlertCircle } from 'lucide-react';
 import { OrderStatus, ProductType } from '@/types/crm';
 import { cn } from '@/lib/utils';
 
-const statusColors: Record<OrderStatus, string> = {
-  quotation: 'bg-muted text-muted-foreground',
-  confirmed: 'bg-info/15 text-info',
+const statusColors: Record<string, string> = {
+  po_received: 'bg-info/15 text-info',
   procurement: 'bg-warning/15 text-warning',
-  installation: 'bg-primary/15 text-primary',
-  completed: 'bg-success/15 text-success',
+  in_transit: 'bg-primary/15 text-primary',
+  delivered: 'bg-success/15 text-success',
+  payment_received: 'bg-emerald-500/15 text-emerald-600',
+};
+
+const statusLabels: Record<string, string> = {
+  po_received: 'PO Received',
+  procurement: 'Procurement',
+  in_transit: 'In Transit',
+  delivered: 'Delivered',
+  payment_received: 'Payment Received',
 };
 
 const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
@@ -35,7 +43,7 @@ export default function OrdersPage() {
   const [toDate, setToDate] = useState('');
   const [form, setForm] = useState({
     client_id: '', vendor_id: '', product_type: 'DVR' as ProductType,
-    order_value: '', cost_value: '', status: 'quotation' as OrderStatus, notes: '',
+    order_value: '', cost_value: '', status: 'po_received' as OrderStatus, notes: '',
   });
 
   const filtered = orders.filter(o => {
@@ -107,7 +115,7 @@ export default function OrdersPage() {
       rfq_id: null,
     });
     setShowForm(false);
-    setForm({ client_id: '', vendor_id: '', product_type: 'DVR', order_value: '', cost_value: '', status: 'quotation', notes: '' });
+    setForm({ client_id: '', vendor_id: '', product_type: 'DVR', order_value: '', cost_value: '', status: 'po_received', notes: '' });
     setVendorQuery('');
   };
 
@@ -193,7 +201,7 @@ export default function OrdersPage() {
                     </span>
                   </td>
                   <td className="px-5 py-3">
-                    <span className={`status-badge capitalize ${statusColors[o.status]}`}>{o.status}</span>
+                    <span className={`status-badge ${statusColors[o.status] || 'bg-muted text-muted-foreground'}`}>{statusLabels[o.status] || o.status}</span>
                   </td>
                   <td className="px-5 py-3">
                     {isAdmin && (

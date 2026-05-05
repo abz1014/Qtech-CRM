@@ -4,9 +4,10 @@ import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR, formatDate } from '@/lib/format';
 import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart } from 'lucide-react';
-import { SupplierInquiryStatus, RFQStatus, RFQPriority } from '@/types/crm';
+import { SupplierInquiryStatus, RFQStatus, RFQPriority, LossReason } from '@/types/crm';
 import { SupplierComparisonTable } from '@/components/rfq/SupplierComparisonTable';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
+import { LossReasonModal } from '@/components/rfq/LossReasonModal';
 import { cn } from '@/lib/utils';
 
 const inquiryStatusColors: Record<SupplierInquiryStatus, string> = {
@@ -37,6 +38,7 @@ export default function RFQDetailPage() {
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [showEditRFQ, setShowEditRFQ] = useState(false);
   const [showConvertOrder, setShowConvertOrder] = useState(false);
+  const [showLossModal, setShowLossModal] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [viewingEmailId, setViewingEmailId] = useState<string | null>(null);
 
@@ -69,6 +71,9 @@ export default function RFQDetailPage() {
     product_type: '',
     sales_person_id: user?.id || '',
     notes: '',
+    customer_po_number: '',
+    customer_po_date: new Date().toISOString().split('T')[0],
+    payment_terms_days: '30',
   });
   const [isConverting, setIsConverting] = useState(false);
 
@@ -212,6 +217,11 @@ export default function RFQDetailPage() {
       return;
     }
 
+    if (!convertForm.customer_po_number.trim()) {
+      alert('Customer PO Number is required');
+      return;
+    }
+
     try {
       setIsConverting(true);
       await convertRFQToOrder(rfq.id, {
@@ -221,12 +231,14 @@ export default function RFQDetailPage() {
         product_type: convertForm.product_type,
         cost_value: 0,
         notes: convertForm.notes,
-        status: 'confirmed',
+        status: 'po_received',
         sales_person_id: convertForm.sales_person_id,
         confirmed_date: new Date().toISOString().split('T')[0],
-      });
+        customer_po_number: convertForm.customer_po_number.trim(),
+        customer_po_date: convertForm.customer_po_date,
+        payment_terms_days: Number(convertForm.payment_terms_days) || 30,
+      } as any);
       setShowConvertOrder(false);
-      // Navigate to orders list — avoid stale closure from setTimeout
       navigate('/orders');
     } catch (error) {
       console.error('Failed to convert RFQ to order:', error);
@@ -234,6 +246,11 @@ export default function RFQDetailPage() {
     } finally {
       setIsConverting(false);
     }
+  };
+
+  const handleMarkLost = async (reason: LossReason, notes: string) => {
+    await updateRFQ(id!, { status: 'lost', loss_reason: reason, loss_notes: notes } as any);
+    setShowLossModal(false);
   };
 
   const cheapestQuote = quotes.length > 0
@@ -253,9 +270,14 @@ export default function RFQDetailPage() {
           <p className="text-muted-foreground mt-1">{rfq.contact_person} · {rfq.email}</p>
         </div>
         <div className="flex items-center gap-2">
-          {rfq.status !== 'converted' && quotes.length > 0 && (
+          {rfq.status !== 'converted' && rfq.status !== 'lost' && quotes.length > 0 && (
             <button onClick={() => setShowConvertOrder(true)} className="flex items-center gap-1 px-3 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors">
               <ShoppingCart className="w-4 h-4" /> Convert to Order
+            </button>
+          )}
+          {rfq.status !== 'converted' && rfq.status !== 'lost' && (
+            <button onClick={() => setShowLossModal(true)} className="flex items-center gap-1 px-3 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-lg text-sm font-medium hover:bg-destructive/20 transition-colors">
+              Mark as Lost
             </button>
           )}
           <AddFollowUpButton
@@ -830,6 +852,47 @@ export default function RFQDetailPage() {
                 />
               </div>
 
+              {/* PO Details */}
+              <div className="border-t border-border pt-4">
+                <p className="text-sm font-semibold text-foreground mb-3">Customer PO Details</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Customer PO Number *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. PO-2025-001"
+                      value={convertForm.customer_po_number}
+                      onChange={(e) => setConvertForm(p => ({ ...p, customer_po_number: e.target.value }))}
+                      className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">PO Date *</label>
+                      <input
+                        type="date"
+                        value={convertForm.customer_po_date}
+                        onChange={(e) => setConvertForm(p => ({ ...p, customer_po_date: e.target.value }))}
+                        className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">Payment Terms (days)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 30"
+                        value={convertForm.payment_terms_days}
+                        onChange={(e) => setConvertForm(p => ({ ...p, payment_terms_days: e.target.value }))}
+                        className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Notes</label>
                 <textarea
@@ -860,6 +923,14 @@ export default function RFQDetailPage() {
             </form>
           </div>
         </div>
+      )}
+      {/* Loss Reason Modal */}
+      {showLossModal && (
+        <LossReasonModal
+          rfqTitle={rfq.company_name}
+          onConfirm={handleMarkLost}
+          onCancel={() => setShowLossModal(false)}
+        />
       )}
     </div>
   );

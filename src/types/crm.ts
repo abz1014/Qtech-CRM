@@ -2,7 +2,7 @@ export type UserRole = 'admin' | 'sales' | 'engineer';
 
 export type ProspectStatus = 'hot' | 'warm' | 'cold';
 
-export type OrderStatus = 'quotation' | 'confirmed' | 'procurement' | 'installation' | 'completed';
+export type OrderStatus = 'po_received' | 'procurement' | 'in_transit' | 'delivered' | 'payment_received';
 
 export type ProductType = 'DVR' | 'SVG' | 'AHF' | 'Automation' | 'Software';
 
@@ -67,6 +67,12 @@ export interface Order {
   notes: string;
   confirmed_date: string | null;
   rfq_id: string | null;
+  // New PO & payment tracking fields
+  customer_po_number: string | null;
+  customer_po_date: string | null;
+  payment_terms_days: number;
+  delivery_date: string | null;
+  payment_due_date: string | null;
 }
 
 export interface OrderEngineer {
@@ -78,6 +84,16 @@ export interface OrderEngineer {
   expected_completion: string;
   commissioning_status: CommissioningStatus;
 }
+
+export type LossReason =
+  | 'price_too_high'
+  | 'delivery_too_slow'
+  | 'competitor_won'
+  | 'client_budget_cut'
+  | 'specs_changed'
+  | 'went_direct_to_supplier'
+  | 'poor_follow_up'
+  | 'other';
 
 export interface RFQ {
   id: string;
@@ -93,6 +109,12 @@ export interface RFQ {
   status: RFQStatus;
   notes: string;
   converted_order_id: string | null;
+  // New quote tracking fields
+  quoted_price: number | null;
+  quote_sent_date: string | null;
+  quote_expiry_date: string | null;
+  loss_reason: LossReason | null;
+  loss_notes: string | null;
 }
 
 export interface RFQLineItem {

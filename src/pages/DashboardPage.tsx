@@ -25,12 +25,12 @@ export default function DashboardPage() {
 
   const totalClients = clients.length;
   const totalOrders = orders.length;
-  const installationOrders = orders.filter(o => o.status === 'installation').length;
+  const installationOrders = orders.filter(o => o.status === 'in_transit' || o.status === 'procurement').length;
   const activeProspects = prospects.filter(p => !p.converted_client_id).length;
 
   // Monthly revenue: confirmed + completed orders
   const monthlyRevenue = orders
-    .filter(o => (o.status === 'completed' || o.status === 'confirmed') && o.confirmed_date)
+    .filter(o => (o.status === 'payment_received' || o.status === 'delivered') && o.confirmed_date)
     .filter(o => {
       const d = new Date(o.confirmed_date!);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -38,7 +38,7 @@ export default function DashboardPage() {
     .reduce((s, o) => s + o.order_value, 0);
 
   const confirmedThisMonth = orders.filter(o => {
-    if (o.status !== 'confirmed') return false;
+    if (o.status !== 'po_received') return false;
     if (!o.confirmed_date) return false;
     const d = new Date(o.confirmed_date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -70,24 +70,31 @@ export default function DashboardPage() {
   const kpis = [
     { label: 'Total Clients', value: totalClients, icon: Users, color: 'text-primary' },
     { label: 'Total Orders', value: totalOrders, icon: ShoppingCart, color: 'text-info' },
-    { label: 'In Installation', value: installationOrders, icon: Wrench, color: 'text-warning' },
+    { label: 'In Procurement/Transit', value: installationOrders, icon: Wrench, color: 'text-warning' },
     { label: 'Active Prospects', value: activeProspects, icon: Target, color: 'text-hot' },
   ];
 
   const monthlyKpis = [
     { label: 'Monthly Revenue', value: formatPKR(monthlyRevenue), icon: TrendingUp, color: 'text-primary' },
-    { label: 'Confirmed This Month', value: confirmedThisMonth, icon: CheckCircle, color: 'text-info' },
+    { label: 'POs Received This Month', value: confirmedThisMonth, icon: CheckCircle, color: 'text-info' },
     { label: 'RFQs This Month', value: rfqsThisMonth, icon: FileText, color: 'text-warning' },
   ];
 
   const recentOrders = [...orders].reverse().slice(0, 5);
 
   const statusColors: Record<string, string> = {
-    quotation: 'bg-muted text-muted-foreground',
-    confirmed: 'bg-info/15 text-info',
+    po_received: 'bg-info/15 text-info',
     procurement: 'bg-warning/15 text-warning',
-    installation: 'bg-primary/15 text-primary',
-    completed: 'bg-success/15 text-success',
+    in_transit: 'bg-primary/15 text-primary',
+    delivered: 'bg-success/15 text-success',
+    payment_received: 'bg-emerald-500/15 text-emerald-600',
+  };
+  const statusLabels: Record<string, string> = {
+    po_received: 'PO Received',
+    procurement: 'Procurement',
+    in_transit: 'In Transit',
+    delivered: 'Delivered',
+    payment_received: 'Payment Received',
   };
 
   return (
@@ -206,8 +213,8 @@ export default function DashboardPage() {
                   <td className="px-5 py-3 text-sm text-foreground">{order.product_type}</td>
                   <td className="px-5 py-3 text-sm text-foreground">{formatPKR(order.order_value)}</td>
                   <td className="px-5 py-3">
-                    <span className={`status-badge capitalize ${statusColors[order.status]}`}>
-                      {order.status}
+                    <span className={`status-badge ${statusColors[order.status] || 'bg-muted text-muted-foreground'}`}>
+                      {statusLabels[order.status] || order.status}
                     </span>
                   </td>
                 </tr>

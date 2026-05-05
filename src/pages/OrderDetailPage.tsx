@@ -10,14 +10,22 @@ import { ProfitabilityBadge } from '@/components/orders/ProfitabilityBadge';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { cn } from '@/lib/utils';
 
-const statusFlow: OrderStatus[] = ['quotation', 'confirmed', 'procurement', 'installation', 'completed'];
+const statusFlow: OrderStatus[] = ['po_received', 'procurement', 'in_transit', 'delivered', 'payment_received'];
 
-const statusColors: Record<OrderStatus, string> = {
-  quotation: 'bg-muted text-muted-foreground',
-  confirmed: 'bg-info/15 text-info',
+const statusLabels: Record<OrderStatus, string> = {
+  po_received: 'PO Received',
+  procurement: 'Procurement',
+  in_transit: 'In Transit',
+  delivered: 'Delivered',
+  payment_received: 'Payment Received',
+};
+
+const statusColors: Record<string, string> = {
+  po_received: 'bg-info/15 text-info',
   procurement: 'bg-warning/15 text-warning',
-  installation: 'bg-primary/15 text-primary',
-  completed: 'bg-success/15 text-success',
+  in_transit: 'bg-primary/15 text-primary',
+  delivered: 'bg-success/15 text-success',
+  payment_received: 'bg-emerald-500/15 text-emerald-600',
 };
 
 const commColors: Record<CommissioningStatus, string> = {
@@ -139,7 +147,7 @@ export default function OrderDetailPage() {
               <Edit2 className="w-4 h-4" /> Edit
             </button>
           )}
-          <span className={`status-badge capitalize text-sm ${statusColors[order.status]}`}>{order.status}</span>
+          <span className={`status-badge text-sm ${statusColors[order.status] || 'bg-muted text-muted-foreground'}`}>{statusLabels[order.status as OrderStatus] || order.status}</span>
         </div>
       </div>
 
@@ -153,7 +161,24 @@ export default function OrderDetailPage() {
             <div className="flex justify-between"><span className="text-muted-foreground">Product</span><span className="text-foreground">{order.product_type}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Sales Person</span><span className="text-foreground">{getUserName(order.sales_person_id)}</span></div>
             {order.confirmed_date && (
-              <div className="flex justify-between"><span className="text-muted-foreground">Confirmed</span><span className="text-foreground">{formatDate(order.confirmed_date)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">PO Date</span><span className="text-foreground">{formatDate(order.confirmed_date)}</span></div>
+            )}
+            {(order as any).customer_po_number && (
+              <div className="flex justify-between"><span className="text-muted-foreground">PO Number</span><span className="text-foreground font-mono text-xs">{(order as any).customer_po_number}</span></div>
+            )}
+            {(order as any).payment_terms_days != null && (
+              <div className="flex justify-between"><span className="text-muted-foreground">Payment Terms</span><span className="text-foreground">{(order as any).payment_terms_days} days</span></div>
+            )}
+            {(order as any).delivery_date && (
+              <div className="flex justify-between"><span className="text-muted-foreground">Delivered On</span><span className="text-foreground">{formatDate((order as any).delivery_date)}</span></div>
+            )}
+            {(order as any).payment_due_date && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Payment Due</span>
+                <span className={`font-semibold ${new Date((order as any).payment_due_date) < new Date() && order.status !== 'payment_received' ? 'text-destructive' : 'text-foreground'}`}>
+                  {formatDate((order as any).payment_due_date)}
+                </span>
+              </div>
             )}
           </div>
         </div>
@@ -198,7 +223,7 @@ export default function OrderDetailPage() {
                 onClick={() => updateOrderStatus(order.id, nextStatus!)}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
               >
-                Move to {nextStatus}
+                Move to {statusLabels[nextStatus as OrderStatus] || nextStatus}
               </button>
             </div>
           )}
@@ -220,7 +245,7 @@ export default function OrderDetailPage() {
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${isCurrent ? 'bg-primary text-primary-foreground ring-2 ring-primary/30' : isCompleted ? 'bg-primary/30 text-primary' : 'bg-border text-muted-foreground'}`}>
                   {i + 1}
                 </div>
-                <span className={`text-xs capitalize ${isCurrent ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>{s}</span>
+                <span className={`text-xs text-center ${isCurrent ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>{statusLabels[s] || s}</span>
               </div>
             );
           })}
