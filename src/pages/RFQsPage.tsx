@@ -5,7 +5,7 @@ import { Pagination } from '@/components/Pagination';
 import { formatPKR, formatDate } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-react';
-import { RFQStatus, RFQPriority, ProductType } from '@/types/crm';
+import { RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
 
 const rfqStatusColors: Record<RFQStatus, string> = {
@@ -25,16 +25,12 @@ const priorityColors: Record<RFQPriority, string> = {
 const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
 
 export default function RFQsPage() {
-  const { rfqs, clients, vendors, users, supplierInquiries, supplierQuotes, addRFQ, addVendor, updateRFQStatus, updateRFQPriority, convertRFQToOrder, deleteRFQ, getUserName } = useCRM();
+  const { rfqs, clients, users, supplierInquiries, supplierQuotes, addRFQ, updateRFQStatus, updateRFQPriority, deleteRFQ, getUserName } = useCRM();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
-  const [showConvert, setShowConvert] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [vendorQuery, setVendorQuery] = useState('');
-  const [vendorOpen, setVendorOpen] = useState(false);
-  const [productOpen, setProductOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [fromDate, setFromDate] = useState('');
@@ -44,10 +40,6 @@ export default function RFQsPage() {
     client_id: '', company_name: '', contact_person: '', phone: '', email: '',
     rfq_date: '', assigned_to: user?.id ?? '',
     priority: 'medium' as RFQPriority, status: 'new' as RFQStatus, notes: '',
-  });
-
-  const [convertForm, setConvertForm] = useState({
-    vendor_id: '', product_type: '' as string, cost_value: '', notes: '',
   });
 
   const salesUsers = users.filter(u => u.role === 'sales');
@@ -137,78 +129,6 @@ export default function RFQsPage() {
     }
   };
 
-  const handleConvert = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      console.log('=== Starting RFQ Conversion ===');
-      if (!showConvert) {
-        console.error('No RFQ selected');
-        return;
-      }
-      const rfq = rfqs.find(r => r.id === showConvert);
-      if (!rfq) {
-        console.error('RFQ not found:', showConvert);
-        return;
-      }
-      console.log('RFQ found:', rfq.company_name);
-
-      let vendorId = convertForm.vendor_id;
-      const trimmed = vendorQuery.trim();
-      console.log('Vendor ID:', vendorId, 'Vendor Query:', trimmed);
-
-      if (!vendorId && trimmed) {
-        console.log('Looking for existing vendor...');
-        const existing = vendors.find(v => v.name.toLowerCase() === trimmed.toLowerCase());
-        if (existing) {
-          vendorId = existing.id;
-          console.log('Found existing vendor:', existing.name);
-        } else {
-          console.log('Creating new vendor:', trimmed);
-          const newVendor = await addVendor({
-            name: trimmed, country: '', contact_person: '', phone: '', email: '', products_supplied: '',
-          });
-          vendorId = newVendor.id;
-          console.log('New vendor created:', newVendor.name);
-        }
-      }
-      if (!vendorId) {
-        alert('Please select or create a vendor');
-        console.error('No vendor ID available');
-        return;
-      }
-
-      if (!convertForm.product_type.trim()) {
-        alert('Please enter a product type');
-        console.error('Product type is empty');
-        return;
-      }
-
-      console.log('Converting RFQ to order with:', {
-        vendor_id: vendorId,
-        product_type: convertForm.product_type.trim(),
-        cost_value: Number(convertForm.cost_value),
-      });
-
-      await convertRFQToOrder(showConvert, {
-        client_id: rfq.client_id,
-        vendor_id: vendorId,
-        sales_person_id: rfq.assigned_to,
-        product_type: convertForm.product_type.trim(),
-        order_value: 0,
-        cost_value: Number(convertForm.cost_value) || 0,
-        status: 'quotation',
-        notes: convertForm.notes || rfq.notes,
-      });
-      console.log('Conversion completed successfully');
-      setShowConvert(null);
-      setConvertForm({ vendor_id: '', product_type: '', cost_value: '', notes: '' });
-      setVendorQuery('');
-      alert('RFQ converted to Order successfully!');
-    } catch (error) {
-      console.error('=== Conversion Error ===', error);
-      alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -291,7 +211,7 @@ export default function RFQsPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setShowConvert(rfq.id);
+                              navigate(`/rfqs/${rfq.id}`);
                             }}
                             className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                           >
@@ -434,116 +354,6 @@ export default function RFQsPage() {
                 <button type="submit" className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">Add RFQ</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Convert to Order Modal */}
-      {showConvert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-lg p-6 m-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Convert RFQ to Order</h2>
-              <button onClick={() => setShowConvert(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
-            </div>
-            {(() => {
-              const rfq = rfqs.find(r => r.id === showConvert);
-              if (!rfq) return null;
-              return (
-                <form onSubmit={handleConvert} className="space-y-3">
-                  <div className="p-3 bg-muted/50 rounded-lg space-y-1 text-sm">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Client</span><span className="text-foreground font-medium">{rfq.company_name}</span></div>
-                  </div>
-                  {(() => {
-                    const q = vendorQuery.trim().toLowerCase();
-                    const matches = q ? vendors.filter(v => v.name.toLowerCase().includes(q)) : vendors;
-                    const exact = vendors.find(v => v.name.toLowerCase() === q);
-                    return (
-                      <div className="relative">
-                        <label className="block text-sm font-medium text-foreground mb-1">Vendor *</label>
-                        <input
-                          type="text"
-                          value={vendorQuery}
-                          onChange={e => { setVendorQuery(e.target.value); setConvertForm(p => ({ ...p, vendor_id: '' })); setVendorOpen(true); }}
-                          onFocus={() => setVendorOpen(true)}
-                          onBlur={() => setTimeout(() => setVendorOpen(false), 150)}
-                          placeholder="Search or type new vendor name"
-                          className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                          required
-                        />
-                        {vendorOpen && (matches.length > 0 || (vendorQuery.trim() && !exact)) && (
-                          <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto bg-popover border border-border rounded-lg shadow-lg">
-                            {matches.slice(0, 8).map(v => (
-                              <button
-                                type="button"
-                                key={v.id}
-                                onMouseDown={(e) => { e.preventDefault(); setConvertForm(p => ({ ...p, vendor_id: v.id })); setVendorQuery(v.name); setVendorOpen(false); }}
-                                className={`w-full text-left px-3 py-2 text-sm hover:bg-muted text-foreground ${convertForm.vendor_id === v.id ? 'bg-muted' : ''}`}
-                              >
-                                {v.name}
-                              </button>
-                            ))}
-                            {vendorQuery.trim() && !exact && (
-                              <button
-                                type="button"
-                                onMouseDown={(e) => { e.preventDefault(); setConvertForm(p => ({ ...p, vendor_id: '' })); setVendorOpen(false); }}
-                                className="w-full text-left px-3 py-2 text-sm border-t border-border text-primary hover:bg-muted"
-                              >
-                                + Create new vendor: "{vendorQuery.trim()}"
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <div className="relative">
-                    <label className="block text-sm font-medium text-foreground mb-1">Product Type</label>
-                    <input
-                      type="text"
-                      value={convertForm.product_type}
-                      onChange={e => { setConvertForm(p => ({ ...p, product_type: e.target.value })); setProductOpen(true); }}
-                      onFocus={() => setProductOpen(true)}
-                      onBlur={() => setTimeout(() => setProductOpen(false), 150)}
-                      placeholder="Type or select (e.g. DVR, SVG, custom...)"
-                      className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      required
-                    />
-                    {productOpen && (
-                      <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto bg-popover border border-border rounded-lg shadow-lg">
-                        {productTypes
-                          .filter(pt => pt.toLowerCase().includes(convertForm.product_type.toLowerCase()))
-                          .map(pt => (
-                            <button
-                              type="button"
-                              key={pt}
-                              onMouseDown={(e) => { e.preventDefault(); setConvertForm(p => ({ ...p, product_type: pt })); setProductOpen(false); }}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted text-foreground"
-                            >
-                              {pt}
-                            </button>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Cost Value (PKR)</label>
-                    <input type="number" value={convertForm.cost_value} onChange={e => setConvertForm(p => ({ ...p, cost_value: e.target.value }))}
-                      className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-                    <textarea value={convertForm.notes} onChange={e => setConvertForm(p => ({ ...p, notes: e.target.value }))}
-                      className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" rows={3}
-                      placeholder={rfqs.find(r => r.id === showConvert)?.notes} />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={() => setShowConvert(null)} className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">Cancel</button>
-                    <button type="submit" className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">Convert to Order</button>
-                  </div>
-                </form>
-              );
-            })()}
           </div>
         </div>
       )}

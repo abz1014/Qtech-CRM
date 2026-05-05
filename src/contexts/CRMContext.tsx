@@ -1314,7 +1314,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase
         .from('orders')
         .select('order_value, total_cost, profit, profit_margin, status')
-        .neq('status', 'quotation');
+        .neq('status', 'po_received'); // exclude brand-new orders not yet in procurement
 
       if (error) throw error;
 

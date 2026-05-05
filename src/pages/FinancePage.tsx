@@ -2,7 +2,7 @@ import { useCRM } from '@/contexts/CRMContext';
 import { formatPKR, formatDate } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle, ArrowRight, Download } from 'lucide-react';
+import { TrendingUp, Clock, AlertCircle, CheckCircle, ArrowRight, Download } from 'lucide-react';
 
 export default function FinancePage() {
   const { orders, getClientName, getVendorName, getUserName } = useCRM();
