@@ -194,7 +194,14 @@ export default function OrdersPage() {
             {paginatedOrders.map(o => (
                 <tr key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
                   className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
-                  <td className="px-5 py-3 text-sm font-medium text-foreground">{getClientName(o.client_id)}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="avatar-xs bg-primary/15 text-primary">
+                        {getClientName(o.client_id).slice(0,2).toUpperCase()}
+                      </div>
+                      <span className="text-sm font-medium text-foreground">{getClientName(o.client_id)}</span>
+                    </div>
+                  </td>
                   <td className="px-5 py-3 text-sm text-foreground">{getVendorName(o.vendor_id)}</td>
                   <td className="px-5 py-3 text-sm text-foreground">{o.product_type}</td>
                   <td className="px-5 py-3 text-sm text-foreground font-semibold">{formatPKR(o.order_value)}</td>

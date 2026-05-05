@@ -177,7 +177,14 @@ export default function RFQsPage() {
           <tbody>
             {paginatedRFQs.map(rfq => (
               <tr key={rfq.id} onClick={() => navigate(`/rfqs/${rfq.id}`)} className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
-                <td className="px-5 py-3 text-sm font-medium text-foreground">{rfq.company_name}</td>
+                <td className="px-5 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="avatar-xs bg-info/15 text-info">
+                      {rfq.company_name.slice(0,2).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-foreground">{rfq.company_name}</span>
+                  </div>
+                </td>
                 <td className="px-5 py-3 text-sm text-foreground">{rfq.contact_person}</td>
                 <td className="px-5 py-3 text-sm text-muted-foreground">{formatDate(rfq.rfq_date)}</td>
                 <td className="px-5 py-3">

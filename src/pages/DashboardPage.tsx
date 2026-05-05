@@ -92,40 +92,55 @@ export default function DashboardPage() {
     payment_received: 'Payment Received',
   };
 
+  // Icon background colours per kpi
+  const iconBg: Record<string, string> = {
+    'text-primary': 'bg-primary/15 text-primary',
+    'text-warning': 'bg-warning/15 text-warning',
+    'text-info':    'bg-info/15 text-info',
+    'text-success': 'bg-success/15 text-success',
+    'text-hot':     'bg-hot/15 text-hot',
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+
+      {/* Welcome */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back, {user?.name}</p>
+        <p className="text-muted-foreground text-sm font-medium">Welcome back 👋</p>
+        <h2 className="text-3xl font-bold text-foreground mt-0.5 tracking-tight">{user?.name}</h2>
       </div>
 
       {/* RFQ Metrics */}
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">Today's RFQ Metrics</h2>
+        <p className="section-title mb-3">Today's RFQ Pipeline</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {rfqKpis.map(kpi => (
-            <div key={kpi.label} className="glass-card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-muted-foreground">{kpi.label}</span>
-                <kpi.icon className={`w-5 h-5 ${kpi.color}`} />
+            <div key={kpi.label} className="kpi-card">
+              <div className="flex items-start justify-between mb-4">
+                <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg[kpi.color] || 'bg-muted text-muted-foreground'}`}>
+                  <kpi.icon className="w-4 h-4" />
+                </div>
               </div>
-              <p className="text-3xl font-bold text-foreground">{kpi.value}</p>
+              <p className="text-4xl font-extrabold text-foreground tracking-tight">{kpi.value}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* Overall KPIs */}
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">Overall Metrics</h2>
+        <p className="section-title mb-3">Overall</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map(kpi => (
-            <div key={kpi.label} className="glass-card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-muted-foreground">{kpi.label}</span>
-                <kpi.icon className={`w-5 h-5 ${kpi.color}`} />
+            <div key={kpi.label} className="kpi-card">
+              <div className="flex items-start justify-between mb-4">
+                <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg[kpi.color] || 'bg-muted text-muted-foreground'}`}>
+                  <kpi.icon className="w-4 h-4" />
+                </div>
               </div>
-              <p className="text-3xl font-bold text-foreground">{kpi.value}</p>
+              <p className="text-4xl font-extrabold text-foreground tracking-tight">{kpi.value}</p>
             </div>
           ))}
         </div>
@@ -133,15 +148,17 @@ export default function DashboardPage() {
 
       {/* Monthly KPIs */}
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">This Month</h2>
+        <p className="section-title mb-3">This Month</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {monthlyKpis.map(kpi => (
-            <div key={kpi.label} className="glass-card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-muted-foreground">{kpi.label}</span>
-                <kpi.icon className={`w-5 h-5 ${kpi.color}`} />
+            <div key={kpi.label} className="kpi-card">
+              <div className="flex items-start justify-between mb-4">
+                <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg[kpi.color] || 'bg-muted text-muted-foreground'}`}>
+                  <kpi.icon className="w-4 h-4" />
+                </div>
               </div>
-              <p className="text-2xl font-bold text-foreground">{kpi.value}</p>
+              <p className="text-3xl font-extrabold text-foreground tracking-tight">{kpi.value}</p>
             </div>
           ))}
         </div>
@@ -203,8 +220,15 @@ export default function DashboardPage() {
                   className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors"
                   onClick={() => navigate(`/orders/${order.id}`)}
                 >
-                  <td className="px-5 py-3 text-sm text-foreground">{getClientName(order.client_id)}</td>
-                  <td className="px-5 py-3 text-sm text-foreground">{getVendorName(order.vendor_id)}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="avatar-xs bg-primary/15 text-primary">
+                        {getClientName(order.client_id).slice(0,2).toUpperCase()}
+                      </div>
+                      <span className="text-sm font-medium text-foreground">{getClientName(order.client_id)}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3 text-sm text-muted-foreground">{getVendorName(order.vendor_id)}</td>
                   <td className="px-5 py-3 text-sm text-foreground">{order.product_type}</td>
                   <td className="px-5 py-3 text-sm text-foreground">{formatPKR(order.order_value)}</td>
                   <td className="px-5 py-3">
