@@ -49,15 +49,28 @@ function writeCache(profile: User | null) {
   }
 }
 
-// ─── DB fetch (no retry — cache makes timeout edge-cases rare) ────────────────
+// ─── DB fetch with timeout ────────────────────────────────────────────────────
+// Supabase free tier can cold-start slowly. Without a timeout, a hanging
+// DB call blocks the login flow forever showing "Authenticating...".
 
-async function fetchFromDB(userId: string): Promise<User | null> {
+async function fetchFromDB(userId: string, timeoutMs = 6000): Promise<User | null> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
+    const timeout = new Promise<{ timedOut: true }>(resolve =>
+      setTimeout(() => resolve({ timedOut: true }), timeoutMs)
+    );
+
+    const result = await Promise.race([
+      supabase.from('users').select('*').eq('id', userId).maybeSingle(),
+      timeout,
+    ]);
+
+    // Timed out
+    if ('timedOut' in result) {
+      console.warn('[Auth] DB fetch timed out after', timeoutMs, 'ms');
+      return null;
+    }
+
+    const { data, error } = result;
     if (error) {
       console.error('[Auth] DB fetch error:', error.message);
       return null;
@@ -128,14 +141,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Safety net: never hang forever (30s max, only hit on first-ever login
-    // with a very slow connection — normal refreshes clear loading in <50ms)
+    // Safety net: never hang forever. fetchFromDB times out at 6s so this
+    // only fires if something truly unexpected hangs the auth state change.
     const safety = setTimeout(() => {
       if (mounted) {
         console.warn('[Auth] Safety timeout fired');
         setLoading(false);
       }
-    }, 30000);
+    }, 8000);
 
     return () => {
       mounted = false;
@@ -153,15 +166,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      if (data.session?.user) {
-        const profile = await fetchFromDB(data.session.user.id);
-        if (profile) {
-          writeCache(profile);
-          setUser(profile);
-          return true;
-        }
+      if (!data.session?.user) return false;
+
+      const uid = data.session.user.id;
+
+      // Try cache first — instant
+      const cached = readCache(uid);
+      if (cached) {
+        setUser(cached);
+        // Refresh in background, don't block
+        fetchFromDB(uid).then(fresh => {
+          if (fresh) { writeCache(fresh); setUser(fresh); }
+        });
+        return true;
       }
-      return false;
+
+      // No cache — fetch from DB with timeout
+      // onAuthStateChange will also fire and handle this, but we do it
+      // here too so login() can return true quickly and navigate the user
+      const profile = await fetchFromDB(uid);
+      if (profile) {
+        writeCache(profile);
+        setUser(profile);
+        return true;
+      }
+
+      // DB timed out or returned nothing — auth DID succeed so still allow in.
+      // onAuthStateChange will retry the profile fetch shortly after.
+      console.warn('[Auth] Profile not found in DB after login — auth succeeded, proceeding anyway');
+      return true;
     } catch (err) {
       console.error('[Auth] Login exception:', err);
       return false;
