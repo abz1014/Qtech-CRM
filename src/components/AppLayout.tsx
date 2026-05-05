@@ -76,7 +76,7 @@ export function AppLayout() {
 
         {/* ── Page content ── */}
         <main className="flex-1 overflow-y-auto">
-          <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
+          <div key={location.pathname} className="p-4 sm:p-6 lg:p-8 animate-fade-in">
             <Outlet />
           </div>
         </main>
