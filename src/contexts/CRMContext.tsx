@@ -578,30 +578,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (data) {
       setOrders(prev => prev.map(o => o.id === orderId ? data as Order : o));
 
-      // Auto-trigger: procurement → confirm delivery timeline with vendor
-      if (status === 'procurement') {
-        autoFollowUp({
-          title: `Confirm delivery timeline with vendor — ${order.product_type}`,
-          action_type: 'order_status',
-          entity_type: 'order',
-          entity_id: orderId,
-          assigned_to: order.sales_person_id ?? null,
-          priority: 'high',
-          daysFromNow: 2,
-        });
-      }
-      // Auto-trigger: in_transit → check shipment update
-      if (status === 'in_transit') {
-        autoFollowUp({
-          title: `Check shipment status with vendor — ${order.product_type}`,
-          action_type: 'order_status',
-          entity_type: 'order',
-          entity_id: orderId,
-          assigned_to: order.sales_person_id ?? null,
-          priority: 'medium',
-          daysFromNow: 3,
-        });
-      }
       // Auto-trigger: delivered → follow up on payment after payment terms window
       if (status === 'delivered') {
         const paymentTerms = order.payment_terms_days ?? 30;
