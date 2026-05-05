@@ -87,13 +87,14 @@ interface ActionCardProps {
   action: any;
   entityLabel?: string;
   entityPath?: string;
+  assignedName?: string;
   onCompleteClick: (id: string, title: string) => void;
   onSnooze: (id: string, date: string) => void;
   onDelete: (id: string) => void;
   completing: string | null;
 }
 
-function ActionCard({ action, entityLabel, entityPath, onCompleteClick, onSnooze, onDelete, completing }: ActionCardProps) {
+function ActionCard({ action, entityLabel, entityPath, assignedName, onCompleteClick, onSnooze, onDelete, completing }: ActionCardProps) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const navigate = useNavigate();
   const tier = getTier(action.due_date);
@@ -122,6 +123,12 @@ function ActionCard({ action, entityLabel, entityPath, onCompleteClick, onSnooze
                   >
                     → {ENTITY_TYPE_LABELS[action.entity_type] || action.entity_type}: {entityLabel}
                   </button>
+                )}
+                {/* Assigned sales person */}
+                {assignedName && (
+                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded flex items-center gap-1">
+                    👤 {assignedName}
+                  </span>
                 )}
                 {action.description === 'Auto-created by system' && (
                   <span className="text-xs text-muted-foreground italic">· Auto-created</span>
@@ -638,12 +645,14 @@ export default function ActionsPage() {
         <div className="space-y-3">
           {filtered.map(action => {
             const entity = resolveEntity(action);
+            const assignedUser = users.find(u => u.id === action.assigned_to);
             return (
               <ActionCard
                 key={action.id}
                 action={action}
                 entityLabel={entity?.label}
                 entityPath={entity?.path}
+                assignedName={assignedUser?.name}
                 onCompleteClick={handleCompleteClick}
                 onSnooze={handleSnooze}
                 onDelete={handleDelete}
