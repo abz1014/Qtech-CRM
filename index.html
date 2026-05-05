@@ -17,6 +17,13 @@
   </head>
 
   <body>
+    <!-- Apply saved theme before React mounts to prevent flash -->
+    <script>
+      (function() {
+        var t = localStorage.getItem('qtcrm_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

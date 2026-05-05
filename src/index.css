@@ -1,60 +1,118 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 220 20% 10%;
-    --foreground: 210 20% 92%;
+  /* ══ LIGHT THEME ══ */
+  :root[data-theme="light"] {
+    --background: 210 20% 97%;
+    --foreground: 222 24% 12%;
 
-    --card: 220 18% 13%;
-    --card-foreground: 210 20% 92%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 24% 12%;
 
-    --popover: 220 18% 15%;
-    --popover-foreground: 210 20% 92%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 24% 12%;
 
-    --primary: 122 46% 42%;
+    --primary: 158 56% 36%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 16% 18%;
-    --secondary-foreground: 210 20% 85%;
+    --secondary: 210 16% 92%;
+    --secondary-foreground: 222 24% 20%;
 
-    --muted: 220 14% 16%;
-    --muted-foreground: 215 15% 55%;
+    --muted: 210 16% 94%;
+    --muted-foreground: 215 15% 46%;
 
-    --accent: 122 46% 42%;
+    --accent: 158 56% 36%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 14% 20%;
-    --input: 220 14% 20%;
-    --ring: 122 46% 42%;
+    --border: 210 16% 87%;
+    --input: 210 16% 87%;
+    --ring: 158 56% 36%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 220 20% 8%;
+    --sidebar-background: 222 24% 14%;
     --sidebar-foreground: 210 15% 70%;
-    --sidebar-primary: 122 46% 42%;
+    --sidebar-primary: 158 56% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 16% 14%;
-    --sidebar-accent-foreground: 210 20% 92%;
-    --sidebar-border: 220 14% 16%;
-    --sidebar-ring: 122 46% 42%;
+    --sidebar-accent: 222 20% 20%;
+    --sidebar-accent-foreground: 210 20% 94%;
+    --sidebar-border: 222 18% 20%;
+    --sidebar-ring: 158 56% 42%;
 
-    --success: 122 46% 42%;
+    --success: 158 56% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 44%;
+    --warning-foreground: 0 0% 10%;
+    --info: 210 100% 46%;
+    --info-foreground: 0 0% 100%;
+
+    --hot: 0 72% 51%;
+    --warm: 38 92% 44%;
+    --cold: 210 100% 46%;
+  }
+
+  /* ══ DARK THEME (default) ══ */
+  :root {
+    /* ── Background & surface ── */
+    --background: 222 24% 8%;
+    --foreground: 210 20% 94%;
+
+    --card: 222 22% 11%;
+    --card-foreground: 210 20% 94%;
+
+    --popover: 222 22% 13%;
+    --popover-foreground: 210 20% 94%;
+
+    /* ── Brand — vivid emerald ── */
+    --primary: 158 64% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 18% 16%;
+    --secondary-foreground: 210 20% 85%;
+
+    --muted: 222 16% 14%;
+    --muted-foreground: 215 15% 52%;
+
+    --accent: 158 64% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 16% 18%;
+    --input: 222 16% 18%;
+    --ring: 158 64% 42%;
+
+    --radius: 0.75rem;
+
+    /* ── Sidebar ── */
+    --sidebar-background: 222 26% 6%;
+    --sidebar-foreground: 210 15% 62%;
+    --sidebar-primary: 158 64% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 20% 12%;
+    --sidebar-accent-foreground: 210 20% 94%;
+    --sidebar-border: 222 18% 12%;
+    --sidebar-ring: 158 64% 42%;
+
+    /* ── Semantic colours ── */
+    --success: 158 64% 42%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 10%;
-    --info: 210 100% 52%;
+    --info: 210 100% 56%;
     --info-foreground: 0 0% 100%;
 
     --hot: 0 72% 51%;
     --warm: 38 92% 50%;
-    --cold: 210 100% 52%;
+    --cold: 210 100% 56%;
   }
 }
 
@@ -63,33 +121,145 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    background-attachment: fixed;
+  }
+
+  /* Dark theme mesh */
+  :root:not([data-theme="light"]) body {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% -10%, hsl(158 64% 42% / 0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, hsl(210 100% 56% / 0.05) 0%, transparent 55%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, hsl(222 24% 12% / 0.4) 0%, transparent 70%);
+  }
+
+  /* Light theme mesh */
+  :root[data-theme="light"] body {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% -10%, hsl(158 56% 36% / 0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, hsl(210 100% 46% / 0.04) 0%, transparent 55%);
   }
 
   /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: hsl(var(--background));
-  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
-    border-radius: 3px;
+    border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground));
+    background: hsl(var(--muted-foreground) / 0.5);
   }
 }
 
 @layer utilities {
+
+  /* ── Glass card — real glassmorphism ── */
   .glass-card {
-    @apply bg-card border border-border rounded-lg backdrop-blur-sm;
+    @apply rounded-xl border backdrop-blur-md;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card) / 0.85) 0%,
+      hsl(var(--card) / 0.70) 100%
+    );
+    border-color: hsl(var(--border) / 0.6);
+    box-shadow:
+      0 1px 0 0 hsl(var(--foreground) / 0.04) inset,
+      0 4px 24px -4px hsl(222 30% 4% / 0.5),
+      0 1px 4px -1px hsl(222 30% 4% / 0.3);
   }
+
+  /* Elevated variant — for modals and dropdowns */
+  .glass-card-elevated {
+    @apply rounded-xl border backdrop-blur-xl;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card) / 0.95) 0%,
+      hsl(var(--card) / 0.85) 100%
+    );
+    border-color: hsl(var(--border) / 0.8);
+    box-shadow:
+      0 0 0 1px hsl(var(--foreground) / 0.03) inset,
+      0 20px 60px -12px hsl(222 30% 3% / 0.7),
+      0 8px 24px -4px hsl(222 30% 4% / 0.4);
+  }
+
+  /* ── Status badge ── */
   .status-badge {
-    @apply px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium tracking-wide;
   }
+
+  /* ── KPI card accent top-border ── */
+  .kpi-card {
+    @apply glass-card p-5 relative overflow-hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--primary) / 0.8), hsl(var(--info) / 0.4), transparent);
+    border-radius: 999px 999px 0 0;
+  }
+
+  /* ── Shimmer/glow on primary buttons ── */
+  .btn-primary-glow {
+    @apply relative overflow-hidden;
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.25), 0 2px 8px hsl(var(--primary) / 0.15);
+    transition: box-shadow 0.2s ease, transform 0.1s ease;
+  }
+  .btn-primary-glow:hover {
+    box-shadow: 0 0 28px hsl(var(--primary) / 0.4), 0 4px 12px hsl(var(--primary) / 0.25);
+    transform: translateY(-1px);
+  }
+  .btn-primary-glow:active {
+    transform: translateY(0);
+  }
+
+  /* ── Sidebar active item glow ── */
+  .sidebar-active {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--primary) / 0.18) 0%,
+      hsl(var(--primary) / 0.06) 100%
+    ) !important;
+    color: hsl(var(--primary)) !important;
+    border-left: 2px solid hsl(var(--primary));
+    box-shadow: inset 0 1px 0 hsl(var(--primary) / 0.1);
+  }
+
+  /* ── Page content fade-in ── */
+  .page-fade {
+    animation: pageFadeIn 0.35s ease-out both;
+  }
+
+  /* ── Table row hover ── */
+  .table-row-hover {
+    transition: background 0.15s ease;
+  }
+  .table-row-hover:hover {
+    background: hsl(var(--primary) / 0.04);
+  }
+}
+
+/* ── Keyframes ── */
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: hsl(var(--destructive) / 0.5); }
+  50%       { border-color: hsl(var(--destructive)); }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s ease-in-out infinite;
 }
