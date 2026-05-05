@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   CheckCircle, AlertCircle, Clock, Trash2, Bell,
   RotateCcw, AlarmClock, Users, ChevronDown, ChevronUp,
+  ChevronLeft, ChevronRight, ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FollowUpForm } from '@/components/followup/FollowUpForm';
@@ -405,6 +406,184 @@ function ActivityFeed({ activity, users, patterns }: {
   );
 }
 
+// ─── Grouped Action List ──────────────────────────────────────────────────────
+
+const GROUPS_PER_PAGE = 5;
+
+interface GroupedActionListProps {
+  actions: any[];
+  users: any[];
+  resolveEntity: (action: any) => { label: string; path: string } | null;
+  onCompleteClick: (id: string, title: string) => void;
+  onSnooze: (id: string, date: string) => void;
+  onDelete: (id: string) => void;
+  completing: string | null;
+}
+
+function GroupedActionList({ actions, users, resolveEntity, onCompleteClick, onSnooze, onDelete, completing }: GroupedActionListProps) {
+  const navigate = useNavigate();
+  const [page, setPage] = useState(1);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  // Build groups keyed by entity_id (or 'unlinked' for actions with no entity)
+  const groups = useMemo(() => {
+    const map = new Map<string, { key: string; label: string; path: string | null; entityType: string | null; actions: any[] }>();
+
+    actions.forEach(action => {
+      const entity = resolveEntity(action);
+      const key = action.entity_id || 'unlinked';
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: entity?.label ?? 'General / No linked record',
+          path: entity?.path ?? null,
+          entityType: action.entity_type ?? null,
+          actions: [],
+        });
+      }
+      map.get(key)!.actions.push(action);
+    });
+
+    // Sort groups: most urgent action in group determines group order
+    return [...map.values()].sort((a, b) => {
+      const tierA = Math.max(...a.actions.map(x => getTier(x.due_date)));
+      const tierB = Math.max(...b.actions.map(x => getTier(x.due_date)));
+      if (tierA !== tierB) return tierB - tierA;
+      // Within same tier, sort by earliest due date
+      const minA = Math.min(...a.actions.map(x => new Date(x.due_date).getTime()));
+      const minB = Math.min(...b.actions.map(x => new Date(x.due_date).getTime()));
+      return minA - minB;
+    });
+  }, [actions]);
+
+  const totalPages = Math.ceil(groups.length / GROUPS_PER_PAGE);
+  const pagedGroups = groups.slice((page - 1) * GROUPS_PER_PAGE, page * GROUPS_PER_PAGE);
+
+  const toggleCollapse = (key: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  const entityIcon: Record<string, string> = { rfq: '📋', order: '📦', client: '🏢', prospect: '🎯', vendor: '🏭' };
+
+  return (
+    <div className="space-y-4">
+      {/* Group count */}
+      <p className="text-xs text-muted-foreground">
+        {groups.length} group{groups.length !== 1 ? 's' : ''} · {actions.length} action{actions.length !== 1 ? 's' : ''}
+        {totalPages > 1 && ` · Page ${page} of ${totalPages}`}
+      </p>
+
+      {pagedGroups.map(group => {
+        const isCollapsed = collapsed.has(group.key);
+        const maxTier = Math.max(...group.actions.map(a => getTier(a.due_date)));
+        const overdueCount = group.actions.filter(a => getTier(a.due_date) >= 2).length;
+        const groupBorder = maxTier >= 3 ? 'border-red-500/50' : maxTier >= 2 ? 'border-red-400/30' : maxTier === 1 ? 'border-yellow-500/30' : 'border-border';
+
+        return (
+          <div key={group.key} className={cn('glass-card border rounded-xl overflow-hidden', groupBorder)}>
+            {/* Group header */}
+            <button
+              onClick={() => toggleCollapse(group.key)}
+              className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-base flex-shrink-0">
+                  {group.entityType ? entityIcon[group.entityType] ?? '📌' : '📌'}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-foreground text-sm truncate">{group.label}</span>
+                    {group.path && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); navigate(group.path!); }}
+                        className="flex items-center gap-1 text-xs text-primary hover:underline flex-shrink-0"
+                      >
+                        <ExternalLink className="w-3 h-3" /> Open
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-muted-foreground capitalize">
+                      {group.entityType ? `${ENTITY_TYPE_LABELS[group.entityType] || group.entityType}` : 'General'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <span className="text-xs text-muted-foreground">{group.actions.length} action{group.actions.length !== 1 ? 's' : ''}</span>
+                    {overdueCount > 0 && (
+                      <span className="text-xs text-red-500 font-semibold">{overdueCount} overdue</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <ChevronDown className={cn('w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform', isCollapsed && '-rotate-90')} />
+            </button>
+
+            {/* Actions inside group */}
+            {!isCollapsed && (
+              <div className="px-4 pb-4 space-y-2 border-t border-border pt-3">
+                {group.actions.map(action => {
+                  const assignedUser = users.find((u: any) => u.id === action.assigned_to);
+                  return (
+                    <ActionCard
+                      key={action.id}
+                      action={action}
+                      assignedName={assignedUser?.name}
+                      onCompleteClick={onCompleteClick}
+                      onSnooze={onSnooze}
+                      onDelete={onDelete}
+                      completing={completing}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-xs text-muted-foreground">
+            Showing {(page - 1) * GROUPS_PER_PAGE + 1}–{Math.min(page * GROUPS_PER_PAGE, groups.length)} of {groups.length} groups
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-40 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={cn(
+                  'w-8 h-8 rounded-lg text-xs font-medium transition-colors',
+                  p === page ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-40 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ActionsPage() {
@@ -642,25 +821,15 @@ export default function ActionsPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map(action => {
-            const entity = resolveEntity(action);
-            const assignedUser = users.find(u => u.id === action.assigned_to);
-            return (
-              <ActionCard
-                key={action.id}
-                action={action}
-                entityLabel={entity?.label}
-                entityPath={entity?.path}
-                assignedName={assignedUser?.name}
-                onCompleteClick={handleCompleteClick}
-                onSnooze={handleSnooze}
-                onDelete={handleDelete}
-                completing={completing}
-              />
-            );
-          })}
-        </div>
+        <GroupedActionList
+          actions={filtered}
+          users={users}
+          resolveEntity={resolveEntity}
+          onCompleteClick={handleCompleteClick}
+          onSnooze={handleSnooze}
+          onDelete={handleDelete}
+          completing={completing}
+        />
       )}
 
       {showForm && (
