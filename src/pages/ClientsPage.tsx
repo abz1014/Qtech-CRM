@@ -61,15 +61,28 @@ export default function ClientsPage() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Company', 'Industry', 'Contact Person', 'Phone', 'Email', 'Address'];
-    const rows = filtered.map(c => [
-      c.company_name,
-      c.industry,
-      c.contact_person,
-      c.phone,
-      c.email,
-      c.address,
-    ]);
+    const headers = [
+      'Company Name', 'Industry', 'Contact Person', 'Phone', 'Email', 'Address',
+      'Total RFQs', 'Open RFQs', 'Converted RFQs', 'Lost RFQs',
+    ];
+    const rows = filtered.map(c => {
+      const clientRFQs = rfqs.filter(r => r.client_id === c.id);
+      const openRFQs = clientRFQs.filter(r => r.status === 'new' || r.status === 'in_progress' || r.status === 'quoted').length;
+      const convertedRFQs = clientRFQs.filter(r => r.status === 'converted').length;
+      const lostRFQs = clientRFQs.filter(r => r.status === 'lost').length;
+      return [
+        c.company_name,
+        c.industry,
+        c.contact_person,
+        c.phone,
+        c.email,
+        c.address,
+        clientRFQs.length,
+        openRFQs,
+        convertedRFQs,
+        lostRFQs,
+      ];
+    });
     const csv = generateCSV(headers, rows);
     const filename = `Clients_${new Date().toISOString().split('T')[0]}.csv`;
     downloadCSV(csv, filename);

@@ -1,10 +1,47 @@
 import { useCRM } from '@/contexts/CRMContext';
 import { formatPKR, formatDate } from '@/lib/format';
+import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, AlertCircle, CheckCircle, ArrowRight, Download } from 'lucide-react';
 
 export default function FinancePage() {
-  const { orders, getClientName } = useCRM();
+  const { orders, getClientName, getVendorName, getUserName } = useCRM();
+
+  const handleExportCSV = () => {
+    const headers = [
+      'Client', 'Vendor', 'Product Type', 'Sales Person', 'Status',
+      'Customer Approved Amount (PKR)', 'Our Cost (PKR)', 'Profit (PKR)', 'Margin %',
+      'Customer PO Number', 'PO Date', 'Payment Terms (days)',
+      'Delivery Date', 'Payment Due Date', 'Notes',
+    ];
+    const statusLabels: Record<string, string> = {
+      po_received: 'PO Received', procurement: 'Procurement',
+      in_transit: 'In Transit', delivered: 'Delivered', payment_received: 'Payment Received',
+    };
+    const rows = orders.map(o => {
+      const profit = (o.order_value || 0) - (o.cost_value || 0);
+      const margin = o.order_value > 0 ? ((profit / o.order_value) * 100).toFixed(1) + '%' : '0%';
+      return [
+        getClientName(o.client_id),
+        getVendorName(o.vendor_id),
+        o.product_type,
+        getUserName(o.sales_person_id),
+        statusLabels[o.status] || o.status,
+        o.order_value || 0,
+        o.cost_value || 0,
+        profit,
+        margin,
+        (o as any).customer_po_number || '',
+        (o as any).customer_po_date || o.confirmed_date || '',
+        (o as any).payment_terms_days ?? '',
+        (o as any).delivery_date || '',
+        (o as any).payment_due_date || '',
+        o.notes || '',
+      ];
+    });
+    const csv = generateCSV(headers, rows);
+    downloadCSV(csv, `Finance_Orders_${new Date().toISOString().split('T')[0]}.csv`);
+  };
   const navigate = useNavigate();
 
   const today = new Date();
@@ -71,9 +108,17 @@ export default function FinancePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Finance</h1>
-        <p className="text-muted-foreground mt-1">Revenue, profit and payment tracking — all from your orders</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Finance</h1>
+          <p className="text-muted-foreground mt-1">Revenue, profit and payment tracking — all from your orders</p>
+        </div>
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center gap-2 px-4 py-2.5 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/80 transition-colors border border-border"
+        >
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
       </div>
 
       {/* Top KPIs */}

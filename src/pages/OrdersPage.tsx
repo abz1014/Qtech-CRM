@@ -28,7 +28,7 @@ const statusLabels: Record<string, string> = {
 const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
 
 export default function OrdersPage() {
-  const { orders, clients, vendors, addOrder, addVendor, deleteOrder, getClientName, getVendorName } = useCRM();
+  const { orders, clients, vendors, addOrder, addVendor, deleteOrder, getClientName, getVendorName, getUserName } = useCRM();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
@@ -62,17 +62,35 @@ export default function OrdersPage() {
   );
 
   const handleExportCSV = () => {
-    const headers = ['Client', 'Vendor', 'Product Type', 'Order Value (PKR)', 'Cost Value (PKR)', 'Profit (PKR)', 'Status', 'Notes'];
-    const rows = filtered.map(o => [
-      getClientName(o.client_id),
-      getVendorName(o.vendor_id),
-      o.product_type,
-      o.order_value,
-      o.cost_value,
-      o.order_value - o.cost_value,
-      o.status,
-      o.notes || '',
-    ]);
+    const headers = [
+      'Client', 'Vendor', 'Product Type', 'Sales Person',
+      'Status',
+      'Customer Approved Amount (PKR)', 'Our Cost (PKR)', 'Profit (PKR)', 'Margin %',
+      'Customer PO Number', 'PO Date',
+      'Payment Terms (days)', 'Delivery Date', 'Payment Due Date',
+      'Notes',
+    ];
+    const rows = filtered.map(o => {
+      const profit = (o.order_value || 0) - (o.cost_value || 0);
+      const margin = o.order_value > 0 ? ((profit / o.order_value) * 100).toFixed(1) + '%' : '0%';
+      return [
+        getClientName(o.client_id),
+        getVendorName(o.vendor_id),
+        o.product_type,
+        getUserName(o.sales_person_id),
+        statusLabels[o.status] || o.status,
+        o.order_value || 0,
+        o.cost_value || 0,
+        profit,
+        margin,
+        (o as any).customer_po_number || '',
+        (o as any).customer_po_date || o.confirmed_date || '',
+        (o as any).payment_terms_days ?? '',
+        (o as any).delivery_date || '',
+        (o as any).payment_due_date || '',
+        o.notes || '',
+      ];
+    });
     const csv = generateCSV(headers, rows);
     const filename = `Orders_${new Date().toISOString().split('T')[0]}.csv`;
     downloadCSV(csv, filename);

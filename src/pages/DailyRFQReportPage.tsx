@@ -13,7 +13,7 @@ interface FilterState {
 
 export function DailyRFQReportPage() {
   const navigate = useNavigate();
-  const { rfqs, supplierInquiries, supplierQuotes, orders, getClientName } = useCRM();
+  const { rfqs, supplierInquiries, supplierQuotes, orders, getClientName, getUserName } = useCRM();
   const today = new Date().toISOString().split('T')[0];
 
   const [filters, setFilters] = useState<FilterState>({
@@ -101,16 +101,30 @@ export function DailyRFQReportPage() {
 
   const handleExport = (format: 'csv' | 'pdf') => {
     if (format === 'csv') {
-      const headers = ['RFQ ID', 'Client', 'Status', 'Priority', 'Date', 'Value', 'Inquiries Sent', 'Responses'];
+      const headers = [
+        'RFQ Date', 'Client', 'Contact Person', 'Phone', 'Email',
+        'Status', 'Priority', 'Assigned To',
+        'Inquiries Sent', 'Quotes Received',
+        'Quoted Price (PKR)', 'Quote Sent Date', 'Quote Expiry Date',
+        'Loss Reason', 'Loss Notes', 'Notes',
+      ];
       const rows = filteredRFQs.map(rfq => [
-        rfq.id.slice(0, 8),
-        getClientName(rfq.client_id),
-        rfq.status,
-        rfq.priority,
         rfq.rfq_date,
-        `Rs ${(rfq.estimated_value ?? 0).toLocaleString('en-PK')}`,
+        getClientName(rfq.client_id),
+        rfq.contact_person,
+        rfq.phone,
+        rfq.email,
+        rfq.status.replace(/_/g, ' ').toUpperCase(),
+        rfq.priority.toUpperCase(),
+        getUserName(rfq.assigned_to),
         supplierInquiries.filter(si => si.rfq_id === rfq.id).length,
         supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length,
+        (rfq as any).quoted_price ?? '',
+        (rfq as any).quote_sent_date ?? '',
+        (rfq as any).quote_expiry_date ?? '',
+        (rfq as any).loss_reason?.replace(/_/g, ' ') ?? '',
+        (rfq as any).loss_notes ?? '',
+        rfq.notes || '',
       ]);
 
       // Sanitize all cells to prevent formula injection

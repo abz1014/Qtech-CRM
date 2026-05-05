@@ -57,16 +57,20 @@ export default function ProspectsPage() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Company', 'Contact Person', 'Phone', 'Email', 'Lead Source', 'Status', 'Follow Up Date', 'Assigned To'];
+    const headers = [
+      'Company Name', 'Contact Person', 'Phone', 'Email',
+      'Lead Source', 'Status', 'Follow Up Date', 'Assigned To', 'Converted to Client',
+    ];
     const rows = filtered.map(p => [
       p.company_name,
       p.contact_person,
       p.phone,
       p.email,
       p.lead_source,
-      p.status,
-      p.follow_up_date,
+      p.status.toUpperCase(),
+      p.follow_up_date || '',
       getUserName(p.assigned_to),
+      p.converted_client_id ? 'Yes' : 'No',
     ]);
     const csv = generateCSV(headers, rows);
     const filename = `Prospects_${new Date().toISOString().split('T')[0]}.csv`;

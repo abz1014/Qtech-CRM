@@ -8,7 +8,7 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 
 export default function VendorsPage() {
   const navigate = useNavigate();
-  const { vendors, addVendor, deleteVendor } = useCRM();
+  const { vendors, addVendor, deleteVendor, orders, supplierInquiries } = useCRM();
   const { isAdmin } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
@@ -47,15 +47,24 @@ export default function VendorsPage() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Name', 'Country', 'Contact Person', 'Phone', 'Email', 'Products Supplied'];
-    const rows = filtered.map(v => [
-      v.name,
-      v.country,
-      v.contact_person,
-      v.phone,
-      v.email,
-      v.products_supplied,
-    ]);
+    const headers = [
+      'Vendor Name', 'Country', 'Contact Person', 'Phone', 'Email',
+      'Products Supplied', 'Inquiries Received', 'Orders Fulfilled',
+    ];
+    const rows = filtered.map(v => {
+      const inquiryCount = supplierInquiries.filter(si => si.vendor_id === v.id).length;
+      const orderCount = orders.filter(o => o.vendor_id === v.id).length;
+      return [
+        v.name,
+        v.country,
+        v.contact_person,
+        v.phone,
+        v.email,
+        v.products_supplied,
+        inquiryCount,
+        orderCount,
+      ];
+    });
     const csv = generateCSV(headers, rows);
     const filename = `Vendors_${new Date().toISOString().split('T')[0]}.csv`;
     downloadCSV(csv, filename);

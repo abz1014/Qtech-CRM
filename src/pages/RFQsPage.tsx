@@ -25,7 +25,7 @@ const priorityColors: Record<RFQPriority, string> = {
 const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
 
 export default function RFQsPage() {
-  const { rfqs, clients, vendors, users, addRFQ, addVendor, updateRFQStatus, updateRFQPriority, convertRFQToOrder, deleteRFQ, getUserName } = useCRM();
+  const { rfqs, clients, vendors, users, supplierInquiries, supplierQuotes, addRFQ, addVendor, updateRFQStatus, updateRFQPriority, convertRFQToOrder, deleteRFQ, getUserName } = useCRM();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
@@ -69,16 +69,35 @@ export default function RFQsPage() {
   );
 
   const handleExportCSV = () => {
-    const headers = ['Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To', 'Description'];
-    const rows = filtered.map(r => [
-      r.company_name,
-      r.contact_person,
-      r.rfq_date,
-      r.status,
-      r.priority,
-      getUserName(r.assigned_to),
-      r.notes || '',
-    ]);
+    const headers = [
+      'Company Name', 'Contact Person', 'Phone', 'Email',
+      'RFQ Date', 'Status', 'Priority', 'Assigned To',
+      'Inquiries Sent', 'Quotes Received',
+      'Quoted Price (PKR)', 'Quote Sent Date', 'Quote Expiry Date',
+      'Loss Reason', 'Loss Notes', 'Notes',
+    ];
+    const rows = filtered.map(r => {
+      const inquiryCount = supplierInquiries.filter(si => si.rfq_id === r.id).length;
+      const quoteCount = supplierQuotes.filter(sq => sq.rfq_id === r.id).length;
+      return [
+        r.company_name,
+        r.contact_person,
+        r.phone,
+        r.email,
+        r.rfq_date,
+        r.status.replace(/_/g, ' ').toUpperCase(),
+        r.priority.toUpperCase(),
+        getUserName(r.assigned_to),
+        inquiryCount,
+        quoteCount,
+        (r as any).quoted_price ?? '',
+        (r as any).quote_sent_date ?? '',
+        (r as any).quote_expiry_date ?? '',
+        (r as any).loss_reason?.replace(/_/g, ' ') ?? '',
+        (r as any).loss_notes ?? '',
+        r.notes || '',
+      ];
+    });
     const csv = generateCSV(headers, rows);
     const filename = `RFQs_${new Date().toISOString().split('T')[0]}.csv`;
     downloadCSV(csv, filename);
