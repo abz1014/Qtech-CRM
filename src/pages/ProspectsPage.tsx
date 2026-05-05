@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +7,7 @@ import { formatDate } from '@/lib/format';
 import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-react';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { ProspectStatus } from '@/types/crm';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const statusColors: Record<ProspectStatus, string> = {
   hot: 'bg-hot/15 text-hot',
@@ -28,11 +29,13 @@ export default function ProspectsPage() {
     lead_source: '', status: 'warm' as ProspectStatus, follow_up_date: '', assigned_to: user?.id ?? '',
   });
 
-  const active = prospects.filter(p => !p.converted_client_id);
-  const filtered = active.filter(p =>
-    p.company_name.toLowerCase().includes(search.toLowerCase()) ||
-    p.contact_person.toLowerCase().includes(search.toLowerCase())
-  );
+  const debouncedSearch = useDebounce(search);
+
+  const active = useMemo(() => prospects.filter(p => !p.converted_client_id), [prospects]);
+  const filtered = useMemo(() => active.filter(p =>
+    p.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+    p.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase())
+  ), [active, debouncedSearch]);
 
   const paginatedProspects = filtered.slice(
     (currentPage - 1) * itemsPerPage,

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
@@ -7,6 +7,7 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-react';
 import { RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const rfqStatusColors: Record<RFQStatus, string> = {
   new: 'bg-muted text-muted-foreground',
@@ -42,17 +43,16 @@ export default function RFQsPage() {
     priority: 'medium' as RFQPriority, status: 'new' as RFQStatus, notes: '',
   });
 
-  const salesUsers = users.filter(u => u.role === 'sales');
+  const salesUsers = useMemo(() => users.filter(u => u.role === 'sales'), [users]);
+  const debouncedSearch = useDebounce(search);
 
-  const filtered = rfqs.filter(r => {
-    const matchesSearch = r.company_name.toLowerCase().includes(search.toLowerCase()) ||
-      r.contact_person.toLowerCase().includes(search.toLowerCase());
-
+  const filtered = useMemo(() => rfqs.filter(r => {
+    const matchesSearch = r.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      r.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase());
     const matchesDateRange = (!fromDate || r.rfq_date >= fromDate) &&
       (!toDate || r.rfq_date <= toDate);
-
     return matchesSearch && matchesDateRange;
-  });
+  }), [rfqs, debouncedSearch, fromDate, toDate]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedRFQs = filtered.slice(

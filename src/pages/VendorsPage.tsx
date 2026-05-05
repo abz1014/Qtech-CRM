@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { Pagination } from '@/components/Pagination';
 import { Plus, X, Search, Trash2, Download } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
+import { useDebounce } from '@/hooks/useDebounce';
 
 export default function VendorsPage() {
   const navigate = useNavigate();
@@ -19,10 +20,12 @@ export default function VendorsPage() {
     name: '', country: '', contact_person: '', phone: '', email: '', products_supplied: '',
   });
 
-  const filtered = vendors.filter(v =>
-    v.name.toLowerCase().includes(search.toLowerCase()) ||
-    v.country.toLowerCase().includes(search.toLowerCase())
-  );
+  const debouncedSearch = useDebounce(search);
+
+  const filtered = useMemo(() => vendors.filter(v =>
+    v.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+    v.country.toLowerCase().includes(debouncedSearch.toLowerCase())
+  ), [vendors, debouncedSearch]);
 
   const paginatedVendors = filtered.slice(
     (currentPage - 1) * itemsPerPage,

@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +8,7 @@ import { formatPKR, formatDate } from '@/lib/format';
 import { Plus, X, Search, ChevronDown, ChevronUp, Trash2, Download } from 'lucide-react';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { RFQStatus } from '@/types/crm';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const rfqStatusColors: Record<RFQStatus, string> = {
   new: 'bg-muted text-muted-foreground',
@@ -31,10 +32,12 @@ export default function ClientsPage() {
     company_name: '', industry: '', contact_person: '', phone: '', email: '', address: '',
   });
 
-  const filtered = clients.filter(c =>
-    c.company_name.toLowerCase().includes(search.toLowerCase()) ||
-    c.contact_person.toLowerCase().includes(search.toLowerCase())
-  );
+  const debouncedSearch = useDebounce(search);
+
+  const filtered = useMemo(() => clients.filter(c =>
+    c.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+    c.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase())
+  ), [clients, debouncedSearch]);
 
   const paginatedClients = filtered.slice(
     (currentPage - 1) * itemsPerPage,

@@ -435,17 +435,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     load();
   }, []);
 
-  const getUserName = useCallback((userId: string) => {
-    return users.find(u => u.id === userId)?.name ?? 'Unknown';
-  }, [users]);
+  // O(1) Map lookups — rebuilt only when the source array changes
+  const userMap   = useMemo(() => new Map(users.map(u   => [u.id, u.name])),              [users]);
+  const clientMap = useMemo(() => new Map(clients.map(c => [c.id, c.company_name])),       [clients]);
+  const vendorMap = useMemo(() => new Map(vendors.map(v => [v.id, v.name])),               [vendors]);
 
-  const getClientName = useCallback((clientId: string) => {
-    return clients.find(c => c.id === clientId)?.company_name ?? 'Unknown';
-  }, [clients]);
-
-  const getVendorName = useCallback((vendorId: string) => {
-    return vendors.find(v => v.id === vendorId)?.name ?? 'Unknown';
-  }, [vendors]);
+  const getUserName   = useCallback((id: string) => userMap.get(id)   ?? 'Unknown', [userMap]);
+  const getClientName = useCallback((id: string) => clientMap.get(id) ?? 'Unknown', [clientMap]);
+  const getVendorName = useCallback((id: string) => vendorMap.get(id) ?? 'Unknown', [vendorMap]);
 
   const addClient = useCallback(async (c: Omit<Client, 'id'>) => {
     const { data } = await supabase.from('clients').insert(c).select().single();

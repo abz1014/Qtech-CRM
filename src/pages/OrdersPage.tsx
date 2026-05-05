@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +7,7 @@ import { formatPKR } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { Plus, X, Search, Trash2, Download } from 'lucide-react';
 import { OrderStatus, ProductType } from '@/types/crm';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const statusColors: Record<string, string> = {
   po_received: 'bg-info/15 text-info',
@@ -45,15 +46,15 @@ export default function OrdersPage() {
     order_value: '', cost_value: '', status: 'po_received' as OrderStatus, notes: '',
   });
 
-  const filtered = orders.filter(o => {
-    const matchesSearch = getClientName(o.client_id).toLowerCase().includes(search.toLowerCase()) ||
-      o.product_type.toLowerCase().includes(search.toLowerCase());
+  const debouncedSearch = useDebounce(search);
 
+  const filtered = useMemo(() => orders.filter(o => {
+    const matchesSearch = getClientName(o.client_id).toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      o.product_type.toLowerCase().includes(debouncedSearch.toLowerCase());
     const matchesDateRange = (!fromDate || (o.confirmed_date && o.confirmed_date >= fromDate)) &&
       (!toDate || (o.confirmed_date && o.confirmed_date <= toDate));
-
     return matchesSearch && matchesDateRange;
-  });
+  }), [orders, debouncedSearch, fromDate, toDate, getClientName]);
 
   const paginatedOrders = filtered.slice(
     (currentPage - 1) * itemsPerPage,
