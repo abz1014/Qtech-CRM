@@ -777,15 +777,15 @@ export default function RFQDetailPage() {
       {/* Convert RFQ to Order Modal */}
       {showConvertOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-background rounded-lg shadow-lg max-w-2xl w-full">
-            <div className="flex items-center justify-between p-6 border-b border-border">
+          <div className="bg-background rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
               <h2 className="text-xl font-bold text-foreground">Convert RFQ to Order</h2>
               <button onClick={() => setShowConvertOrder(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleConvertToOrder} className="p-6 space-y-4">
+            <form onSubmit={handleConvertToOrder} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
                 <p className="text-sm font-semibold text-foreground">RFQ Details</p>
                 <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
