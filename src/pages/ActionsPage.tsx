@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -84,14 +85,17 @@ function DueLabel({ due_date }: { due_date: string }) {
 
 interface ActionCardProps {
   action: any;
+  entityLabel?: string;
+  entityPath?: string;
   onCompleteClick: (id: string, title: string) => void;
   onSnooze: (id: string, date: string) => void;
   onDelete: (id: string) => void;
   completing: string | null;
 }
 
-function ActionCard({ action, onCompleteClick, onSnooze, onDelete, completing }: ActionCardProps) {
+function ActionCard({ action, entityLabel, entityPath, onCompleteClick, onSnooze, onDelete, completing }: ActionCardProps) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const navigate = useNavigate();
   const tier = getTier(action.due_date);
 
   return (
@@ -105,15 +109,19 @@ function ActionCard({ action, onCompleteClick, onSnooze, onDelete, completing }:
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <div className="min-w-0">
-              <p className="font-semibold text-foreground truncate">{action.title}</p>
+              <p className="font-semibold text-foreground">{action.title}</p>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-xs text-muted-foreground">
                   {ACTION_TYPE_LABELS[action.action_type] || action.action_type}
                 </span>
-                {action.entity_type && (
-                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                    {ENTITY_TYPE_LABELS[action.entity_type] || action.entity_type}
-                  </span>
+                {/* Entity reference — clickable link to the RFQ or Order */}
+                {entityLabel && entityPath && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate(entityPath); }}
+                    className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded hover:bg-primary/20 transition-colors"
+                  >
+                    → {ENTITY_TYPE_LABELS[action.entity_type] || action.entity_type}: {entityLabel}
+                  </button>
                 )}
                 {action.description === 'Auto-created by system' && (
                   <span className="text-xs text-muted-foreground italic">· Auto-created</span>
@@ -393,7 +401,7 @@ function ActivityFeed({ activity, users, patterns }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ActionsPage() {
-  const { getPendingFollowUps, getAllFollowUps, getOverdueFollowUps, completeFollowUp, snoozeFollowUp, deleteFollowUp, users, getRecentActivity, getPatternInsights } = useCRM();
+  const { getPendingFollowUps, getAllFollowUps, getOverdueFollowUps, completeFollowUp, snoozeFollowUp, deleteFollowUp, users, rfqs, orders, getClientName, getRecentActivity, getPatternInsights } = useCRM();
   const { user, isAdmin } = useAuth();
 
   type Tab = 'all' | 'overdue' | 'today' | 'upcoming' | 'team' | 'activity';
@@ -439,14 +447,39 @@ export default function ActionsPage() {
     [myActions, todayStr]
   );
 
+  // Sort actions: overdue first, then today, then upcoming — within each group sort by date
+  const sortActions = (list: any[]) => [...list].sort((a, b) => {
+    const ta = getTier(a.due_date), tb = getTier(b.due_date);
+    if (ta !== tb) return tb - ta; // higher tier (more urgent) first
+    return a.due_date < b.due_date ? -1 : 1;
+  });
+
   const filtered = useMemo(() => {
+    let list: any[];
     switch (tab) {
-      case 'overdue':   return myActions.filter(a => a.due_date < todayStr);
-      case 'today':     return myActions.filter(a => a.due_date === todayStr);
-      case 'upcoming':  return myActions.filter(a => a.due_date > todayStr);
-      default:          return myActions;
+      case 'overdue':   list = myActions.filter(a => a.due_date < todayStr); break;
+      case 'today':     list = myActions.filter(a => a.due_date === todayStr); break;
+      case 'upcoming':  list = myActions.filter(a => a.due_date > todayStr); break;
+      default:          list = myActions;
     }
+    return sortActions(list);
   }, [myActions, tab, todayStr]);
+
+  // Resolve a human-readable label + navigation path for an action's linked entity
+  const resolveEntity = (action: any): { label: string; path: string } | null => {
+    if (!action.entity_id || !action.entity_type) return null;
+    if (action.entity_type === 'rfq') {
+      const rfq = rfqs.find(r => r.id === action.entity_id);
+      if (!rfq) return null;
+      return { label: rfq.company_name, path: `/rfqs/${rfq.id}` };
+    }
+    if (action.entity_type === 'order') {
+      const order = orders.find(o => o.id === action.entity_id);
+      if (!order) return null;
+      return { label: `${getClientName(order.client_id)} — ${order.product_type}`, path: `/orders/${order.id}` };
+    }
+    return null;
+  };
 
   const counts = {
     all:      myActions.length,
@@ -603,17 +636,21 @@ export default function ActionsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {/* Sort: tier 3 → tier 2 → tier 1 → tier 0 */}
-          {[...filtered].sort((a, b) => getTier(b.due_date) - getTier(a.due_date)).map(action => (
-            <ActionCard
-              key={action.id}
-              action={action}
-              onCompleteClick={handleCompleteClick}
-              onSnooze={handleSnooze}
-              onDelete={handleDelete}
-              completing={completing}
-            />
-          ))}
+          {filtered.map(action => {
+            const entity = resolveEntity(action);
+            return (
+              <ActionCard
+                key={action.id}
+                action={action}
+                entityLabel={entity?.label}
+                entityPath={entity?.path}
+                onCompleteClick={handleCompleteClick}
+                onSnooze={handleSnooze}
+                onDelete={handleDelete}
+                completing={completing}
+              />
+            );
+          })}
         </div>
       )}
 

@@ -5,9 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
-import { Plus, X, Search, Trash2, Download, AlertCircle } from 'lucide-react';
+import { Plus, X, Search, Trash2, Download } from 'lucide-react';
 import { OrderStatus, ProductType } from '@/types/crm';
-import { cn } from '@/lib/utils';
 
 const statusColors: Record<string, string> = {
   po_received: 'bg-info/15 text-info',
@@ -186,38 +185,19 @@ export default function OrdersPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              {['Client', 'Vendor', 'Product', 'Order Value', 'Total Cost', 'Profit', 'Margin %', 'Status', ''].map(h => (
+              {['Client', 'Vendor', 'Product', 'Order Value', 'Status', ''].map(h => (
                 <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {paginatedOrders.map(o => {
-              const totalCost = (o.material_cost || 0) + (o.engineering_cost || 0) + (o.logistics_cost || 0) + (o.overhead_cost || 0);
-              const profit = (o.profit !== undefined ? o.profit : o.order_value - totalCost);
-              const margin = o.profit_margin !== undefined ? o.profit_margin : (o.order_value > 0 ? (profit / o.order_value) * 100 : 0);
-
-              const marginColor = margin >= 20 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                  margin >= 10 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-
-              return (
+            {paginatedOrders.map(o => (
                 <tr key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
                   className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
                   <td className="px-5 py-3 text-sm font-medium text-foreground">{getClientName(o.client_id)}</td>
                   <td className="px-5 py-3 text-sm text-foreground">{getVendorName(o.vendor_id)}</td>
                   <td className="px-5 py-3 text-sm text-foreground">{o.product_type}</td>
                   <td className="px-5 py-3 text-sm text-foreground font-semibold">{formatPKR(o.order_value)}</td>
-                  <td className="px-5 py-3 text-sm text-muted-foreground">{formatPKR(totalCost)}</td>
-                  <td className="px-5 py-3 text-sm">
-                    <span className={profit >= 0 ? 'text-success font-semibold' : 'text-destructive font-semibold'}>{formatPKR(profit)}</span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={cn('px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 w-fit', marginColor)}>
-                      {margin < 10 && <AlertCircle className="w-3 h-3" />}
-                      {margin.toFixed(1)}%
-                    </span>
-                  </td>
                   <td className="px-5 py-3">
                     <span className={`status-badge ${statusColors[o.status] || 'bg-muted text-muted-foreground'}`}>{statusLabels[o.status] || o.status}</span>
                   </td>
@@ -236,8 +216,7 @@ export default function OrdersPage() {
                     )}
                   </td>
                 </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
       </div>
