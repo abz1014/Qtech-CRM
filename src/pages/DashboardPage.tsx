@@ -4,11 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR } from '@/lib/format';
 import { Users, ShoppingCart, Wrench, Target, TrendingUp, ArrowRight, FileText, CheckCircle, BarChart3, Send, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ProfitabilityDashboard } from '@/components/orders/ProfitabilityDashboard';
-import { ProfitTrendChart } from '@/components/dashboard/ProfitTrendChart';
-import { MarginDistributionChart } from '@/components/dashboard/MarginDistributionChart';
-import { OrderHealthChart } from '@/components/dashboard/OrderHealthChart';
-import { SupplierPerformanceChart } from '@/components/dashboard/SupplierPerformanceChart';
 
 export default function DashboardPage() {
   const { clients, orders, prospects, rfqs, getClientName, getVendorName, getRFQMetrics } = useCRM();
@@ -224,33 +219,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Profitability Dashboard - Admin Only */}
-      {isAdmin && (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Profitability Intelligence</h2>
-          <ProfitabilityDashboard />
-        </div>
-      )}
-
-      {/* Advanced Analytics Section */}
-      {isAdmin ? (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Advanced Analytics</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ProfitTrendChart />
-            <MarginDistributionChart />
-            <OrderHealthChart />
-            <SupplierPerformanceChart />
-          </div>
-        </div>
-      ) : (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Order Status Overview</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <OrderHealthChart />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

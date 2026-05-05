@@ -29,7 +29,7 @@ const MyJobsPage           = lazy(() => import("@/pages/MyJobsPage"));
 const RFQsPage             = lazy(() => import("@/pages/RFQsPage"));
 const RFQDetailPage        = lazy(() => import("@/pages/RFQDetailPage"));
 const DailyRFQReportPage   = lazy(() => import("@/pages/DailyRFQReportPage").then(m => ({ default: m.DailyRFQReportPage })));
-const BookkeepingPage      = lazy(() => import("@/pages/BookkeepingPage").then(m => ({ default: m.BookkeepingPage })));
+const FinancePage          = lazy(() => import("@/pages/FinancePage"));
 const ActionsPage          = lazy(() => import("@/pages/ActionsPage"));
 const NotFound             = lazy(() => import("@/pages/NotFound"));
 
@@ -90,7 +90,7 @@ const App = () => (
                   <Route path="/vendors"          element={<VendorsPage />} />
                   <Route path="/vendors/:id"      element={<VendorDetailPage />} />
                   <Route path="/team"             element={<TeamPage />} />
-                  <Route path="/bookkeeping"      element={<BookkeepingPage />} />
+                  <Route path="/finance"          element={<FinancePage />} />
                   <Route path="/my-jobs"          element={<MyJobsPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />

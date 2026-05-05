@@ -16,7 +16,7 @@ const navItems = [
   { label: 'Actions', path: '/actions', icon: Bell, roles: ['admin', 'sales'] },
   { label: 'Vendors', path: '/vendors', icon: Factory, roles: ['admin', 'sales'] },
   { label: 'Team', path: '/team', icon: UserCog, roles: ['admin'] },
-  { label: 'Bookkeeping', path: '/bookkeeping', icon: DollarSign, roles: ['admin'] },
+  { label: 'Finance', path: '/finance', icon: DollarSign, roles: ['admin'] },
   { label: 'My Jobs', path: '/my-jobs', icon: Wrench, roles: ['engineer'] },
 ];
 
