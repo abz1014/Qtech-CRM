@@ -2,13 +2,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR, formatDate } from '@/lib/format';
-import { ArrowLeft, MapPin, Calendar, User, TrendingUp, FileText, Edit2, X, DollarSign, AlertCircle } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, User, TrendingUp, FileText, Edit2, X } from 'lucide-react';
 import { OrderStatus, CommissioningStatus, ProductType } from '@/types/crm';
-import { useState, useEffect } from 'react';
-import { CostInputCard } from '@/components/orders/CostInputCard';
-import { ProfitabilityBadge } from '@/components/orders/ProfitabilityBadge';
+import { useState } from 'react';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
-import { cn } from '@/lib/utils';
 
 const statusFlow: OrderStatus[] = ['po_received', 'procurement', 'in_transit', 'delivered', 'payment_received'];
 
@@ -37,7 +34,7 @@ const commColors: Record<CommissioningStatus, string> = {
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, clients, vendors, orderEngineers, rfqs, users, updateOrderStatus, addOrderEngineer, getNextOrderStatus, getClientName, getVendorName, getUserName, updateOrder, updateOrderCosts, getOrderWithProfitability } = useCRM();
+  const { orders, orderEngineers, rfqs, users, updateOrderStatus, addOrderEngineer, getNextOrderStatus, getClientName, getVendorName, getUserName, updateOrder } = useCRM();
   const { isAdmin, isSales } = useAuth();
 
   const order = orders.find(o => o.id === id);
@@ -45,9 +42,6 @@ export default function OrderDetailPage() {
 
   const [showAssign, setShowAssign] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [showCostManager, setShowCostManager] = useState(false);
-  const [orderWithCosts, setOrderWithCosts] = useState<any>(null);
-  const [isLoadingCosts, setIsLoadingCosts] = useState(false);
 
   const [assignForm, setAssignForm] = useState({
     engineer_id: '', site_location: '', start_date: '', expected_completion: '',
@@ -58,27 +52,6 @@ export default function OrderDetailPage() {
     cost_value: order?.cost_value?.toString() || '',
     notes: order?.notes || '',
   });
-
-  // Load order with profitability/cost data
-  useEffect(() => {
-    if (id) {
-      loadOrderCosts();
-    }
-  }, [id]);
-
-  const loadOrderCosts = async () => {
-    setIsLoadingCosts(true);
-    const data = await getOrderWithProfitability(id!);
-    setOrderWithCosts(data);
-    setIsLoadingCosts(false);
-  };
-
-  const handleSaveCosts = async (_orderId: string, costs: any) => {
-    setIsLoadingCosts(true);
-    await updateOrderCosts(id!, costs);
-    await loadOrderCosts();
-    setIsLoadingCosts(false);
-  };
 
   if (!order) {
     return (
@@ -252,102 +225,6 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Cost Management & Profitability Analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Cost Summary */}
-        <div className="lg:col-span-2 glass-card p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Cost Management
-            </h3>
-            {(isAdmin || isSales) && (
-              <button
-                onClick={() => setShowCostManager(true)}
-                className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                Edit Costs
-              </button>
-            )}
-          </div>
-
-          {/* Cost Breakdown Display */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-2">Material Cost</p>
-              <p className="text-2xl font-bold text-foreground">Rs {(orderWithCosts?.material_cost || 0).toLocaleString('en-PK')}</p>
-            </div>
-            <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
-              <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 mb-2">Engineering Cost</p>
-              <p className="text-2xl font-bold text-foreground">Rs {(orderWithCosts?.engineering_cost || 0).toLocaleString('en-PK')}</p>
-            </div>
-            <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
-              <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 mb-2">Logistics Cost</p>
-              <p className="text-2xl font-bold text-foreground">Rs {(orderWithCosts?.logistics_cost || 0).toLocaleString('en-PK')}</p>
-            </div>
-            <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-2">Overhead Cost</p>
-              <p className="text-2xl font-bold text-foreground">Rs {(orderWithCosts?.overhead_cost || 0).toLocaleString('en-PK')}</p>
-            </div>
-          </div>
-
-          {/* Total Cost */}
-          <div className="p-5 rounded-lg bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/30">
-            <p className="text-sm font-semibold text-primary mb-2">Total Cost (Sum of all expenses)</p>
-            <p className="text-3xl font-bold text-primary">Rs {(orderWithCosts?.total_cost || 0).toLocaleString('en-PK')}</p>
-          </div>
-        </div>
-
-        {/* Profitability Analysis */}
-        <div className="glass-card p-5 space-y-4">
-          <h3 className="text-lg font-semibold text-foreground">Profitability</h3>
-
-          {orderWithCosts && (
-            <ProfitabilityBadge
-              profit={orderWithCosts.profit || 0}
-              margin={orderWithCosts.profit_margin || 0}
-              orderValue={orderWithCosts.order_value || order?.order_value || 0}
-              size="lg"
-            />
-          )}
-
-          {/* Margin Status Indicator */}
-          {orderWithCosts && (
-            <div className={cn(
-              'p-4 rounded-lg border-l-4 flex items-start gap-3',
-              orderWithCosts.profit_margin >= 20
-                ? 'bg-green-500/10 border-l-green-500'
-                : orderWithCosts.profit_margin >= 10
-                  ? 'bg-yellow-500/10 border-l-yellow-500'
-                  : 'bg-red-500/10 border-l-red-500'
-            )}>
-              <AlertCircle className={cn(
-                'w-5 h-5 mt-0.5 flex-shrink-0',
-                orderWithCosts.profit_margin >= 20
-                  ? 'text-green-600 dark:text-green-400'
-                  : orderWithCosts.profit_margin >= 10
-                    ? 'text-yellow-600 dark:text-yellow-400'
-                    : 'text-red-600 dark:text-red-400'
-              )} />
-              <p className={cn(
-                'text-sm font-semibold',
-                orderWithCosts.profit_margin >= 20
-                  ? 'text-green-700 dark:text-green-300'
-                  : orderWithCosts.profit_margin >= 10
-                    ? 'text-yellow-700 dark:text-yellow-300'
-                    : 'text-red-700 dark:text-red-300'
-              )}>
-                {orderWithCosts.profit_margin >= 20
-                  ? '✓ Excellent margin - Strong profitability'
-                  : orderWithCosts.profit_margin >= 10
-                    ? '⚠ Acceptable margin - Monitor performance'
-                    : '✗ Low margin - Review cost structure'}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Engineering Assignments */}
       <div className="glass-card p-5">
         <div className="flex items-center justify-between mb-4">
@@ -457,35 +334,6 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* Cost Manager Modal */}
-      {showCostManager && orderWithCosts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-          <div className="glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-background/95">
-              <h2 className="text-2xl font-bold text-foreground">
-                Manage Costs - Order #{id?.slice(0, 8).toUpperCase()}
-              </h2>
-              <button onClick={() => setShowCostManager(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <CostInputCard
-                orderId={id!}
-                costs={{
-                  material_cost: orderWithCosts.material_cost || 0,
-                  engineering_cost: orderWithCosts.engineering_cost || 0,
-                  logistics_cost: orderWithCosts.logistics_cost || 0,
-                  overhead_cost: orderWithCosts.overhead_cost || 0,
-                }}
-                onSave={handleSaveCosts}
-                isLoading={isLoadingCosts}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

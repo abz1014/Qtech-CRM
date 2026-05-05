@@ -43,7 +43,7 @@ export default function RFQDetailPage() {
   const [viewingEmailId, setViewingEmailId] = useState<string | null>(null);
 
   const [lineItemForm, setLineItemForm] = useState({
-    product_type: '', quantity: '', specification: '', target_price: '',
+    product_type: '', quantity: '', specification: '',
   });
   const [inquiryForm, setInquiryForm] = useState({ vendor_id: '', email_draft: '' });
   const [vendorQuery, setVendorQuery] = useState('');
@@ -67,7 +67,8 @@ export default function RFQDetailPage() {
 
   const [convertForm, setConvertForm] = useState({
     vendor_id: quotes.length > 0 ? quotes[0].vendor_id : '',
-    order_value: '',
+    order_value: '',   // customer approved amount (incl. margin)
+    cost_value: '',    // our cost from supplier (excl. margin)
     product_type: '',
     sales_person_id: user?.id || '',
     notes: '',
@@ -93,9 +94,9 @@ export default function RFQDetailPage() {
       product_type: lineItemForm.product_type,
       quantity: Number(lineItemForm.quantity),
       specification: lineItemForm.specification,
-      target_price: lineItemForm.target_price ? Number(lineItemForm.target_price) : null,
+      target_price: null,
     });
-    setLineItemForm({ product_type: '', quantity: '', specification: '', target_price: '' });
+    setLineItemForm({ product_type: '', quantity: '', specification: '' });
     setShowLineItemForm(false);
   };
 
@@ -229,7 +230,7 @@ export default function RFQDetailPage() {
         vendor_id: convertForm.vendor_id,
         order_value: Number(convertForm.order_value),
         product_type: convertForm.product_type,
-        cost_value: 0,
+        cost_value: Number(convertForm.cost_value) || 0,
         notes: convertForm.notes,
         status: 'po_received',
         sales_person_id: convertForm.sales_person_id,
@@ -385,7 +386,6 @@ export default function RFQDetailPage() {
                 <th className="text-left py-2 text-xs text-muted-foreground font-medium">Product</th>
                 <th className="text-left py-2 text-xs text-muted-foreground font-medium">Qty</th>
                 <th className="text-left py-2 text-xs text-muted-foreground font-medium">Specification</th>
-                <th className="text-right py-2 text-xs text-muted-foreground font-medium">Target Price</th>
               </tr>
             </thead>
             <tbody>
@@ -394,7 +394,6 @@ export default function RFQDetailPage() {
                   <td className="py-2 font-medium">{li.product_type}</td>
                   <td className="py-2">{li.quantity}</td>
                   <td className="py-2 text-muted-foreground">{li.specification}</td>
-                  <td className="text-right py-2">{li.target_price ? formatPKR(li.target_price) : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -415,9 +414,6 @@ export default function RFQDetailPage() {
             </div>
             <input type="text" placeholder="Specification / Details" value={lineItemForm.specification}
               onChange={e => setLineItemForm(p => ({ ...p, specification: e.target.value }))}
-              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
-            <input type="number" placeholder="Customer Target Price (PKR)" value={lineItemForm.target_price}
-              onChange={e => setLineItemForm(p => ({ ...p, target_price: e.target.value }))}
               className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
             <div className="flex gap-2">
               <button type="button" onClick={() => setShowLineItemForm(false)}
@@ -829,15 +825,31 @@ export default function RFQDetailPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Order Value (Rs) *</label>
-                <input
-                  type="number"
-                  value={convertForm.order_value}
-                  onChange={(e) => setConvertForm(p => ({ ...p, order_value: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Customer Approved Amount (Rs) *</label>
+                  <p className="text-xs text-muted-foreground mb-1">Total price invoiced to client (incl. margin)</p>
+                  <input
+                    type="number"
+                    placeholder="e.g. 500000"
+                    value={convertForm.order_value}
+                    onChange={(e) => setConvertForm(p => ({ ...p, order_value: e.target.value }))}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Our Cost from Supplier (Rs) *</label>
+                  <p className="text-xs text-muted-foreground mb-1">What we pay supplier (excl. margin)</p>
+                  <input
+                    type="number"
+                    placeholder="e.g. 400000"
+                    value={convertForm.cost_value}
+                    onChange={(e) => setConvertForm(p => ({ ...p, cost_value: e.target.value }))}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    required
+                  />
+                </div>
               </div>
 
               <div>

@@ -689,12 +689,37 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       .single();
     if (rfqError) throw new Error(rfqError.message);
     if (updatedRFQ) setRFQs(prev => prev.map(r => r.id === rfqId ? updatedRFQ as RFQ : r));
-  }, []);
+    // Auto-trigger: order created → pay supplier within 5 days to move to procurement
+    const vendor = vendors.find(v => v.id === orderData.vendor_id);
+    autoFollowUp({
+      title: `Pay supplier ${vendor?.name ?? 'vendor'} to initiate procurement — ${newOrder.product_type}`,
+      action_type: 'order_status',
+      entity_type: 'order',
+      entity_id: newOrder.id,
+      assigned_to: orderData.sales_person_id ?? null,
+      priority: 'high',
+      daysFromNow: 5,
+    });
+  }, [vendors, autoFollowUp]);
 
   const addSupplierInquiry = useCallback(async (inquiry: Omit<SupplierInquiry, 'id'>) => {
     const { data } = await supabase.from('supplier_inquiries').insert(inquiry).select().single();
-    if (data) setSupplierInquiries(prev => [data as SupplierInquiry, ...prev]);
-  }, []);
+    if (data) {
+      setSupplierInquiries(prev => [data as SupplierInquiry, ...prev]);
+      // Auto-trigger: inquiry sent → follow up for supplier response in 48 hours
+      const vendor = vendors.find(v => v.id === inquiry.vendor_id);
+      const rfq = rfqs.find(r => r.id === inquiry.rfq_id);
+      autoFollowUp({
+        title: `Follow up with ${vendor?.name ?? 'supplier'} for quote — ${rfq?.company_name ?? 'RFQ'}`,
+        action_type: 'supplier_response',
+        entity_type: 'rfq',
+        entity_id: inquiry.rfq_id,
+        assigned_to: rfq?.assigned_to ?? null,
+        priority: 'high',
+        daysFromNow: 2, // 48 hours
+      });
+    }
+  }, [vendors, rfqs, autoFollowUp]);
 
   const addSupplierQuote = useCallback(async (quote: Omit<SupplierQuote, 'id'>) => {
     const { data } = await supabase.from('supplier_quotes').insert(quote).select().single();
