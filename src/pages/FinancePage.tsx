@@ -1,36 +1,160 @@
+import { useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { formatPKR, formatDate } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Clock, AlertCircle, CheckCircle, ArrowRight, Download } from 'lucide-react';
+import { TrendingUp, Clock, AlertCircle, CheckCircle, ArrowRight, Download, Calendar } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// ── Date range helpers ────────────────────────────────────────────────────────
+
+type Preset = 'this_month' | 'last_3' | 'this_year' | 'last_year' | 'all_time' | 'custom';
+
+function getPresetRange(preset: Preset): { from: string; to: string } {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const y = now.getFullYear();
+  const m = now.getMonth();
+
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+
+  switch (preset) {
+    case 'this_month':
+      return { from: fmt(new Date(y, m, 1)), to: today };
+    case 'last_3':
+      return { from: fmt(new Date(y, m - 2, 1)), to: today };
+    case 'this_year':
+      return { from: fmt(new Date(y, 0, 1)), to: today };
+    case 'last_year':
+      return { from: fmt(new Date(y - 1, 0, 1)), to: fmt(new Date(y - 1, 11, 31)) };
+    case 'all_time':
+      return { from: '2000-01-01', to: today };
+    default:
+      return { from: fmt(new Date(y, m, 1)), to: today };
+  }
+}
+
+const PRESETS: { key: Preset; label: string }[] = [
+  { key: 'this_month', label: 'This Month' },
+  { key: 'last_3',     label: 'Last 3 Months' },
+  { key: 'this_year',  label: 'This Year' },
+  { key: 'last_year',  label: 'Last Year' },
+  { key: 'all_time',   label: 'All Time' },
+  { key: 'custom',     label: 'Custom' },
+];
+
+// Build monthly buckets between two dates (max 24 months)
+function buildMonthBuckets(from: string, to: string) {
+  const start = new Date(from);
+  const end   = new Date(to);
+  const buckets: { label: string; year: number; month: number }[] = [];
+  const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+
+  while (cur <= endMonth && buckets.length < 24) {
+    buckets.push({
+      label: cur.toLocaleString('default', { month: 'short', year: '2-digit' }),
+      year:  cur.getFullYear(),
+      month: cur.getMonth(),
+    });
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  return buckets;
+}
 
 export default function FinancePage() {
   const { orders, getClientName, getVendorName, getUserName } = useCRM();
+  const navigate = useNavigate();
 
+  // ── Date range state ────────────────────────────────────────────────────────
+  const [preset, setPreset] = useState<Preset>('this_month');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo,   setCustomTo]   = useState('');
+
+  const range = useMemo(() => {
+    if (preset === 'custom' && customFrom && customTo) {
+      return { from: customFrom, to: customTo };
+    }
+    if (preset === 'custom') return getPresetRange('this_month');
+    return getPresetRange(preset);
+  }, [preset, customFrom, customTo]);
+
+  const today    = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  // ── Filter orders by confirmed_date within range ────────────────────────────
+  const filteredOrders = useMemo(() =>
+    orders.filter(o => {
+      const d = (o as any).customer_po_date || o.confirmed_date;
+      if (!d) return false;
+      return d >= range.from && d <= range.to;
+    }),
+  [orders, range]);
+
+  // ── KPIs from filtered orders ───────────────────────────────────────────────
+  const revenue = filteredOrders.reduce((s, o) => s + (o.order_value || 0), 0);
+  const cost    = filteredOrders.reduce((s, o) => s + (o.cost_value  || 0), 0);
+  const profit  = revenue - cost;
+  const margin  = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : '0';
+  const orderCount = filteredOrders.length;
+
+  // ── Payment pipeline (not date-filtered — current outstanding regardless of when) ──
+  const pendingPayment = orders.filter(o =>
+    o.status === 'delivered' || o.status === 'in_transit' || o.status === 'procurement' || o.status === 'po_received'
+  );
+  const overduePayments = orders.filter(o => {
+    if (o.status === 'payment_received') return false;
+    const due = (o as any).payment_due_date;
+    if (!due) return false;
+    return due < todayStr;
+  });
+  const pendingValue = pendingPayment.reduce((s, o) => s + (o.order_value || 0), 0);
+  const overdueValue = overduePayments.reduce((s, o) => s + (o.order_value || 0), 0);
+
+  // ── Bar chart: month buckets within selected range ──────────────────────────
+  const buckets = useMemo(() => buildMonthBuckets(range.from, range.to), [range]);
+  const monthData = useMemo(() => buckets.map(b => {
+    const mo = filteredOrders.filter(o => {
+      const d = (o as any).customer_po_date || o.confirmed_date;
+      if (!d) return false;
+      const od = new Date(d);
+      return od.getMonth() === b.month && od.getFullYear() === b.year;
+    });
+    return {
+      label:   b.label,
+      revenue: mo.reduce((s, o) => s + (o.order_value || 0), 0),
+      cost:    mo.reduce((s, o) => s + (o.cost_value  || 0), 0),
+      profit:  mo.reduce((s, o) => s + ((o.order_value || 0) - (o.cost_value || 0)), 0),
+      count:   mo.length,
+    };
+  }), [buckets, filteredOrders]);
+  const maxRevenue = Math.max(...monthData.map(m => m.revenue), 1);
+
+  // ── Recently collected in range ─────────────────────────────────────────────
+  const recentlyPaid = filteredOrders
+    .filter(o => o.status === 'payment_received')
+    .slice(0, 5);
+
+  // ── CSV export (filtered) ───────────────────────────────────────────────────
   const handleExportCSV = () => {
+    const statusLabels: Record<string, string> = {
+      po_received: 'PO Received', procurement: 'Procurement',
+      in_transit: 'In Transit', delivered: 'Delivered', payment_received: 'Payment Received',
+    };
     const headers = [
       'Client', 'Vendor', 'Product Type', 'Sales Person', 'Status',
       'Customer Approved Amount (PKR)', 'Our Cost (PKR)', 'Profit (PKR)', 'Margin %',
       'Customer PO Number', 'PO Date', 'Payment Terms (days)',
       'Delivery Date', 'Payment Due Date', 'Notes',
     ];
-    const statusLabels: Record<string, string> = {
-      po_received: 'PO Received', procurement: 'Procurement',
-      in_transit: 'In Transit', delivered: 'Delivered', payment_received: 'Payment Received',
-    };
-    const rows = orders.map(o => {
-      const profit = (o.order_value || 0) - (o.cost_value || 0);
-      const margin = o.order_value > 0 ? ((profit / o.order_value) * 100).toFixed(1) + '%' : '0%';
+    const rows = filteredOrders.map(o => {
+      const p = (o.order_value || 0) - (o.cost_value || 0);
+      const mg = o.order_value > 0 ? ((p / o.order_value) * 100).toFixed(1) + '%' : '0%';
       return [
-        getClientName(o.client_id),
-        getVendorName(o.vendor_id),
-        o.product_type,
-        getUserName(o.sales_person_id),
+        getClientName(o.client_id), getVendorName(o.vendor_id),
+        o.product_type, getUserName(o.sales_person_id),
         statusLabels[o.status] || o.status,
-        o.order_value || 0,
-        o.cost_value || 0,
-        profit,
-        margin,
+        o.order_value || 0, o.cost_value || 0, p, mg,
         (o as any).customer_po_number || '',
         (o as any).customer_po_date || o.confirmed_date || '',
         (o as any).payment_terms_days ?? '',
@@ -39,120 +163,128 @@ export default function FinancePage() {
         o.notes || '',
       ];
     });
-    const csv = generateCSV(headers, rows);
-    downloadCSV(csv, `Finance_Orders_${new Date().toISOString().split('T')[0]}.csv`);
+    downloadCSV(generateCSV(headers, rows), `Finance_${range.from}_to_${range.to}.csv`);
   };
-  const navigate = useNavigate();
 
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-
-  // ── Revenue & profit from all orders ──────────────────────────────────────
-  const allRevenue = orders.reduce((s, o) => s + (o.order_value || 0), 0);
-  const allCost    = orders.reduce((s, o) => s + (o.cost_value  || 0), 0);
-  const allProfit  = allRevenue - allCost;
-  const allMargin  = allRevenue > 0 ? ((allProfit / allRevenue) * 100).toFixed(1) : '0';
-
-  // ── This month ────────────────────────────────────────────────────────────
-  const thisMonthOrders = orders.filter(o => {
-    const d = new Date(o.confirmed_date || o.rfq_id || '');
-    // use confirmed_date as proxy for when the deal was struck
-    if (!o.confirmed_date) return false;
-    const d2 = new Date(o.confirmed_date);
-    return d2.getMonth() === currentMonth && d2.getFullYear() === currentYear;
-  });
-  const monthRevenue = thisMonthOrders.reduce((s, o) => s + (o.order_value || 0), 0);
-  const monthCost    = thisMonthOrders.reduce((s, o) => s + (o.cost_value  || 0), 0);
-  const monthProfit  = monthRevenue - monthCost;
-
-  // ── Payment pipeline ─────────────────────────────────────────────────────
-  // Orders that are delivered but payment not yet received
-  const pendingPayment = orders.filter(o =>
-    o.status === 'delivered' || o.status === 'in_transit' || o.status === 'procurement'
-  );
-
-  const overduePayments = orders.filter(o => {
-    if (o.status === 'payment_received') return false;
-    const due = (o as any).payment_due_date;
-    if (!due) return false;
-    return due < todayStr;
-  });
-
-  const pendingValue  = pendingPayment.reduce((s, o) => s + (o.order_value || 0), 0);
-  const overdueValue  = overduePayments.reduce((s, o) => s + (o.order_value || 0), 0);
-
-  // ── Monthly breakdown (last 6 months) ────────────────────────────────────
-  const months: { label: string; revenue: number; cost: number; profit: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(currentYear, currentMonth - i, 1);
-    const m = d.getMonth();
-    const y = d.getFullYear();
-    const label = d.toLocaleString('default', { month: 'short', year: '2-digit' });
-    const mo = orders.filter(o => {
-      if (!o.confirmed_date) return false;
-      const od = new Date(o.confirmed_date);
-      return od.getMonth() === m && od.getFullYear() === y;
-    });
-    months.push({
-      label,
-      revenue: mo.reduce((s, o) => s + (o.order_value || 0), 0),
-      cost:    mo.reduce((s, o) => s + (o.cost_value  || 0), 0),
-      profit:  mo.reduce((s, o) => s + ((o.order_value || 0) - (o.cost_value || 0)), 0),
-    });
-  }
-
-  const maxRevenue = Math.max(...months.map(m => m.revenue), 1);
+  const rangeLabel = preset === 'all_time'
+    ? 'All Orders'
+    : `${formatDate(range.from)} – ${formatDate(range.to)}`;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+
+      {/* ── Header + Export ── */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Finance</h1>
-          <p className="text-muted-foreground mt-1">Revenue, profit and payment tracking — all from your orders</p>
+          <p className="text-muted-foreground text-sm">{rangeLabel} · {orderCount} order{orderCount !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-2 px-4 py-2.5 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/80 transition-colors border border-border"
-        >
+        <button onClick={handleExportCSV}
+          className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/80 transition-colors border border-border">
           <Download className="w-4 h-4" /> Export CSV
         </button>
       </div>
 
-      {/* Top KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="glass-card p-5">
-          <p className="text-xs text-muted-foreground mb-1">Total Revenue</p>
-          <p className="text-2xl font-bold text-foreground">{formatPKR(allRevenue)}</p>
-          <p className="text-xs text-muted-foreground mt-1">all orders</p>
-        </div>
-        <div className="glass-card p-5">
-          <p className="text-xs text-muted-foreground mb-1">Total Profit</p>
-          <p className={`text-2xl font-bold ${allProfit >= 0 ? 'text-success' : 'text-destructive'}`}>{formatPKR(allProfit)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{allMargin}% margin</p>
-        </div>
-        <div className="glass-card p-5">
-          <p className="text-xs text-muted-foreground mb-1">This Month Revenue</p>
-          <p className="text-2xl font-bold text-foreground">{formatPKR(monthRevenue)}</p>
-          <p className={`text-xs mt-1 ${monthProfit >= 0 ? 'text-success' : 'text-destructive'}`}>
-            {formatPKR(monthProfit)} profit
-          </p>
-        </div>
-        <div className="glass-card p-5">
-          <p className="text-xs text-muted-foreground mb-1">Payments Due</p>
-          <p className="text-2xl font-bold text-warning">{formatPKR(pendingValue)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{pendingPayment.length} orders in pipeline</p>
+      {/* ── Date range selector ── */}
+      <div className="glass-card p-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <div className="flex gap-1.5 flex-wrap">
+            {PRESETS.map(p => (
+              <button
+                key={p.key}
+                onClick={() => setPreset(p.key)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                  preset === p.key
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom date inputs */}
+          {preset === 'custom' && (
+            <div className="flex items-center gap-2 ml-2 flex-wrap">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={e => setCustomFrom(e.target.value)}
+                className="px-3 py-1.5 bg-muted border border-border rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              <span className="text-xs text-muted-foreground">to</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={e => setCustomTo(e.target.value)}
+                className="px-3 py-1.5 bg-muted border border-border rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Overdue alert */}
+      {/* ── KPI cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="kpi-card">
+          <div className="flex items-start justify-between mb-4">
+            <p className="text-xs font-semibold text-muted-foreground">Revenue</p>
+            <div className="w-9 h-9 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-3xl font-extrabold text-foreground tracking-tight">{formatPKR(revenue)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{orderCount} order{orderCount !== 1 ? 's' : ''}</p>
+        </div>
+
+        <div className="kpi-card">
+          <div className="flex items-start justify-between mb-4">
+            <p className="text-xs font-semibold text-muted-foreground">Profit</p>
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${profit >= 0 ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}>
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <p className={`text-3xl font-extrabold tracking-tight ${profit >= 0 ? 'text-success' : 'text-destructive'}`}>{formatPKR(profit)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{margin}% margin</p>
+        </div>
+
+        <div className="kpi-card">
+          <div className="flex items-start justify-between mb-4">
+            <p className="text-xs font-semibold text-muted-foreground">Payments Pending</p>
+            <div className="w-9 h-9 rounded-xl bg-warning/15 text-warning flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-3xl font-extrabold text-foreground tracking-tight">{formatPKR(pendingValue)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{pendingPayment.length} orders outstanding</p>
+        </div>
+
+        <div className="kpi-card">
+          <div className="flex items-start justify-between mb-4">
+            <p className="text-xs font-semibold text-muted-foreground">Overdue</p>
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${overduePayments.length > 0 ? 'bg-destructive/15 text-destructive' : 'bg-success/15 text-success'}`}>
+              <AlertCircle className="w-4 h-4" />
+            </div>
+          </div>
+          <p className={`text-3xl font-extrabold tracking-tight ${overduePayments.length > 0 ? 'text-destructive' : 'text-success'}`}>
+            {overduePayments.length > 0 ? formatPKR(overdueValue) : '—'}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {overduePayments.length > 0 ? `${overduePayments.length} overdue` : 'All clear'}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Overdue alert ── */}
       {overduePayments.length > 0 && (
         <div className="glass-card p-4 border border-destructive/30 bg-destructive/5">
           <div className="flex items-center gap-2 mb-3">
             <AlertCircle className="w-5 h-5 text-destructive" />
-            <h2 className="text-sm font-semibold text-destructive">Overdue Payments — {overduePayments.length} order{overduePayments.length > 1 ? 's' : ''} ({formatPKR(overdueValue)})</h2>
+            <h2 className="text-sm font-semibold text-destructive">
+              {overduePayments.length} Overdue Payment{overduePayments.length > 1 ? 's' : ''} · {formatPKR(overdueValue)}
+            </h2>
           </div>
           <div className="space-y-2">
             {overduePayments.map(o => {
@@ -162,12 +294,12 @@ export default function FinancePage() {
                   className="flex items-center justify-between p-3 bg-destructive/5 border border-destructive/20 rounded-lg cursor-pointer hover:bg-destructive/10 transition-colors"
                   onClick={() => navigate(`/orders/${o.id}`)}>
                   <div>
-                    <p className="text-sm font-medium text-foreground">{getClientName(o.client_id)}</p>
+                    <p className="text-sm font-semibold text-foreground">{getClientName(o.client_id)}</p>
                     <p className="text-xs text-muted-foreground">{o.product_type} · Due {formatDate((o as any).payment_due_date)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold text-destructive">{formatPKR(o.order_value)}</p>
-                    <p className="text-xs text-destructive">{daysOverdue}d overdue</p>
+                    <p className="text-xs text-destructive font-medium">{daysOverdue}d overdue</p>
                   </div>
                 </div>
               );
@@ -176,29 +308,69 @@ export default function FinancePage() {
         </div>
       )}
 
-      {/* Payment Pipeline */}
+      {/* ── Bar chart ── */}
+      <div className="glass-card p-5">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-primary" /> Revenue by Month
+          </h2>
+          <span className="text-xs text-muted-foreground">{rangeLabel}</span>
+        </div>
+
+        {monthData.every(m => m.revenue === 0) ? (
+          <p className="text-sm text-muted-foreground text-center py-6">No orders in this period</p>
+        ) : (
+          <div className="space-y-3">
+            {monthData.map(m => (
+              <div key={m.label} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="w-14 font-semibold text-foreground">{m.label}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-muted-foreground">{formatPKR(m.revenue)}</span>
+                    <span className={cn('font-semibold', m.profit >= 0 ? 'text-success' : 'text-destructive')}>
+                      {m.profit >= 0 ? '+' : ''}{formatPKR(m.profit)}
+                    </span>
+                    {m.count > 0 && <span className="text-muted-foreground text-[10px]">{m.count} orders</span>}
+                  </div>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden bg-muted flex gap-0.5">
+                  <div className="bg-warning/60 rounded-l-full transition-all duration-500"
+                    style={{ width: `${(m.cost / maxRevenue) * 100}%` }} />
+                  <div className={cn('rounded-r-full transition-all duration-500', m.profit >= 0 ? 'bg-success/70' : 'bg-destructive/70')}
+                    style={{ width: `${(Math.abs(m.profit) / maxRevenue) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-5 mt-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-full bg-warning/60 inline-block" /> Cost</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-full bg-success/70 inline-block" /> Profit</span>
+        </div>
+      </div>
+
+      {/* ── Payment pipeline ── */}
       <div className="glass-card p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Clock className="w-4 h-4 text-warning" /> Payment Pipeline
           </h2>
-          <span className="text-xs text-muted-foreground">{pendingPayment.length} orders awaiting payment</span>
+          <span className="text-xs text-muted-foreground">{pendingPayment.length} awaiting collection</span>
         </div>
 
         {pendingPayment.length === 0 ? (
-          <div className="flex items-center gap-2 text-sm text-success">
-            <CheckCircle className="w-4 h-4" /> All payments collected — great work!
+          <div className="flex items-center gap-2 text-sm text-success py-2">
+            <CheckCircle className="w-4 h-4" /> All payments collected
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">Client</th>
-                  <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">Product</th>
-                  <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">Status</th>
-                  <th className="text-right py-2 px-3 text-xs text-muted-foreground font-medium">Order Value</th>
-                  <th className="text-right py-2 px-3 text-xs text-muted-foreground font-medium">Payment Due</th>
+                  {['Client', 'Product', 'Status', 'Order Value', 'Payment Due'].map(h => (
+                    <th key={h} className={`py-2 px-3 text-xs text-muted-foreground font-semibold ${h === 'Order Value' || h === 'Payment Due' ? 'text-right' : 'text-left'}`}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -206,24 +378,26 @@ export default function FinancePage() {
                   const paymentDue = (o as any).payment_due_date;
                   const isOverdue = paymentDue && paymentDue < todayStr;
                   const statusLabel: Record<string, string> = {
-                    po_received: 'PO Received',
-                    procurement: 'Procurement',
-                    in_transit: 'In Transit',
-                    delivered: 'Delivered',
+                    po_received: 'PO Received', procurement: 'Procurement',
+                    in_transit: 'In Transit', delivered: 'Delivered',
                   };
                   return (
                     <tr key={o.id}
                       className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors"
                       onClick={() => navigate(`/orders/${o.id}`)}>
-                      <td className="py-2.5 px-3 font-medium">{getClientName(o.client_id)}</td>
-                      <td className="py-2.5 px-3 text-muted-foreground">{o.product_type}</td>
-                      <td className="py-2.5 px-3">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <div className="avatar-xs bg-primary/15 text-primary">{getClientName(o.client_id).slice(0,2).toUpperCase()}</div>
+                          <span className="font-medium text-foreground">{getClientName(o.client_id)}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-muted-foreground">{o.product_type}</td>
+                      <td className="py-3 px-3">
                         <span className="status-badge bg-warning/15 text-warning">{statusLabel[o.status] || o.status}</span>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-semibold">{formatPKR(o.order_value)}</td>
-                      <td className={`py-2.5 px-3 text-right text-xs font-medium ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
-                        {paymentDue ? formatDate(paymentDue) : '—'}
-                        {isOverdue && ' ⚠'}
+                      <td className="py-3 px-3 text-right font-semibold">{formatPKR(o.order_value)}</td>
+                      <td className={cn('py-3 px-3 text-right text-xs font-semibold', isOverdue ? 'text-destructive' : 'text-muted-foreground')}>
+                        {paymentDue ? formatDate(paymentDue) : '—'}{isOverdue && ' ⚠'}
                       </td>
                     </tr>
                   );
@@ -234,70 +408,33 @@ export default function FinancePage() {
         )}
       </div>
 
-      {/* Monthly bar chart */}
-      <div className="glass-card p-5">
-        <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4" /> Last 6 Months
-        </h2>
-        <div className="space-y-3">
-          {months.map(m => (
-            <div key={m.label} className="space-y-1">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span className="w-12 font-medium text-foreground">{m.label}</span>
-                <span>{formatPKR(m.revenue)}</span>
-                <span className={m.profit >= 0 ? 'text-success' : 'text-destructive'}>
-                  {m.profit >= 0 ? '+' : ''}{formatPKR(m.profit)} profit
-                </span>
-              </div>
-              <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-muted">
-                {/* Cost bar */}
-                <div
-                  className="bg-warning/60 rounded-l-full transition-all"
-                  style={{ width: `${(m.cost / maxRevenue) * 100}%` }}
-                />
-                {/* Profit bar */}
-                <div
-                  className={`rounded-r-full transition-all ${m.profit >= 0 ? 'bg-success/70' : 'bg-destructive/70'}`}
-                  style={{ width: `${(Math.abs(m.profit) / maxRevenue) * 100}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-full bg-warning/60 inline-block" /> Cost</span>
-          <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-full bg-success/70 inline-block" /> Profit</span>
-        </div>
-      </div>
-
-      {/* Recently paid */}
-      {(() => {
-        const paid = orders.filter(o => o.status === 'payment_received').slice(0, 5);
-        if (paid.length === 0) return null;
-        return (
-          <div className="glass-card p-5">
-            <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-success" /> Recently Collected
-            </h2>
-            <div className="space-y-2">
-              {paid.map(o => (
-                <div key={o.id}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/orders/${o.id}`)}>
+      {/* ── Recently collected (in range) ── */}
+      {recentlyPaid.length > 0 && (
+        <div className="glass-card p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-success" /> Collected in Period
+          </h2>
+          <div className="space-y-1">
+            {recentlyPaid.map(o => (
+              <div key={o.id}
+                className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                onClick={() => navigate(`/orders/${o.id}`)}>
+                <div className="flex items-center gap-2.5">
+                  <div className="avatar-xs bg-success/15 text-success">{getClientName(o.client_id).slice(0,2).toUpperCase()}</div>
                   <div>
-                    <p className="text-sm font-medium text-foreground">{getClientName(o.client_id)}</p>
+                    <p className="text-sm font-semibold text-foreground">{getClientName(o.client_id)}</p>
                     <p className="text-xs text-muted-foreground">{o.product_type}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm font-bold text-success">{formatPKR(o.order_value)}</p>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                  </div>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-bold text-success">{formatPKR(o.order_value)}</p>
+                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                </div>
+              </div>
+            ))}
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 }
