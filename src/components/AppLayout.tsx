@@ -27,18 +27,9 @@ function getPageTitle(pathname: string): string {
 export function AppLayout() {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => {
-    return localStorage.getItem('qtcrm_sidebar') === 'collapsed';
-  });
   const location = useLocation();
 
   if (!user) return <Navigate to="/" replace />;
-
-  const handleToggleCollapse = () => {
-    const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem('qtcrm_sidebar', next ? 'collapsed' : 'expanded');
-  };
 
   const pageTitle = getPageTitle(location.pathname);
 
@@ -47,8 +38,6 @@ export function AppLayout() {
       <AppSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        collapsed={collapsed}
-        onToggleCollapse={handleToggleCollapse}
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300">
