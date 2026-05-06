@@ -129,6 +129,20 @@ export function AppSidebar({ open, onClose, collapsed, onToggleCollapse }: AppSi
             <X className="w-4 h-4" />
           </button>
         )}
+
+        {/* Desktop collapse toggle — top right of brand area */}
+        <button
+          onClick={onToggleCollapse}
+          className="hidden lg:flex items-center justify-center w-7 h-7 rounded-lg ml-auto flex-shrink-0 relative z-10 transition-all duration-150"
+          style={{
+            color: 'hsl(var(--sidebar-foreground))',
+            background: 'hsl(var(--sidebar-accent))',
+            border: '1px solid hsl(var(--sidebar-border))',
+          }}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
       </div>
 
       {/* ── Nav ── */}
@@ -184,21 +198,6 @@ export function AppSidebar({ open, onClose, collapsed, onToggleCollapse }: AppSi
           borderTop: '1px solid hsl(var(--sidebar-border))',
           padding: collapsed ? '12px 0' : '12px',
         }}>
-
-        {/* Collapse toggle button */}
-        <div className={cn('flex', collapsed ? 'justify-center' : 'justify-end px-1')}>
-          <NavTooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-            <button
-              onClick={onToggleCollapse}
-              className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
-            >
-              {collapsed
-                ? <ChevronRight className="w-4 h-4" />
-                : <ChevronLeft className="w-4 h-4" />
-              }
-            </button>
-          </NavTooltip>
-        </div>
 
         {/* User card */}
         {!collapsed ? (
