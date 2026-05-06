@@ -130,11 +130,12 @@ export function AppSidebar({ open, onClose, collapsed, onToggleCollapse }: AppSi
           </button>
         )}
 
-        {/* Desktop collapse toggle — top right of brand area */}
+        {/* Desktop collapse toggle */}
         <button
           onClick={onToggleCollapse}
-          className="hidden lg:flex items-center justify-center w-7 h-7 rounded-lg ml-auto flex-shrink-0 relative z-10 transition-all duration-150"
+          className="items-center justify-center w-7 h-7 rounded-lg ml-auto flex-shrink-0 relative z-10 transition-all duration-150"
           style={{
+            display: 'flex',
             color: 'hsl(var(--sidebar-foreground))',
             background: 'hsl(var(--sidebar-accent))',
             border: '1px solid hsl(var(--sidebar-border))',
