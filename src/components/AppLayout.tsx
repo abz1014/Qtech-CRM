@@ -19,9 +19,7 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 function getPageTitle(pathname: string): string {
-  // Exact match first
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
-  // Prefix match for detail pages
   const base = Object.keys(PAGE_TITLES).find(k => k !== '/dashboard' && pathname.startsWith(k));
   return base ? PAGE_TITLES[base] : 'Q Tech Solutions';
 }
@@ -29,17 +27,31 @@ function getPageTitle(pathname: string): string {
 export function AppLayout() {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    return localStorage.getItem('qtcrm_sidebar') === 'collapsed';
+  });
   const location = useLocation();
 
   if (!user) return <Navigate to="/" replace />;
+
+  const handleToggleCollapse = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem('qtcrm_sidebar', next ? 'collapsed' : 'expanded');
+  };
 
   const pageTitle = getPageTitle(location.pathname);
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        collapsed={collapsed}
+        onToggleCollapse={handleToggleCollapse}
+      />
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300">
 
         {/* ── Top bar ── */}
         <header className="flex-shrink-0 flex items-center justify-between px-6 py-3.5"
@@ -57,7 +69,6 @@ export function AppLayout() {
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Page title */}
             <div>
               <h1 className="text-lg font-bold text-foreground leading-none">{pageTitle}</h1>
               <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
@@ -66,7 +77,6 @@ export function AppLayout() {
             </div>
           </div>
 
-          {/* Right side — date */}
           <div className="hidden sm:flex items-center gap-3">
             <span className="text-xs text-muted-foreground">
               {new Date().toLocaleDateString('en-PK', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
