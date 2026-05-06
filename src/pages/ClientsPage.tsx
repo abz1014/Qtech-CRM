@@ -9,6 +9,7 @@ import { Plus, X, Search, ChevronDown, ChevronUp, Trash2, Download } from 'lucid
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { RFQStatus } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 
 const rfqStatusColors: Record<RFQStatus, string> = {
   new: 'bg-muted text-muted-foreground',
@@ -20,7 +21,7 @@ const rfqStatusColors: Record<RFQStatus, string> = {
 
 export default function ClientsPage() {
   const navigate = useNavigate();
-  const { clients, addClient, deleteClient, rfqs } = useCRM();
+  const { clients, addClient, deleteClient, rfqs, loading } = useCRM();
   const { user, isAdmin } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
@@ -31,6 +32,8 @@ export default function ClientsPage() {
   const [form, setForm] = useState({
     company_name: '', industry: '', contact_person: '', phone: '', email: '', address: '',
   });
+
+  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Industry', 'Contact Person', 'Phone', 'RFQs']} />;
 
   const debouncedSearch = useDebounce(search);
 

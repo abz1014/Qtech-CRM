@@ -8,6 +8,7 @@ import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-reac
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { ProspectStatus } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 
 const statusColors: Record<ProspectStatus, string> = {
   hot: 'bg-hot/15 text-hot',
@@ -17,7 +18,7 @@ const statusColors: Record<ProspectStatus, string> = {
 
 export default function ProspectsPage() {
   const navigate = useNavigate();
-  const { prospects, addProspect, convertProspect, deleteProspect, getUserName } = useCRM();
+  const { prospects, addProspect, convertProspect, deleteProspect, getUserName, loading } = useCRM();
   const { user, isAdmin } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
@@ -28,6 +29,8 @@ export default function ProspectsPage() {
     company_name: '', contact_person: '', phone: '', email: '',
     lead_source: '', status: 'warm' as ProspectStatus, follow_up_date: '', assigned_to: user?.id ?? '',
   });
+
+  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Contact', 'Status', 'Follow Up', 'Assigned To']} />;
 
   const debouncedSearch = useDebounce(search);
 

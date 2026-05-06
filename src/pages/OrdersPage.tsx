@@ -8,6 +8,7 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { Plus, X, Search, Trash2, Download } from 'lucide-react';
 import { OrderStatus, ProductType } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 
 const statusColors: Record<string, string> = {
   po_received: 'bg-info/15 text-info',
@@ -28,7 +29,7 @@ const statusLabels: Record<string, string> = {
 const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
 
 export default function OrdersPage() {
-  const { orders, clients, vendors, addOrder, addVendor, deleteOrder, getClientName, getVendorName, getUserName } = useCRM();
+  const { orders, clients, vendors, addOrder, addVendor, deleteOrder, getClientName, getVendorName, getUserName, loading } = useCRM();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
@@ -60,6 +61,8 @@ export default function OrdersPage() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
 
   const handleExportCSV = () => {
     const headers = [

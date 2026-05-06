@@ -4,13 +4,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR } from '@/lib/format';
 import { Users, ShoppingCart, Wrench, Target, TrendingUp, ArrowRight, FileText, CheckCircle, BarChart3, Send, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
 export default function DashboardPage() {
-  const { clients, orders, prospects, rfqs, getClientName, getVendorName, getRFQMetrics } = useCRM();
+  const { clients, orders, prospects, rfqs, getClientName, getVendorName, getRFQMetrics, loading } = useCRM();
   const { user, isAdmin, isSales } = useAuth();
   const navigate = useNavigate();
 
   if (!isAdmin && !isSales) return <Navigate to="/" replace />;
+  if (loading) return <DashboardSkeleton />;
 
   const now = new Date();
   const currentMonth = now.getMonth();

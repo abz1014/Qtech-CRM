@@ -8,6 +8,7 @@ import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-reac
 import { RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '@/hooks/useDebounce';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 
 const rfqStatusColors: Record<RFQStatus, string> = {
   new: 'bg-muted text-muted-foreground',
@@ -26,7 +27,7 @@ const priorityColors: Record<RFQPriority, string> = {
 const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
 
 export default function RFQsPage() {
-  const { rfqs, clients, users, supplierInquiries, supplierQuotes, addRFQ, updateRFQStatus, updateRFQPriority, deleteRFQ, getUserName } = useCRM();
+  const { rfqs, clients, users, supplierInquiries, supplierQuotes, addRFQ, updateRFQStatus, updateRFQPriority, deleteRFQ, getUserName, loading } = useCRM();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
@@ -42,6 +43,8 @@ export default function RFQsPage() {
     rfq_date: '', assigned_to: user?.id ?? '',
     priority: 'medium' as RFQPriority, status: 'new' as RFQStatus, notes: '',
   });
+
+  if (loading) return <TableSkeleton cols={6} rows={8} headers={['Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
 
   const salesUsers = useMemo(() => users.filter(u => u.role === 'sales'), [users]);
   const debouncedSearch = useDebounce(search);
