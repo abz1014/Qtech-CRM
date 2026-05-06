@@ -190,10 +190,7 @@ export function AppSidebar({ open, onClose, collapsed, onToggleCollapse }: AppSi
           <NavTooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             <button
               onClick={onToggleCollapse}
-              className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
-              style={{ color: 'hsl(var(--sidebar-foreground))' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'hsl(var(--sidebar-accent))')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
             >
               {collapsed
                 ? <ChevronRight className="w-4 h-4" />
