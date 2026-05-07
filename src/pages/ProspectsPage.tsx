@@ -8,7 +8,7 @@ import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-reac
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { ProspectStatus } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
-import { TableSkeleton } from '@/components/ui/Skeleton';
+import { TableSkeleton } from '@/components/ui/skeleton';
 
 const statusColors: Record<ProspectStatus, string> = {
   hot: 'bg-hot/15 text-hot',

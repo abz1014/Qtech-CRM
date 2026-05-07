@@ -8,7 +8,7 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { Plus, X, Search, Trash2, Download } from 'lucide-react';
 import { OrderStatus, ProductType } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
-import { TableSkeleton } from '@/components/ui/Skeleton';
+import { TableSkeleton } from '@/components/ui/skeleton';
 
 const statusColors: Record<string, string> = {
   po_received: 'bg-info/15 text-info',

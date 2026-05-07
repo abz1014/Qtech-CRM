@@ -8,7 +8,7 @@ import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-reac
 import { RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '@/hooks/useDebounce';
-import { TableSkeleton } from '@/components/ui/Skeleton';
+import { TableSkeleton } from '@/components/ui/skeleton';
 
 const rfqStatusColors: Record<RFQStatus, string> = {
   new: 'bg-muted text-muted-foreground',

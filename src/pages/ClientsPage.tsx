@@ -9,7 +9,7 @@ import { Plus, X, Search, ChevronDown, ChevronUp, Trash2, Download } from 'lucid
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { RFQStatus } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
-import { TableSkeleton } from '@/components/ui/Skeleton';
+import { TableSkeleton } from '@/components/ui/skeleton';
 
 const rfqStatusColors: Record<RFQStatus, string> = {
   new: 'bg-muted text-muted-foreground',

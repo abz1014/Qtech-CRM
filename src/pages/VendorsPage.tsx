@@ -6,7 +6,7 @@ import { Plus, X, Search, Trash2, Download } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useDebounce } from '@/hooks/useDebounce';
-import { TableSkeleton } from '@/components/ui/Skeleton';
+import { TableSkeleton } from '@/components/ui/skeleton';
 
 export default function VendorsPage() {
   const navigate = useNavigate();
