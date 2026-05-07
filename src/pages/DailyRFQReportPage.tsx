@@ -8,7 +8,7 @@ interface FilterState {
   status: string;
   priority: string;
   client: string;
-  dateRange: 'today' | 'week' | 'month' | 'custom';
+  dateRange: 'today' | 'week' | 'month' | 'all' | 'custom';
 }
 
 export function DailyRFQReportPage() {
@@ -20,7 +20,7 @@ export function DailyRFQReportPage() {
     status: 'all',
     priority: 'all',
     client: 'all',
-    dateRange: 'today'
+    dateRange: 'month'  // default to last 30 days — always shows data
   });
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
@@ -35,13 +35,13 @@ export function DailyRFQReportPage() {
     } else if (filters.dateRange === 'week') {
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
-      const weekAgoStr = weekAgo.toISOString().split('T')[0];
-      result = result.filter(r => r.rfq_date >= weekAgoStr && r.rfq_date <= today);
+      result = result.filter(r => r.rfq_date >= weekAgo.toISOString().split('T')[0] && r.rfq_date <= today);
     } else if (filters.dateRange === 'month') {
       const monthAgo = new Date();
       monthAgo.setMonth(monthAgo.getMonth() - 1);
-      const monthAgoStr = monthAgo.toISOString().split('T')[0];
-      result = result.filter(r => r.rfq_date >= monthAgoStr && r.rfq_date <= today);
+      result = result.filter(r => r.rfq_date >= monthAgo.toISOString().split('T')[0] && r.rfq_date <= today);
+    } else if (filters.dateRange === 'all') {
+      // no filter — show everything
     } else if (filters.dateRange === 'custom') {
       result = result.filter(r => r.rfq_date >= startDate && r.rfq_date <= endDate);
     }
@@ -265,7 +265,8 @@ export function DailyRFQReportPage() {
               <option value="today">Today</option>
               <option value="week">Last 7 Days</option>
               <option value="month">Last 30 Days</option>
-              <option value="custom">Custom</option>
+              <option value="all">All Time</option>
+              <option value="custom">Custom Range</option>
             </select>
           </div>
 
