@@ -22,7 +22,10 @@ export function DailyRFQReportPage() {
     client: 'all',
     dateRange: 'month'  // default to last 30 days — always shows data
   });
-  const [startDate, setStartDate] = useState(today);
+  // Default custom range to last 30 days so it's not blank when user switches to custom
+  const defaultFrom = new Date();
+  defaultFrom.setMonth(defaultFrom.getMonth() - 1);
+  const [startDate, setStartDate] = useState(defaultFrom.toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(today);
 
   // Get filtered RFQs

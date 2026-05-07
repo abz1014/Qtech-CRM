@@ -136,20 +136,20 @@ export default function OrderDetailPage() {
             {order.confirmed_date && (
               <div className="flex justify-between"><span className="text-muted-foreground">PO Date</span><span className="text-foreground">{formatDate(order.confirmed_date)}</span></div>
             )}
-            {(order as any).customer_po_number && (
-              <div className="flex justify-between"><span className="text-muted-foreground">PO Number</span><span className="text-foreground font-mono text-xs">{(order as any).customer_po_number}</span></div>
+            {order.customer_po_number && (
+              <div className="flex justify-between"><span className="text-muted-foreground">PO Number</span><span className="text-foreground font-mono text-xs">{order.customer_po_number}</span></div>
             )}
-            {(order as any).payment_terms_days != null && (
-              <div className="flex justify-between"><span className="text-muted-foreground">Payment Terms</span><span className="text-foreground">{(order as any).payment_terms_days} days</span></div>
+            {order.payment_terms_days != null && (
+              <div className="flex justify-between"><span className="text-muted-foreground">Payment Terms</span><span className="text-foreground">{order.payment_terms_days} days</span></div>
             )}
-            {(order as any).delivery_date && (
-              <div className="flex justify-between"><span className="text-muted-foreground">Delivered On</span><span className="text-foreground">{formatDate((order as any).delivery_date)}</span></div>
+            {order.delivery_date && (
+              <div className="flex justify-between"><span className="text-muted-foreground">Delivered On</span><span className="text-foreground">{formatDate(order.delivery_date)}</span></div>
             )}
-            {(order as any).payment_due_date && (
+            {order.payment_due_date && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Payment Due</span>
-                <span className={`font-semibold ${new Date((order as any).payment_due_date) < new Date() && order.status !== 'payment_received' ? 'text-destructive' : 'text-foreground'}`}>
-                  {formatDate((order as any).payment_due_date)}
+                <span className={`font-semibold ${new Date(order.payment_due_date) < new Date() && order.status !== 'payment_received' ? 'text-destructive' : 'text-foreground'}`}>
+                  {formatDate(order.payment_due_date)}
                 </span>
               </div>
             )}

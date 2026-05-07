@@ -624,7 +624,7 @@ export default function ActionsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [user?.id]); // re-fetch if user changes
 
   const todayStr = new Date().toISOString().split('T')[0];
 

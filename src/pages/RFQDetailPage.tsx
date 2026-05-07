@@ -203,7 +203,7 @@ export default function RFQDetailPage() {
       phone: editForm.phone,
       email: editForm.email,
       rfq_date: editForm.rfq_date,
-      estimated_value: 0,
+      estimated_value: rfq.estimated_value ?? 0,
       priority: editForm.priority,
       notes: editForm.notes,
       status: editForm.status,
