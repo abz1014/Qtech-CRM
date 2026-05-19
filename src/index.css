@@ -259,8 +259,8 @@
 
 /* ── Keyframes ── */
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.995); }
-  to   { opacity: 1; transform: translateY(0)  scale(1); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 @keyframes slide-in-left {
   from { transform: translateX(-100%); }
