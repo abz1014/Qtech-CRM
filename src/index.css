@@ -209,9 +209,12 @@
   }
 
   /* ── Modal scroll fix ── */
+  /* Card sits in scrollable overlay, centered horizontally with breathing room */
   .modal-scroll {
-    max-height: calc(100vh - 2rem);
-    overflow-y: auto;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    margin-top: 2rem !important;
+    margin-bottom: 2rem !important;
   }
 
   /* ── Input focus glow ── */
