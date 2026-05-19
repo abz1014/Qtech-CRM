@@ -209,11 +209,10 @@
   }
 
   /* ── Modal scroll fix ── */
-  /* Any glass-card inside a fixed overlay gets auto max-height + scroll
-     so content is never cut off on small screens */
+  /* Overlay scrolls, card just needs top margin so it doesn't touch the edge */
   .modal-scroll {
-    max-height: 90vh;
-    overflow-y: auto;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
   }
 
   /* ── Input focus glow ── */
