@@ -248,7 +248,7 @@ export default function OrdersPage() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-lg p-6 m-4">
+          <div className="glass-card modal-scroll w-full max-w-lg p-6 m-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground">Create New Order</h2>
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -359,7 +359,7 @@ export default function OrdersPage() {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-sm p-6 m-4">
+          <div className="glass-card modal-scroll w-full max-w-sm p-6 m-4">
             <h2 className="text-lg font-semibold text-foreground mb-4">Delete Order?</h2>
             <p className="text-sm text-muted-foreground mb-6">Are you sure you want to delete this order? This action cannot be undone.</p>
             <div className="flex gap-3">

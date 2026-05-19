@@ -261,7 +261,7 @@ export default function OrderDetailPage() {
       {/* Assign Modal */}
       {showAssign && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-md p-6 m-4">
+          <div className="glass-card modal-scroll w-full max-w-md p-6 m-4">
             <h2 className="text-lg font-semibold text-foreground mb-4">Assign Engineer</h2>
             <form onSubmit={handleAssign} className="space-y-3">
               <div>
