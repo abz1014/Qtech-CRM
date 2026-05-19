@@ -137,7 +137,7 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="glass-card w-full max-w-md p-6">
+      <div className="modal-card max-w-md p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-foreground">Add Follow-up Action</h2>

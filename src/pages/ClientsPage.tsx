@@ -199,8 +199,8 @@ export default function ClientsPage() {
       />
 
       {showForm && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-background/80 backdrop-blur-sm">
-          <div className="glass-card modal-scroll w-full max-w-lg p-6 m-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground">Add New Client</h2>
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -231,8 +231,8 @@ export default function ClientsPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-background/80 backdrop-blur-sm">
-          <div className="glass-card modal-scroll w-full max-w-sm p-6 m-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-sm p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Delete Client?</h2>
             <p className="text-sm text-muted-foreground mb-6">Are you sure you want to delete this client? This action cannot be undone.</p>
             <div className="flex gap-3">

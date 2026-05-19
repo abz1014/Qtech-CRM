@@ -645,8 +645,8 @@ export default function RFQDetailPage() {
       {viewingEmailId && (() => {
         const inquiry = inquiries.find(i => i.id === viewingEmailId);
         return (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-background/80 backdrop-blur-sm">
-            <div className="glass-card modal-scroll w-full max-w-2xl p-6 m-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="modal-card max-w-2xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-foreground">Email Draft - {getVendorName(inquiry?.vendor_id || '')}</h2>
                 <button onClick={() => setViewingEmailId(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -664,8 +664,8 @@ export default function RFQDetailPage() {
 
       {/* Edit Quote Modal */}
       {editingQuoteId && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-background/80 backdrop-blur-sm">
-          <div className="glass-card modal-scroll w-full max-w-lg p-6 m-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground">Edit Quote</h2>
               <button onClick={() => setEditingQuoteId(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -709,8 +709,8 @@ export default function RFQDetailPage() {
 
       {/* Edit RFQ Modal */}
       {showEditRFQ && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-background/80 backdrop-blur-sm">
-          <div className="glass-card modal-scroll w-full max-w-lg p-6 m-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground">Edit RFQ</h2>
               <button onClick={() => setShowEditRFQ(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>

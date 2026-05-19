@@ -260,8 +260,8 @@ export default function OrderDetailPage() {
 
       {/* Assign Modal */}
       {showAssign && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-background/80 backdrop-blur-sm">
-          <div className="glass-card modal-scroll w-full max-w-md p-6 m-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-md p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Assign Engineer</h2>
             <form onSubmit={handleAssign} className="space-y-3">
               <div>
@@ -298,8 +298,8 @@ export default function OrderDetailPage() {
 
       {/* Edit Order Modal */}
       {showEdit && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-background/80 backdrop-blur-sm">
-          <div className="glass-card w-full max-w-lg p-6 m-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground">Edit Order</h2>
               <button onClick={() => setShowEdit(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>

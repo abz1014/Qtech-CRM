@@ -33,7 +33,7 @@ export function LossReasonModal({ rfqTitle, onConfirm, onCancel }: LossReasonMod
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="glass-card w-full max-w-md p-6 space-y-5">
+      <div className="modal-card max-w-md p-6 space-y-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div>

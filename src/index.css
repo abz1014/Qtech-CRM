@@ -208,13 +208,21 @@
     @apply w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0;
   }
 
-  /* ── Modal scroll fix ── */
-  /* Card sits in scrollable overlay, centered horizontally with breathing room */
+  /* ── Modal card — no backdrop-blur so overflow scroll works correctly ── */
+  .modal-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    box-shadow: 0 20px 60px -12px hsl(224 30% 3% / 0.7), 0 8px 24px -4px hsl(224 30% 4% / 0.4);
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Keep old class for non-modal uses */
   .modal-scroll {
-    margin-left: auto !important;
-    margin-right: auto !important;
-    margin-top: 2rem !important;
-    margin-bottom: 2rem !important;
+    max-height: 90vh;
+    overflow-y: auto;
   }
 
   /* ── Input focus glow ── */
