@@ -209,10 +209,9 @@
   }
 
   /* ── Modal scroll fix ── */
-  /* Overlay scrolls, card just needs top margin so it doesn't touch the edge */
   .modal-scroll {
-    margin-top: 1rem;
-    margin-bottom: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
   }
 
   /* ── Input focus glow ── */

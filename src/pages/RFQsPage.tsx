@@ -292,7 +292,7 @@ export default function RFQsPage() {
 
       {/* Add RFQ Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-background/80 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-lg p-6 m-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground">Add New RFQ</h2>
@@ -370,7 +370,7 @@ export default function RFQsPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-background/80 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
           <div className="glass-card modal-scroll w-full max-w-sm p-6 m-4">
             <h2 className="text-lg font-semibold text-foreground mb-4">Delete RFQ?</h2>
             <p className="text-sm text-muted-foreground mb-6">Are you sure you want to delete this RFQ? This action cannot be undone.</p>

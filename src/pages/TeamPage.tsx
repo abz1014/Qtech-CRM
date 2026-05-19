@@ -110,7 +110,7 @@ export default function TeamPage() {
 
       {/* Add Member Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-background/80 backdrop-blur-sm overflow-y-auto p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 p-4">
           <div className="glass-card modal-scroll w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
