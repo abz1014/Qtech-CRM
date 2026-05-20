@@ -5,7 +5,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR, formatDate } from '@/lib/format';
 import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart } from 'lucide-react';
 import { SupplierInquiryStatus, RFQStatus, RFQPriority, LossReason } from '@/types/crm';
-import { SupplierComparisonTable } from '@/components/rfq/SupplierComparisonTable';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { LossReasonModal } from '@/components/rfq/LossReasonModal';
 import { cn } from '@/lib/utils';
@@ -33,6 +32,7 @@ export default function RFQDetailPage() {
   const inquiries = supplierInquiries.filter(si => si.rfq_id === id);
   const quotes = supplierQuotes.filter(sq => sq.rfq_id === id);
 
+  const [viewingText, setViewingText] = useState<{ title: string; content: string } | null>(null);
   const [showLineItemForm, setShowLineItemForm] = useState(false);
   const [showInquiryForm, setShowInquiryForm] = useState(false);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -330,45 +330,6 @@ export default function RFQDetailPage() {
         </div>
       )}
 
-      {/* Quote Comparison (only show when there are quotes) */}
-      {quotes.length > 1 && (
-        <div className="glass-card p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-3">Quote Comparison</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 px-3">Vendor</th>
-                  <th className="text-right py-2 px-3">Unit Price</th>
-                  <th className="text-center py-2 px-3">Lead Time</th>
-                  <th className="text-center py-2 px-3">MOQ</th>
-                  <th className="text-center py-2 px-3">Valid (days)</th>
-                  <th className="text-center py-2 px-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...quotes].sort((a, b) => a.unit_price - b.unit_price).map(sq => (
-                  <tr key={sq.id} className={`border-b border-border/50 ${cheapestQuote?.id === sq.id ? 'bg-success/5' : ''}`}>
-                    <td className="py-2 px-3 font-medium">{getVendorName(sq.vendor_id)}</td>
-                    <td className="py-2 px-3 text-right font-semibold">{formatPKR(sq.unit_price)}</td>
-                    <td className="py-2 px-3 text-center">{sq.lead_time_days}d</td>
-                    <td className="py-2 px-3 text-center">{sq.moq}</td>
-                    <td className="py-2 px-3 text-center">{sq.validity_days}</td>
-                    <td className="py-2 px-3 text-center">
-                      {cheapestQuote?.id === sq.id && (
-                        <span className="text-xs text-success font-medium flex items-center gap-1 justify-center">
-                          <CheckCircle className="w-3 h-3" /> Best Price
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* Line Items */}
       <div className="glass-card p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -383,17 +344,30 @@ export default function RFQDetailPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-2 text-xs text-muted-foreground font-medium">Product</th>
-                <th className="text-left py-2 text-xs text-muted-foreground font-medium">Qty</th>
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium w-32">Product</th>
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium w-16">Qty</th>
                 <th className="text-left py-2 text-xs text-muted-foreground font-medium">Specification</th>
+                <th className="w-16"></th>
               </tr>
             </thead>
             <tbody>
               {lineItems.map(li => (
                 <tr key={li.id} className="border-b border-border/50">
-                  <td className="py-2 font-medium">{li.product_type}</td>
-                  <td className="py-2">{li.quantity}</td>
-                  <td className="py-2 text-muted-foreground">{li.specification}</td>
+                  <td className="py-2.5 font-medium">{li.product_type}</td>
+                  <td className="py-2.5">{li.quantity}</td>
+                  <td className="py-2.5 text-muted-foreground max-w-xs">
+                    <p className="line-clamp-2 text-xs leading-relaxed">{li.specification || '—'}</p>
+                  </td>
+                  <td className="py-2.5">
+                    {li.specification && (
+                      <button
+                        onClick={() => setViewingText({ title: `${li.product_type} — Specification`, content: li.specification })}
+                        className="text-xs text-primary hover:underline whitespace-nowrap"
+                      >
+                        View
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -562,21 +536,44 @@ export default function RFQDetailPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                {['Vendor', 'Unit Price', 'Lead Time', 'MOQ', 'Valid (days)', 'Notes', 'Action'].map(h => (
-                  <th key={h} className="text-left py-2 text-xs text-muted-foreground font-medium">{h}</th>
-                ))}
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium">Vendor</th>
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium">Unit Price</th>
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium">Lead Time</th>
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium">MOQ</th>
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium">Valid (days)</th>
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium">Notes</th>
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
               {quotes.map(sq => (
                 <tr key={sq.id} className={`border-b border-border/50 ${cheapestQuote?.id === sq.id ? 'bg-success/5' : ''}`}>
-                  <td className="py-2 font-medium">{getVendorName(sq.vendor_id)}</td>
-                  <td className="py-2 font-semibold text-foreground">{formatPKR(sq.unit_price)}</td>
-                  <td className="py-2">{sq.lead_time_days} days</td>
-                  <td className="py-2">{sq.moq}</td>
-                  <td className="py-2">{sq.validity_days}</td>
-                  <td className="py-2 text-muted-foreground text-xs">{sq.notes}</td>
-                  <td className="py-2">
+                  <td className="py-2.5 font-medium">
+                    <div className="flex items-center gap-1.5">
+                      {cheapestQuote?.id === sq.id && (
+                        <CheckCircle className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                      )}
+                      {getVendorName(sq.vendor_id)}
+                    </div>
+                  </td>
+                  <td className="py-2.5 font-semibold text-foreground">{formatPKR(sq.unit_price)}</td>
+                  <td className="py-2.5 text-muted-foreground">{sq.lead_time_days}d</td>
+                  <td className="py-2.5 text-muted-foreground">{sq.moq}</td>
+                  <td className="py-2.5 text-muted-foreground">{sq.validity_days}</td>
+                  <td className="py-2.5 max-w-[180px]">
+                    {sq.notes ? (
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground line-clamp-1">{sq.notes}</p>
+                        <button
+                          onClick={() => setViewingText({ title: `${getVendorName(sq.vendor_id)} — Quote Notes`, content: sq.notes })}
+                          className="text-xs text-primary hover:underline whitespace-nowrap flex-shrink-0"
+                        >
+                          View
+                        </button>
+                      </div>
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                  <td className="py-2.5">
                     <button onClick={() => {
                       setEditingQuoteId(sq.id);
                       setEditQuoteForm({
@@ -598,13 +595,6 @@ export default function RFQDetailPage() {
           <p className="text-sm text-muted-foreground">
             {inquiries.length === 0 ? 'Log an inquiry first, then add quotes as responses come in.' : 'No quotes received yet.'}
           </p>
-        )}
-
-        {/* Supplier Comparison Engine */}
-        {quotes.length > 1 && (
-          <div className="border-t border-border pt-6 mt-6">
-            <SupplierComparisonTable rfqId={id!} onRecommendationChange={() => window.location.reload()} />
-          </div>
         )}
 
         {showQuoteForm && (
@@ -936,6 +926,29 @@ export default function RFQDetailPage() {
           </div>
         </div>
       )}
+      {/* Text Viewer Modal */}
+      {viewingText && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-foreground">{viewingText.title}</h2>
+              <button onClick={() => setViewingText(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="bg-muted rounded-lg p-4 text-sm text-foreground leading-relaxed whitespace-pre-wrap max-h-[60vh] overflow-y-auto">
+              {viewingText.content}
+            </div>
+            <div className="flex justify-end pt-4">
+              <button onClick={() => setViewingText(null)}
+                className="px-4 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Loss Reason Modal */}
       {showLossModal && (
         <LossReasonModal
