@@ -18,7 +18,7 @@ const inquiryStatusColors: Record<SupplierInquiryStatus, string> = {
 export default function RFQDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, isSales, user } = useAuth();
   const {
     rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients, users,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateInquiryStatus,
@@ -286,7 +286,7 @@ export default function RFQDetailPage() {
             entityId={rfq.id}
             entityLabel={`${rfq.company_name} — ${rfq.notes?.slice(0, 40) || 'RFQ'}`}
           />
-          {isAdmin && (
+          {(isAdmin || isSales) && (
             <button onClick={() => setShowEditRFQ(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit
             </button>
