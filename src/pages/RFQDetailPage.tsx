@@ -27,7 +27,8 @@ export default function RFQDetailPage() {
   } = useCRM();
 
   const rfq = rfqs.find(r => r.id === id);
-  const order = rfq?.converted_order_id ? orders.find(o => o.id === rfq.converted_order_id) : null;
+  // All orders linked to this RFQ (supports multiple orders per RFQ)
+  const linkedOrders = orders.filter(o => o.rfq_id === id);
   const lineItems = rfqLineItems.filter(li => li.rfq_id === id);
   const inquiries = supplierInquiries.filter(si => si.rfq_id === id);
   const quotes = supplierQuotes.filter(sq => sq.rfq_id === id);
@@ -65,6 +66,7 @@ export default function RFQDetailPage() {
     notes: rfq?.notes || '',
   });
 
+  const [selectedLineItems, setSelectedLineItems] = useState<string[]>([]);
   const [convertForm, setConvertForm] = useState({
     vendor_id: quotes.length > 0 ? quotes[0].vendor_id : '',
     order_value: '',   // customer approved amount (incl. margin)
@@ -225,13 +227,24 @@ export default function RFQDetailPage() {
 
     try {
       setIsConverting(true);
+
+      // Build product_type from selected line items or manual entry
+      const coveredItems = lineItems.filter(li => selectedLineItems.includes(li.id));
+      const productLabel = coveredItems.length > 0
+        ? coveredItems.map(li => `${li.product_type} ×${li.quantity}`).join(', ')
+        : convertForm.product_type;
+
+      const notesWithItems = coveredItems.length > 0
+        ? `Items: ${coveredItems.map(li => li.product_type).join(', ')}${convertForm.notes ? '\n' + convertForm.notes : ''}`
+        : convertForm.notes;
+
       await convertRFQToOrder(rfq.id, {
         client_id: rfq.client_id,
         vendor_id: convertForm.vendor_id,
         order_value: Number(convertForm.order_value),
-        product_type: convertForm.product_type,
+        product_type: productLabel || convertForm.product_type,
         cost_value: Number(convertForm.cost_value) || 0,
-        notes: convertForm.notes,
+        notes: notesWithItems,
         status: 'po_received',
         sales_person_id: convertForm.sales_person_id,
         confirmed_date: new Date().toISOString().split('T')[0],
@@ -240,7 +253,8 @@ export default function RFQDetailPage() {
         payment_terms_days: Number(convertForm.payment_terms_days) || 30,
       } as any);
       setShowConvertOrder(false);
-      navigate('/orders');
+      setSelectedLineItems([]);
+      // Stay on RFQ page so user can create more orders if needed
     } catch (error) {
       console.error('Failed to convert RFQ to order:', error);
       alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -271,13 +285,13 @@ export default function RFQDetailPage() {
           <p className="text-muted-foreground mt-1">{rfq.contact_person} · {rfq.email}</p>
         </div>
         <div className="flex items-center gap-2">
-          {rfq.status !== 'converted' && rfq.status !== 'lost' && quotes.length > 0 && (
-            <button onClick={() => setShowConvertOrder(true)} className="flex items-center gap-1 px-3 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors">
-              <ShoppingCart className="w-4 h-4" /> Convert to Order
+          {rfq.status !== 'lost' && quotes.length > 0 && (
+            <button onClick={() => { setShowConvertOrder(true); setSelectedLineItems([]); }} className="flex items-center gap-1.5 px-3 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors">
+              <ShoppingCart className="w-4 h-4" /> Create Order
             </button>
           )}
           {rfq.status !== 'converted' && rfq.status !== 'lost' && (
-            <button onClick={() => setShowLossModal(true)} className="flex items-center gap-1 px-3 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-lg text-sm font-medium hover:bg-destructive/20 transition-colors">
+            <button onClick={() => setShowLossModal(true)} className="flex items-center gap-1.5 px-3 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-lg text-sm font-medium hover:bg-destructive/20 transition-colors">
               Mark as Lost
             </button>
           )}
@@ -311,22 +325,34 @@ export default function RFQDetailPage() {
         ))}
       </div>
 
-      {/* Related Order */}
-      {order && (
-        <div className="glass-card p-5 border border-primary/30 bg-primary/5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">📦 Order Created from This RFQ</p>
-              <p className="text-sm font-semibold text-foreground">{getClientName(order.client_id)}</p>
-              <p className="text-xs text-muted-foreground mt-1">{order.product_type} • {formatPKR(order.order_value)}</p>
+      {/* Linked Orders */}
+      {linkedOrders.length > 0 && (
+        <div className="glass-card p-5 border border-primary/30 bg-primary/5 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+            <ShoppingCart className="w-3.5 h-3.5" />
+            {linkedOrders.length} Order{linkedOrders.length > 1 ? 's' : ''} Created from This RFQ
+          </p>
+          {linkedOrders.map(o => (
+            <div key={o.id} className="flex items-center justify-between py-2 border-t border-primary/10 first:border-0 first:pt-0">
+              <div>
+                <p className="text-sm font-semibold text-foreground">{o.product_type}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {getVendorName(o.vendor_id)} · {formatPKR(o.order_value)}
+                  <span className={`ml-2 status-badge text-[10px] ${
+                    o.status === 'payment_received' ? 'bg-success/15 text-success' :
+                    o.status === 'delivered' ? 'bg-success/10 text-success' :
+                    'bg-warning/15 text-warning'
+                  }`}>{o.status.replace(/_/g, ' ')}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => navigate(`/orders/${o.id}`)}
+                className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                View →
+              </button>
             </div>
-            <button
-              onClick={() => navigate(`/orders/${order.id}`)}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              View Order →
-            </button>
-          </div>
+          ))}
         </div>
       )}
 
@@ -362,7 +388,7 @@ export default function RFQDetailPage() {
                     {li.specification && (
                       <button
                         onClick={() => setViewingText({ title: `${li.product_type} — Specification`, content: li.specification })}
-                        className="text-xs text-primary hover:underline whitespace-nowrap"
+                        className="px-2.5 py-1 text-xs font-medium bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors border border-border whitespace-nowrap"
                       >
                         View
                       </button>
@@ -560,32 +586,34 @@ export default function RFQDetailPage() {
                   <td className="py-2.5 text-muted-foreground">{sq.lead_time_days}d</td>
                   <td className="py-2.5 text-muted-foreground">{sq.moq}</td>
                   <td className="py-2.5 text-muted-foreground">{sq.validity_days}</td>
-                  <td className="py-2.5 max-w-[180px]">
+                  <td className="py-2.5 max-w-[200px]">
                     {sq.notes ? (
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs text-muted-foreground line-clamp-1">{sq.notes}</p>
-                        <button
-                          onClick={() => setViewingText({ title: `${getVendorName(sq.vendor_id)} — Quote Notes`, content: sq.notes })}
-                          className="text-xs text-primary hover:underline whitespace-nowrap flex-shrink-0"
-                        >
-                          View
-                        </button>
-                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{sq.notes}</p>
                     ) : <span className="text-muted-foreground text-xs">—</span>}
                   </td>
                   <td className="py-2.5">
-                    <button onClick={() => {
-                      setEditingQuoteId(sq.id);
-                      setEditQuoteForm({
-                        unit_price: sq.unit_price.toString(),
-                        lead_time_days: sq.lead_time_days.toString(),
-                        moq: sq.moq.toString(),
-                        validity_days: sq.validity_days.toString(),
-                        notes: sq.notes,
-                      });
-                    }} className="text-xs text-primary hover:underline">
-                      Edit
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {sq.notes && (
+                        <button
+                          onClick={() => setViewingText({ title: `${getVendorName(sq.vendor_id)} — Quote Notes`, content: sq.notes })}
+                          className="px-2.5 py-1 text-xs font-medium bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors border border-border"
+                        >
+                          View
+                        </button>
+                      )}
+                      <button onClick={() => {
+                        setEditingQuoteId(sq.id);
+                        setEditQuoteForm({
+                          unit_price: sq.unit_price.toString(),
+                          lead_time_days: sq.lead_time_days.toString(),
+                          moq: sq.moq.toString(),
+                          validity_days: sq.validity_days.toString(),
+                          notes: sq.notes,
+                        });
+                      }} className="px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors border border-primary/20">
+                        Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -782,6 +810,48 @@ export default function RFQDetailPage() {
                   <div><span className="text-muted-foreground">Client:</span> <span className="text-foreground font-medium">{getClientName(rfq!.client_id)}</span></div>
                 </div>
               </div>
+
+              {/* Line item selection — which products does this order cover? */}
+              {lineItems.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Products Covered by This Order
+                    <span className="text-muted-foreground font-normal ml-1">(select all that apply)</span>
+                  </label>
+                  <div className="space-y-2">
+                    {lineItems.map(li => (
+                      <label key={li.id} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        selectedLineItems.includes(li.id)
+                          ? 'border-primary/50 bg-primary/5'
+                          : 'border-border bg-muted/30 hover:bg-muted/60'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedLineItems.includes(li.id)}
+                          onChange={e => {
+                            setSelectedLineItems(prev =>
+                              e.target.checked
+                                ? [...prev, li.id]
+                                : prev.filter(x => x !== li.id)
+                            );
+                            // Auto-fill product_type from first selected item
+                            if (e.target.checked && !convertForm.product_type) {
+                              setConvertForm(p => ({ ...p, product_type: li.product_type }));
+                            }
+                          }}
+                          className="mt-0.5 accent-primary flex-shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">{li.product_type} × {li.quantity}</p>
+                          {li.specification && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{li.specification}</p>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Select Vendor *</label>
