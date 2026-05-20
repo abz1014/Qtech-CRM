@@ -39,7 +39,7 @@ export default function RFQsPage() {
   const [toDate, setToDate] = useState('');
 
   const [form, setForm] = useState({
-    client_id: '', company_name: '', contact_person: '', phone: '', email: '',
+    rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '',
     rfq_date: '', assigned_to: user?.id ?? '',
     priority: 'medium' as RFQPriority, status: 'new' as RFQStatus, notes: '',
   });
@@ -119,7 +119,7 @@ export default function RFQsPage() {
       estimated_value: 0,
     });
     setShowForm(false);
-    setForm({ client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '' });
+    setForm({ rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '' });
   };
 
   const handleDelete = async (rfqId: string) => {
@@ -172,7 +172,7 @@ export default function RFQsPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              {['Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To', 'Actions'].map(h => (
+              {['RFQ #', 'Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To', 'Actions'].map(h => (
                 <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
               ))}
             </tr>
@@ -180,6 +180,11 @@ export default function RFQsPage() {
           <tbody>
             {paginatedRFQs.map(rfq => (
               <tr key={rfq.id} onClick={() => navigate(`/rfqs/${rfq.id}`)} className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
+                <td className="px-5 py-3">
+                  <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
+                    {rfq.rfq_number || '—'}
+                  </span>
+                </td>
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="avatar-xs bg-info/15 text-info">
@@ -299,6 +304,17 @@ export default function RFQsPage() {
               <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">RFQ Number *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. RFQ-2026-001"
+                  value={form.rfq_number}
+                  onChange={e => setForm(p => ({ ...p, rfq_number: e.target.value }))}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
+                  required
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Client *</label>
                 <select value={form.client_id} onChange={e => handleClientSelect(e.target.value)}

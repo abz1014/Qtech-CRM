@@ -97,6 +97,7 @@ export type LossReason =
 
 export interface RFQ {
   id: string;
+  rfq_number: string | null;   // user-assigned e.g. "RFQ-2026-001"
   client_id: string;
   company_name: string;
   contact_person: string;

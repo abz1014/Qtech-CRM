@@ -66,12 +66,10 @@ export default function RFQDetailPage() {
     notes: rfq?.notes || '',
   });
 
-  const [selectedLineItems, setSelectedLineItems] = useState<string[]>([]);
+  // Per-line-item vendor + cost mapping for multi-supplier orders
+  const [itemVendors, setItemVendors] = useState<Record<string, { vendor_id: string; unit_cost: string }>>({});
   const [convertForm, setConvertForm] = useState({
-    vendor_id: quotes.length > 0 ? quotes[0].vendor_id : '',
     order_value: '',   // customer approved amount (incl. margin)
-    cost_value: '',    // our cost from supplier (excl. margin)
-    product_type: '',
     sales_person_id: user?.id || '',
     notes: '',
     customer_po_number: '',
@@ -215,36 +213,60 @@ export default function RFQDetailPage() {
 
   const handleConvertToOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!convertForm.vendor_id || !rfq || !convertForm.sales_person_id) {
-      alert('Please select a vendor and sales person');
+    if (!rfq || !convertForm.sales_person_id) {
+      alert('Please assign a sales person');
+      return;
+    }
+    if (!convertForm.customer_po_number.trim()) {
+      alert('Customer PO Number is required');
       return;
     }
 
-    if (!convertForm.customer_po_number.trim()) {
-      alert('Customer PO Number is required');
+    // Validate each line item has a vendor selected
+    const itemEntries = Object.entries(itemVendors);
+    if (lineItems.length > 0 && itemEntries.length === 0) {
+      alert('Please assign a supplier to at least one product');
       return;
     }
 
     try {
       setIsConverting(true);
 
-      // Build product_type from selected line items or manual entry
-      const coveredItems = lineItems.filter(li => selectedLineItems.includes(li.id));
-      const productLabel = coveredItems.length > 0
-        ? coveredItems.map(li => `${li.product_type} ×${li.quantity}`).join(', ')
-        : convertForm.product_type;
+      // Build summary: products, vendors, total cost
+      const productLabel = lineItems
+        .filter(li => itemVendors[li.id]?.vendor_id)
+        .map(li => `${li.product_type} ×${li.quantity}`)
+        .join(', ');
 
-      const notesWithItems = coveredItems.length > 0
-        ? `Items: ${coveredItems.map(li => li.product_type).join(', ')}${convertForm.notes ? '\n' + convertForm.notes : ''}`
-        : convertForm.notes;
+      const totalCost = lineItems.reduce((sum, li) => {
+        const cost = Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity;
+        return sum + cost;
+      }, 0);
+
+      // Primary vendor = vendor with most items (or first)
+      const vendorCounts: Record<string, number> = {};
+      lineItems.forEach(li => {
+        const v = itemVendors[li.id]?.vendor_id;
+        if (v) vendorCounts[v] = (vendorCounts[v] || 0) + 1;
+      });
+      const primaryVendor = Object.entries(vendorCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
+        || quotes[0]?.vendor_id || '';
+
+      // Build supplier breakdown for notes
+      const breakdown = lineItems
+        .filter(li => itemVendors[li.id]?.vendor_id)
+        .map(li => `• ${li.product_type} ×${li.quantity} — ${getVendorName(itemVendors[li.id].vendor_id)} @ ${formatPKR(Number(itemVendors[li.id].unit_cost || 0))}/unit`)
+        .join('\n');
+
+      const fullNotes = `Supplier breakdown:\n${breakdown}${convertForm.notes ? '\n\n' + convertForm.notes : ''}`;
 
       await convertRFQToOrder(rfq.id, {
         client_id: rfq.client_id,
-        vendor_id: convertForm.vendor_id,
+        vendor_id: primaryVendor,
         order_value: Number(convertForm.order_value),
-        product_type: productLabel || convertForm.product_type,
-        cost_value: Number(convertForm.cost_value) || 0,
-        notes: notesWithItems,
+        product_type: productLabel || 'Multiple Products',
+        cost_value: totalCost,
+        notes: fullNotes,
         status: 'po_received',
         sales_person_id: convertForm.sales_person_id,
         confirmed_date: new Date().toISOString().split('T')[0],
@@ -253,8 +275,7 @@ export default function RFQDetailPage() {
         payment_terms_days: Number(convertForm.payment_terms_days) || 30,
       } as any);
       setShowConvertOrder(false);
-      setSelectedLineItems([]);
-      // Stay on RFQ page so user can create more orders if needed
+      setItemVendors({});
     } catch (error) {
       console.error('Failed to convert RFQ to order:', error);
       alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -281,12 +302,17 @@ export default function RFQDetailPage() {
       {/* RFQ Header */}
       <div className="flex items-start justify-between">
         <div>
+          {rfq.rfq_number && (
+            <span className="inline-flex items-center text-xs font-mono font-semibold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg mb-2">
+              {rfq.rfq_number}
+            </span>
+          )}
           <h1 className="text-2xl font-bold text-foreground">{rfq.company_name}</h1>
           <p className="text-muted-foreground mt-1">{rfq.contact_person} · {rfq.email}</p>
         </div>
         <div className="flex items-center gap-2">
           {rfq.status !== 'lost' && quotes.length > 0 && (
-            <button onClick={() => { setShowConvertOrder(true); setSelectedLineItems([]); }} className="flex items-center gap-1.5 px-3 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors">
+            <button onClick={() => { setShowConvertOrder(true); setItemVendors({}); }} className="flex items-center gap-1.5 px-3 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors">
               <ShoppingCart className="w-4 h-4" /> Create Order
             </button>
           )}
@@ -811,65 +837,82 @@ export default function RFQDetailPage() {
                 </div>
               </div>
 
-              {/* Line item selection — which products does this order cover? */}
+              {/* Per-product supplier + cost mapping */}
               {lineItems.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Products Covered by This Order
-                    <span className="text-muted-foreground font-normal ml-1">(select all that apply)</span>
-                  </label>
-                  <div className="space-y-2">
-                    {lineItems.map(li => (
-                      <label key={li.id} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                        selectedLineItems.includes(li.id)
-                          ? 'border-primary/50 bg-primary/5'
-                          : 'border-border bg-muted/30 hover:bg-muted/60'
-                      }`}>
-                        <input
-                          type="checkbox"
-                          checked={selectedLineItems.includes(li.id)}
-                          onChange={e => {
-                            setSelectedLineItems(prev =>
-                              e.target.checked
-                                ? [...prev, li.id]
-                                : prev.filter(x => x !== li.id)
-                            );
-                            // Auto-fill product_type from first selected item
-                            if (e.target.checked && !convertForm.product_type) {
-                              setConvertForm(p => ({ ...p, product_type: li.product_type }));
-                            }
-                          }}
-                          className="mt-0.5 accent-primary flex-shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground">{li.product_type} × {li.quantity}</p>
-                          {li.specification && (
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{li.specification}</p>
-                          )}
-                        </div>
-                      </label>
-                    ))}
+                  <p className="text-sm font-semibold text-foreground mb-3">Assign Supplier per Product</p>
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/50 border-b border-border">
+                          <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">Product</th>
+                          <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium w-16">Qty</th>
+                          <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">Supplier</th>
+                          <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">Unit Cost (Rs)</th>
+                          <th className="text-right px-3 py-2 text-xs text-muted-foreground font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lineItems.map(li => {
+                          const iv = itemVendors[li.id] || { vendor_id: '', unit_cost: '' };
+                          const matchingQuote = quotes.find(q => q.vendor_id === iv.vendor_id);
+                          const lineTotal = Number(iv.unit_cost || 0) * li.quantity;
+                          return (
+                            <tr key={li.id} className="border-b border-border/50">
+                              <td className="px-3 py-2.5 font-medium text-foreground">{li.product_type}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground">{li.quantity}</td>
+                              <td className="px-3 py-2.5">
+                                <select
+                                  value={iv.vendor_id}
+                                  onChange={e => {
+                                    const vendorId = e.target.value;
+                                    const q = quotes.find(q => q.vendor_id === vendorId);
+                                    setItemVendors(prev => ({
+                                      ...prev,
+                                      [li.id]: { vendor_id: vendorId, unit_cost: q ? q.unit_price.toString() : '' }
+                                    }));
+                                  }}
+                                  className="w-full px-2 py-1.5 bg-muted border border-border rounded text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                >
+                                  <option value="">Select supplier...</option>
+                                  {quotes.map(q => (
+                                    <option key={q.vendor_id} value={q.vendor_id}>
+                                      {getVendorName(q.vendor_id)} ({formatPKR(q.unit_price)}/unit)
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <input
+                                  type="number"
+                                  placeholder="0"
+                                  value={iv.unit_cost}
+                                  onChange={e => setItemVendors(prev => ({
+                                    ...prev,
+                                    [li.id]: { ...iv, unit_cost: e.target.value }
+                                  }))}
+                                  className="w-full px-2 py-1.5 bg-muted border border-border rounded text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                />
+                              </td>
+                              <td className="px-3 py-2.5 text-right text-xs font-semibold text-foreground">
+                                {lineTotal > 0 ? formatPKR(lineTotal) : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        <tr className="bg-muted/30">
+                          <td colSpan={4} className="px-3 py-2 text-xs font-semibold text-muted-foreground text-right">Total Our Cost</td>
+                          <td className="px-3 py-2 text-right text-sm font-bold text-foreground">
+                            {formatPKR(lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0))}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Select Vendor *</label>
-                <select
-                  value={convertForm.vendor_id}
-                  onChange={(e) => setConvertForm(p => ({ ...p, vendor_id: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  required
-                >
-                  <option value="">Choose a vendor...</option>
-                  {quotes.map(q => (
-                    <option key={q.vendor_id} value={q.vendor_id}>
-                      {getVendorName(q.vendor_id)} • {formatPKR(q.unit_price)}/unit
-                    </option>
-                  ))}
-                </select>
-              </div>
-
+              {/* Sales Person */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Assign to Sales Person *</label>
                 <select
@@ -885,110 +928,64 @@ export default function RFQDetailPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Customer Approved Amount (Rs) *</label>
-                  <p className="text-xs text-muted-foreground mb-1">Total price invoiced to client (incl. margin)</p>
-                  <input
-                    type="number"
-                    placeholder="e.g. 500000"
-                    value={convertForm.order_value}
-                    onChange={(e) => setConvertForm(p => ({ ...p, order_value: e.target.value }))}
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">Our Cost from Supplier (Rs) *</label>
-                  <p className="text-xs text-muted-foreground mb-1">What we pay supplier (excl. margin)</p>
-                  <input
-                    type="number"
-                    placeholder="e.g. 400000"
-                    value={convertForm.cost_value}
-                    onChange={(e) => setConvertForm(p => ({ ...p, cost_value: e.target.value }))}
-                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    required
-                  />
-                </div>
-              </div>
-
+              {/* Client amount */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Product Type *</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Customer Approved Amount (Rs) *</label>
+                <p className="text-xs text-muted-foreground mb-2">Total price invoiced to client — incl. your margin on top of supplier costs above</p>
                 <input
-                  type="text"
-                  placeholder="e.g., DVR, SVG, AHF, Software, etc."
-                  value={convertForm.product_type}
-                  onChange={(e) => setConvertForm(p => ({ ...p, product_type: e.target.value }))}
+                  type="number"
+                  placeholder="e.g. 500000"
+                  value={convertForm.order_value}
+                  onChange={(e) => setConvertForm(p => ({ ...p, order_value: e.target.value }))}
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   required
                 />
+                {convertForm.order_value && lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0) > 0 && (
+                  <p className={`text-xs mt-1 font-medium ${Number(convertForm.order_value) > lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0) ? 'text-success' : 'text-destructive'}`}>
+                    Margin: {formatPKR(Number(convertForm.order_value) - lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0))}
+                    {' '}({((Number(convertForm.order_value) - lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0)) / Number(convertForm.order_value) * 100).toFixed(1)}%)
+                  </p>
+                )}
               </div>
 
               {/* PO Details */}
-              <div className="border-t border-border pt-4">
-                <p className="text-sm font-semibold text-foreground mb-3">Customer PO Details</p>
-                <div className="space-y-3">
+              <div className="border-t border-border pt-4 space-y-3">
+                <p className="text-sm font-semibold text-foreground">Customer PO Details</p>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">Customer PO Number *</label>
+                  <input type="text" placeholder="e.g. PO-2025-001" value={convertForm.customer_po_number}
+                    onChange={(e) => setConvertForm(p => ({ ...p, customer_po_number: e.target.value }))}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">Customer PO Number *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. PO-2025-001"
-                      value={convertForm.customer_po_number}
-                      onChange={(e) => setConvertForm(p => ({ ...p, customer_po_number: e.target.value }))}
-                      className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      required
-                    />
+                    <label className="block text-sm font-medium text-foreground mb-2">PO Date *</label>
+                    <input type="date" value={convertForm.customer_po_date}
+                      onChange={(e) => setConvertForm(p => ({ ...p, customer_po_date: e.target.value }))}
+                      className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">PO Date *</label>
-                      <input
-                        type="date"
-                        value={convertForm.customer_po_date}
-                        onChange={(e) => setConvertForm(p => ({ ...p, customer_po_date: e.target.value }))}
-                        className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">Payment Terms (days)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="e.g. 30"
-                        value={convertForm.payment_terms_days}
-                        onChange={(e) => setConvertForm(p => ({ ...p, payment_terms_days: e.target.value }))}
-                        className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Payment Terms (days)</label>
+                    <input type="number" min="0" placeholder="30" value={convertForm.payment_terms_days}
+                      onChange={(e) => setConvertForm(p => ({ ...p, payment_terms_days: e.target.value }))}
+                      className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Notes</label>
-                <textarea
-                  value={convertForm.notes}
-                  onChange={(e) => setConvertForm(p => ({ ...p, notes: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                  rows={3}
-                />
+                <label className="block text-sm font-medium text-foreground mb-2">Additional Notes</label>
+                <textarea value={convertForm.notes} onChange={(e) => setConvertForm(p => ({ ...p, notes: e.target.value }))}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" rows={2} />
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowConvertOrder(false)}
-                  disabled={isConverting}
-                  className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                >
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowConvertOrder(false)} disabled={isConverting}
+                  className="flex-1 py-2.5 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={isConverting}
-                  className="flex-1 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-50"
-                >
+                <button type="submit" disabled={isConverting}
+                  className="flex-1 py-2.5 bg-success text-success-foreground rounded-lg text-sm font-semibold hover:bg-success/90 transition-colors disabled:opacity-50">
                   {isConverting ? 'Creating Order...' : 'Create Order'}
                 </button>
               </div>
