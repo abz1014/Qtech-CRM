@@ -30,8 +30,6 @@ export default function ProspectsPage() {
     lead_source: '', status: 'warm' as ProspectStatus, follow_up_date: '', assigned_to: user?.id ?? '',
   });
 
-  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Contact', 'Status', 'Follow Up', 'Assigned To']} />;
-
   const debouncedSearch = useDebounce(search);
 
   const active = useMemo(() => prospects.filter(p => !p.converted_client_id), [prospects]);
@@ -39,6 +37,8 @@ export default function ProspectsPage() {
     p.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
     p.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase())
   ), [active, debouncedSearch]);
+
+  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Contact', 'Status', 'Follow Up', 'Assigned To']} />;
 
   const paginatedProspects = filtered.slice(
     (currentPage - 1) * itemsPerPage,

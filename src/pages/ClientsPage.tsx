@@ -33,14 +33,14 @@ export default function ClientsPage() {
     company_name: '', industry: '', contact_person: '', phone: '', email: '', address: '',
   });
 
-  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Industry', 'Contact Person', 'Phone', 'RFQs']} />;
-
   const debouncedSearch = useDebounce(search);
 
   const filtered = useMemo(() => clients.filter(c =>
     c.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
     c.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase())
   ), [clients, debouncedSearch]);
+
+  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Industry', 'Contact Person', 'Phone', 'RFQs']} />;
 
   const paginatedClients = filtered.slice(
     (currentPage - 1) * itemsPerPage,

@@ -21,14 +21,14 @@ export default function VendorsPage() {
     name: '', country: '', contact_person: '', phone: '', email: '', products_supplied: '',
   });
 
-  if (loading) return <TableSkeleton cols={4} rows={8} headers={['Vendor', 'Country', 'Contact', 'Products']} />;
-
   const debouncedSearch = useDebounce(search);
 
   const filtered = useMemo(() => vendors.filter(v =>
     v.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
     v.country.toLowerCase().includes(debouncedSearch.toLowerCase())
   ), [vendors, debouncedSearch]);
+
+  if (loading) return <TableSkeleton cols={4} rows={8} headers={['Vendor', 'Country', 'Contact', 'Products']} />;
 
   const paginatedVendors = filtered.slice(
     (currentPage - 1) * itemsPerPage,

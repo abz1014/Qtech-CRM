@@ -44,11 +44,9 @@ export default function RFQsPage() {
     priority: 'medium' as RFQPriority, status: 'new' as RFQStatus, notes: '',
   });
 
-  if (loading) return <TableSkeleton cols={6} rows={8} headers={['Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
-
+  // All hooks MUST be called before any early return
   const salesUsers = useMemo(() => users.filter(u => u.role === 'sales'), [users]);
   const debouncedSearch = useDebounce(search);
-
   const filtered = useMemo(() => rfqs.filter(r => {
     const matchesSearch = r.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       r.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase());
@@ -56,6 +54,8 @@ export default function RFQsPage() {
       (!toDate || r.rfq_date <= toDate);
     return matchesSearch && matchesDateRange;
   }), [rfqs, debouncedSearch, fromDate, toDate]);
+
+  if (loading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedRFQs = filtered.slice(

@@ -57,12 +57,12 @@ export default function OrdersPage() {
     return matchesSearch && matchesDateRange;
   }), [orders, debouncedSearch, fromDate, toDate, getClientName]);
 
+  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
+
   const paginatedOrders = filtered.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
 
   const handleExportCSV = () => {
     const headers = [
