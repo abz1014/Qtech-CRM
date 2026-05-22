@@ -89,10 +89,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Insert profile into public.users
+    // Upsert profile — handles the case where a DB trigger auto-created
+    // a blank row before this function ran (trigger conflict)
     const { error: profileError } = await supabaseAdmin
       .from('users')
-      .insert({ id: authData.user.id, name, email, role });
+      .upsert({ id: authData.user.id, name, email, role }, { onConflict: 'id' });
 
     if (profileError) {
       // Rollback: delete the auth user if profile creation failed
