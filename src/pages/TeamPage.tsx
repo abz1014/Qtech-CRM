@@ -40,11 +40,9 @@ export default function TeamPage() {
     setSubmitting(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
+      // supabase.functions.invoke automatically sends the current session token
       const res = await supabase.functions.invoke('create-user', {
         body: { name: form.name.trim(), email: form.email.trim(), password: form.password, role: form.role },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
 
       if (res.error || res.data?.error) {
