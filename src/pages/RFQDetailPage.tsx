@@ -21,7 +21,7 @@ export default function RFQDetailPage() {
   const { isAdmin, isSales, user } = useAuth();
   const {
     rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients, users,
-    addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateInquiryStatus,
+    addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus,
     getVendorName, updateRFQStatus, updateRFQ, getClientName, addVendor, convertRFQToOrder, getUserName,
     getFollowUpsForEntity,
   } = useCRM();
@@ -35,6 +35,7 @@ export default function RFQDetailPage() {
 
   const [viewingText, setViewingText] = useState<{ title: string; content: string } | null>(null);
   const [showLineItemForm, setShowLineItemForm] = useState(false);
+  const [editingLineItem, setEditingLineItem] = useState<{ id: string; product_type: string; quantity: string; specification: string } | null>(null);
   const [showInquiryForm, setShowInquiryForm] = useState(false);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [showEditRFQ, setShowEditRFQ] = useState(false);
@@ -66,8 +67,8 @@ export default function RFQDetailPage() {
     notes: rfq?.notes || '',
   });
 
-  // Per-line-item vendor + cost mapping for multi-supplier orders
-  const [itemVendors, setItemVendors] = useState<Record<string, { vendor_id: string; unit_cost: string }>>({});
+  // Per-line-item quote selection (keyed by quote ID so same vendor with multiple quotes works)
+  const [itemVendors, setItemVendors] = useState<Record<string, { quote_id: string; vendor_id: string; unit_cost: string }>>({});
   const [convertForm, setConvertForm] = useState({
     order_value: '',   // customer approved amount (incl. margin)
     sales_person_id: user?.id || '',
@@ -98,6 +99,22 @@ export default function RFQDetailPage() {
     });
     setLineItemForm({ product_type: '', quantity: '', specification: '' });
     setShowLineItemForm(false);
+  };
+
+  const handleEditLineItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLineItem) return;
+    await updateRFQLineItem(editingLineItem.id, {
+      product_type: editingLineItem.product_type,
+      quantity: Number(editingLineItem.quantity),
+      specification: editingLineItem.specification,
+    });
+    setEditingLineItem(null);
+  };
+
+  const handleDeleteLineItem = async (id: string) => {
+    if (!confirm('Delete this line item?')) return;
+    await deleteRFQLineItem(id);
   };
 
   const handleAddInquiry = async (e: React.FormEvent) => {
@@ -411,14 +428,28 @@ export default function RFQDetailPage() {
                     <p className="line-clamp-2 text-xs leading-relaxed">{li.specification || '—'}</p>
                   </td>
                   <td className="py-2.5">
-                    {li.specification && (
+                    <div className="flex items-center gap-2">
+                      {li.specification && (
+                        <button
+                          onClick={() => setViewingText({ title: `${li.product_type} — Specification`, content: li.specification })}
+                          className="px-2.5 py-1 text-xs font-medium bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors border border-border"
+                        >
+                          View
+                        </button>
+                      )}
                       <button
-                        onClick={() => setViewingText({ title: `${li.product_type} — Specification`, content: li.specification })}
-                        className="px-2.5 py-1 text-xs font-medium bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors border border-border whitespace-nowrap"
+                        onClick={() => setEditingLineItem({ id: li.id, product_type: li.product_type, quantity: li.quantity.toString(), specification: li.specification || '' })}
+                        className="px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors border border-primary/20"
                       >
-                        View
+                        Edit
                       </button>
-                    )}
+                      <button
+                        onClick={() => handleDeleteLineItem(li.id)}
+                        className="px-2.5 py-1 text-xs font-medium bg-destructive/10 text-destructive rounded-md hover:bg-destructive/20 transition-colors border border-destructive/20"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -854,8 +885,8 @@ export default function RFQDetailPage() {
                       </thead>
                       <tbody>
                         {lineItems.map(li => {
-                          const iv = itemVendors[li.id] || { vendor_id: '', unit_cost: '' };
-                          const matchingQuote = quotes.find(q => q.vendor_id === iv.vendor_id);
+                          const iv = itemVendors[li.id] || { quote_id: '', vendor_id: '', unit_cost: '' };
+                          const matchingQuote = quotes.find(q => q.id === iv.quote_id);
                           const lineTotal = Number(iv.unit_cost || 0) * li.quantity;
                           return (
                             <tr key={li.id} className="border-b border-border/50">
@@ -863,21 +894,25 @@ export default function RFQDetailPage() {
                               <td className="px-3 py-2.5 text-muted-foreground">{li.quantity}</td>
                               <td className="px-3 py-2.5">
                                 <select
-                                  value={iv.vendor_id}
+                                  value={iv.quote_id}
                                   onChange={e => {
-                                    const vendorId = e.target.value;
-                                    const q = quotes.find(q => q.vendor_id === vendorId);
+                                    const quoteId = e.target.value;
+                                    const selectedQuote = quotes.find(q => q.id === quoteId);
                                     setItemVendors(prev => ({
                                       ...prev,
-                                      [li.id]: { vendor_id: vendorId, unit_cost: q ? q.unit_price.toString() : '' }
+                                      [li.id]: {
+                                        quote_id: quoteId,
+                                        vendor_id: selectedQuote?.vendor_id || '',
+                                        unit_cost: selectedQuote ? selectedQuote.unit_price.toString() : ''
+                                      }
                                     }));
                                   }}
                                   className="w-full px-2 py-1.5 bg-muted border border-border rounded text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                                 >
-                                  <option value="">Select supplier...</option>
+                                  <option value="">Select quote...</option>
                                   {quotes.map(q => (
-                                    <option key={q.vendor_id} value={q.vendor_id}>
-                                      {getVendorName(q.vendor_id)} ({formatPKR(q.unit_price)}/unit)
+                                    <option key={q.id} value={q.id}>
+                                      {getVendorName(q.vendor_id)} — {formatPKR(q.unit_price)}/unit ({q.lead_time_days}d)
                                     </option>
                                   ))}
                                 </select>
@@ -993,6 +1028,46 @@ export default function RFQDetailPage() {
           </div>
         </div>
       )}
+      {/* Edit Line Item Modal */}
+      {editingLineItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Edit Line Item</h2>
+              <button onClick={() => setEditingLineItem(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleEditLineItem} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Product Type</label>
+                  <input type="text" value={editingLineItem.product_type}
+                    onChange={e => setEditingLineItem(p => p ? { ...p, product_type: e.target.value } : null)}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Quantity</label>
+                  <input type="number" value={editingLineItem.quantity}
+                    onChange={e => setEditingLineItem(p => p ? { ...p, quantity: e.target.value } : null)}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Specification</label>
+                <textarea value={editingLineItem.specification}
+                  onChange={e => setEditingLineItem(p => p ? { ...p, specification: e.target.value } : null)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" rows={4} />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditingLineItem(null)}
+                  className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">Cancel</button>
+                <button type="submit"
+                  className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Text Viewer Modal */}
       {viewingText && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">

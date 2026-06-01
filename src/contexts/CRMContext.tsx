@@ -52,6 +52,8 @@ interface CRMContextType {
   addSupplierQuote: (quote: Omit<SupplierQuote, 'id'>) => Promise<void>;
   updateSupplierQuote: (quoteId: string, updates: Partial<Omit<SupplierQuote, 'id'>>) => Promise<void>;
   addRFQLineItem: (item: Omit<RFQLineItem, 'id'>) => Promise<void>;
+  updateRFQLineItem: (id: string, updates: Partial<Pick<RFQLineItem, 'product_type' | 'quantity' | 'specification'>>) => Promise<void>;
+  deleteRFQLineItem: (id: string) => Promise<void>;
   updateInquiryStatus: (inquiryId: string, status: SupplierInquiryStatus) => Promise<void>;
   getRFQMetrics: (dateStr: string) => { receivedToday: number; notFloated: number; floated: number; responded: number };
   getRFQMetricsByDateRange: (startDate: string, endDate: string) => { total: number; notFloated: number; floated: number; responded: number };
@@ -712,6 +714,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const addRFQLineItem = useCallback(async (item: Omit<RFQLineItem, 'id'>) => {
     const { data } = await supabase.from('rfq_line_items').insert(item).select().single();
     if (data) setRFQLineItems(prev => [...prev, data as RFQLineItem]);
+  }, []);
+
+  const updateRFQLineItem = useCallback(async (id: string, updates: Partial<Pick<RFQLineItem, 'product_type' | 'quantity' | 'specification'>>) => {
+    const { data } = await supabase.from('rfq_line_items').update(updates).eq('id', id).select().single();
+    if (data) setRFQLineItems(prev => prev.map(li => li.id === id ? data as RFQLineItem : li));
+  }, []);
+
+  const deleteRFQLineItem = useCallback(async (id: string) => {
+    await supabase.from('rfq_line_items').delete().eq('id', id);
+    setRFQLineItems(prev => prev.filter(li => li.id !== id));
   }, []);
 
   const updateInquiryStatus = useCallback(async (inquiryId: string, status: SupplierInquiryStatus) => {
@@ -1716,7 +1728,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       convertProspect, updateOrderStatus, updateCommissioningStatus,
       addRFQ, updateRFQStatus, updateRFQPriority, convertRFQToOrder,
       getNextOrderStatus,
-      addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateInquiryStatus,
+      addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus,
       getRFQMetrics, getRFQMetricsByDateRange,
       updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
       deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
