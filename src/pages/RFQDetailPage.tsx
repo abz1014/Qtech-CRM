@@ -58,6 +58,7 @@ export default function RFQDetailPage() {
     unit_price: '', lead_time_days: '', moq: '', validity_days: '', notes: '',
   });
   const [editForm, setEditForm] = useState({
+    rfq_number: rfq?.rfq_number || '',
     company_name: rfq?.company_name || '',
     contact_person: rfq?.contact_person || '',
     phone: rfq?.phone || '',
@@ -227,6 +228,7 @@ export default function RFQDetailPage() {
     }
 
     await updateRFQ(id!, {
+      rfq_number: editForm.rfq_number || null,
       company_name: editForm.company_name,
       contact_person: editForm.contact_person,
       phone: editForm.phone,
@@ -236,7 +238,7 @@ export default function RFQDetailPage() {
       priority: editForm.priority,
       notes: editForm.notes,
       status: editForm.status,
-    });
+    } as any);
     setShowEditRFQ(false);
   };
 
@@ -875,6 +877,15 @@ export default function RFQDetailPage() {
               <button onClick={() => setShowEditRFQ(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleEditRFQ} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">RFQ Number</label>
+                <input
+                  value={editForm.rfq_number}
+                  onChange={e => setEditForm(p => ({ ...p, rfq_number: e.target.value }))}
+                  placeholder="e.g. RFQ-2026-001"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Company Name</label>
                 <input value={editForm.company_name} onChange={e => setEditForm(p => ({ ...p, company_name: e.target.value }))}
