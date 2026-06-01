@@ -13,23 +13,16 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   if (!isAdmin && !isSales) return <Navigate to="/" replace />;
-  if (loading) return <DashboardSkeleton />;
 
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  const today = now.toISOString().split('T')[0];
-  const rfqMetrics = getRFQMetrics(today);
+  // ── All hooks MUST be before any early return ────────────────────────────
+  const today = new Date().toISOString().split('T')[0];
 
-  // ── Action intelligence ──────────────────────────────────────────────────
   const myActions = followUpActions.filter(a =>
     a.status === 'pending' && (!a.assigned_to || a.assigned_to === user?.id)
   );
-  const overdueActions = myActions.filter(a => a.due_date < today);
-  const todayActions   = myActions.filter(a => a.due_date === today);
-  const upcomingActions = myActions.filter(a => a.due_date > today);
+  const overdueActions  = myActions.filter(a => a.due_date < today);
+  const todayActions    = myActions.filter(a => a.due_date === today);
 
-  // Daily briefing: group by action_type for a readable summary
   const briefingGroups = useMemo(() => {
     const typeCounts: Record<string, number> = {};
     myActions.forEach(a => {
@@ -42,6 +35,13 @@ export default function DashboardPage() {
     });
     return Object.entries(typeCounts).map(([label, count]) => ({ label, count }));
   }, [myActions]);
+
+  if (loading) return <DashboardSkeleton />;
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const rfqMetrics = getRFQMetrics(today);
 
   const totalClients = clients.length;
   const totalOrders = orders.length;
