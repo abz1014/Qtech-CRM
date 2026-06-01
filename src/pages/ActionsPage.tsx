@@ -39,27 +39,38 @@ function getDaysOverdue(due_date: string): number {
   return Math.floor((today.getTime() - due.getTime()) / 86400000);
 }
 
-/** Returns urgency tier: 0=upcoming, 1=due today, 2=overdue 1d, 3=overdue 3+d */
-function getTier(due_date: string): 0 | 1 | 2 | 3 {
-  const days = getDaysOverdue(due_date);
-  if (days >= 3) return 3;
-  if (days >= 1) return 2;
-  if (days === 0) return 1;
-  return 0;
+/**
+ * Urgency tiers (extended to flag 2-days-away as red):
+ * -2 = 2 days away  → orange-red warning
+ * -1 = 1 day away   → amber warning
+ *  0 = due today    → yellow
+ *  1 = overdue      → red
+ *  2 = overdue 3+d  → bright red pulse
+ */
+function getTier(due_date: string): -2 | -1 | 0 | 1 | 2 {
+  const days = getDaysOverdue(due_date);  // positive = overdue, negative = future
+  if (days >= 3) return 2;
+  if (days >= 1) return 1;
+  if (days === 0) return 0;
+  if (days === -1) return -1;  // tomorrow
+  if (days === -2) return -2;  // 2 days away
+  return -2;                   // anything further = treat same as upcoming for now
 }
 
 const TIER_CARD: Record<number, string> = {
-  0: 'border-l-primary/30',
-  1: 'border-l-yellow-500',
-  2: 'border-l-red-500',
-  3: 'border-l-red-600 animate-pulse-border',
+  '-2': 'border-l-orange-500/70 bg-orange-500/5',
+  '-1': 'border-l-orange-600 bg-orange-600/8',
+   0:   'border-l-yellow-500',
+   1:   'border-l-red-500',
+   2:   'border-l-red-600 animate-pulse-border',
 };
 
 const TIER_BADGE: Record<number, { text: string; cls: string }> = {
-  0: { text: '',           cls: '' },
-  1: { text: 'Due today',  cls: 'bg-yellow-500/10 text-yellow-600' },
-  2: { text: 'OVERDUE',    cls: 'bg-red-500/10 text-red-500 font-bold' },
-  3: { text: 'URGENT',     cls: 'bg-red-600/20 text-red-600 font-bold ring-1 ring-red-600/40' },
+  '-2': { text: '2d left',   cls: 'bg-orange-500/15 text-orange-500 font-semibold' },
+  '-1': { text: '1d left',   cls: 'bg-orange-600/20 text-orange-600 font-bold' },
+   0:   { text: 'Due today', cls: 'bg-yellow-500/10 text-yellow-600' },
+   1:   { text: 'OVERDUE',   cls: 'bg-red-500/10 text-red-500 font-bold' },
+   2:   { text: 'URGENT',    cls: 'bg-red-600/20 text-red-600 font-bold ring-1 ring-red-600/40' },
 };
 
 function DueLabel({ due_date }: { due_date: string }) {
@@ -68,8 +79,8 @@ function DueLabel({ due_date }: { due_date: string }) {
   const badge = TIER_BADGE[tier];
 
   const text =
-    tier === 0 ? `${-days}d left` :
-    tier === 1 ? 'Due today' :
+    days < 0   ? `${-days}d left` :
+    days === 0 ? 'Due today' :
     `${days}d overdue`;
 
   return (
