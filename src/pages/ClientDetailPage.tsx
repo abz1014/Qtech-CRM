@@ -9,7 +9,7 @@ export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { clients, updateClient } = useCRM();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSales } = useAuth();
 
   const client = clients.find(c => c.id === id);
   const [showEdit, setShowEdit] = useState(false);
@@ -81,7 +81,7 @@ export default function ClientDetailPage() {
             entityId={client.id}
             entityLabel={client.company_name}
           />
-          {isAdmin && (
+          {(isAdmin || isSales) && (
             <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit
             </button>

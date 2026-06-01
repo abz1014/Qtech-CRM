@@ -115,7 +115,7 @@ export default function OrderDetailPage() {
             entityId={order.id}
             entityLabel={`${getClientName(order.client_id)} — ${order.product_type}`}
           />
-          {isAdmin && (
+          {(isAdmin || isSales) && (
             <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit
             </button>
