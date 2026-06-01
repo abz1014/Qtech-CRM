@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR, formatDate } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
-import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-react';
+import { Plus, X, Search, ArrowRightCircle, Trash2, Download, ArrowUp, ArrowDown } from 'lucide-react';
 import { RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -37,6 +37,7 @@ export default function RFQsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc'); // newest first by default
 
   const [form, setForm] = useState({
     rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '',
@@ -47,14 +48,19 @@ export default function RFQsPage() {
   // All hooks MUST be called before any early return
   const salesUsers = useMemo(() => users.filter(u => u.role === 'sales'), [users]);
   const debouncedSearch = useDebounce(search);
-  const filtered = useMemo(() => rfqs.filter(r => {
-    const matchesSearch = r.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      r.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      (r.rfq_number?.toLowerCase().includes(debouncedSearch.toLowerCase()) ?? false);
-    const matchesDateRange = (!fromDate || r.rfq_date >= fromDate) &&
-      (!toDate || r.rfq_date <= toDate);
-    return matchesSearch && matchesDateRange;
-  }), [rfqs, debouncedSearch, fromDate, toDate]);
+  const filtered = useMemo(() => {
+    const list = rfqs.filter(r => {
+      const matchesSearch = r.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        r.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (r.rfq_number?.toLowerCase().includes(debouncedSearch.toLowerCase()) ?? false);
+      const matchesDateRange = (!fromDate || r.rfq_date >= fromDate) &&
+        (!toDate || r.rfq_date <= toDate);
+      return matchesSearch && matchesDateRange;
+    });
+    return [...list].sort((a, b) =>
+      sortDir === 'desc' ? b.rfq_date.localeCompare(a.rfq_date) : a.rfq_date.localeCompare(b.rfq_date)
+    );
+  }, [rfqs, debouncedSearch, fromDate, toDate, sortDir]);
 
   if (loading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
 
@@ -173,7 +179,19 @@ export default function RFQsPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              {['RFQ #', 'Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To', 'Actions'].map(h => (
+              {['RFQ #', 'Company', 'Contact'].map(h => (
+                <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
+              ))}
+              <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">
+                <button
+                  onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                >
+                  RFQ Date
+                  {sortDir === 'desc' ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
+                </button>
+              </th>
+              {['Status', 'Priority', 'Assigned To', 'Actions'].map(h => (
                 <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
               ))}
             </tr>

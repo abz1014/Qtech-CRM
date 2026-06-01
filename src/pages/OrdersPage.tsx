@@ -5,7 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
-import { Plus, X, Search, Trash2, Download } from 'lucide-react';
+import { Plus, X, Search, Trash2, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { formatDate } from '@/lib/format';
 import { OrderStatus, ProductType } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
 import { TableSkeleton } from '@/components/ui/skeleton';
@@ -42,6 +43,7 @@ export default function OrdersPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc'); // newest first by default
   const [form, setForm] = useState({
     client_id: '', vendor_id: '', product_type: 'DVR' as ProductType,
     order_value: '', cost_value: '', status: 'po_received' as OrderStatus, notes: '',
@@ -49,13 +51,20 @@ export default function OrdersPage() {
 
   const debouncedSearch = useDebounce(search);
 
-  const filtered = useMemo(() => orders.filter(o => {
-    const matchesSearch = getClientName(o.client_id).toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      o.product_type.toLowerCase().includes(debouncedSearch.toLowerCase());
-    const matchesDateRange = (!fromDate || (o.confirmed_date && o.confirmed_date >= fromDate)) &&
-      (!toDate || (o.confirmed_date && o.confirmed_date <= toDate));
-    return matchesSearch && matchesDateRange;
-  }), [orders, debouncedSearch, fromDate, toDate, getClientName]);
+  const filtered = useMemo(() => {
+    const list = orders.filter(o => {
+      const matchesSearch = getClientName(o.client_id).toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        o.product_type.toLowerCase().includes(debouncedSearch.toLowerCase());
+      const matchesDateRange = (!fromDate || (o.confirmed_date && o.confirmed_date >= fromDate)) &&
+        (!toDate || (o.confirmed_date && o.confirmed_date <= toDate));
+      return matchesSearch && matchesDateRange;
+    });
+    return [...list].sort((a, b) => {
+      const da = a.confirmed_date || '';
+      const db = b.confirmed_date || '';
+      return sortDir === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
+    });
+  }, [orders, debouncedSearch, fromDate, toDate, getClientName, sortDir]);
 
   if (loading) return <TableSkeleton cols={5} rows={8} headers={['Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
 
@@ -189,9 +198,19 @@ export default function OrdersPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              {['Client', 'Vendor', 'Product', 'Order Value', 'Status', ''].map(h => (
+              {['Client', 'Vendor', 'Product', 'Order Value', 'Status'].map(h => (
                 <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
               ))}
+              <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">
+                <button
+                  onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                >
+                  PO Date
+                  {sortDir === 'desc' ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />}
+                </button>
+              </th>
+              <th className="w-10"></th>
             </tr>
           </thead>
           <tbody>
@@ -211,6 +230,9 @@ export default function OrdersPage() {
                   <td className="px-5 py-3 text-sm text-foreground font-semibold">{formatPKR(o.order_value)}</td>
                   <td className="px-5 py-3">
                     <span className={`status-badge ${statusColors[o.status] || 'bg-muted text-muted-foreground'}`}>{statusLabels[o.status] || o.status}</span>
+                  </td>
+                  <td className="px-5 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                    {o.confirmed_date ? formatDate(o.confirmed_date) : '—'}
                   </td>
                   <td className="px-5 py-3">
                     {isAdmin && (
