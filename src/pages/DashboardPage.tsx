@@ -129,78 +129,141 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
 
-      {/* ── OVERDUE ALERT STRIP ── */}
+      {/* ════ OVERDUE ALERT — bold, glowing, animated ════ */}
       {overdueActions.length > 0 && (
         <div
-          className="rounded-xl p-4 flex items-center justify-between gap-4 cursor-pointer hover:opacity-90 transition-opacity"
-          style={{ background: 'linear-gradient(135deg, hsl(0 70% 50% / 0.15), hsl(0 70% 50% / 0.08))', border: '1px solid hsl(0 70% 50% / 0.4)' }}
+          className="alert-overdue relative overflow-hidden rounded-2xl p-5 cursor-pointer group"
           onClick={() => navigate('/actions')}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-destructive/20 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
+          {/* Animated shimmer overlay */}
+          <div className="absolute inset-0 opacity-30 pointer-events-none alert-shimmer" />
+
+          <div className="relative flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-4 min-w-0">
+              {/* Big glowing icon */}
+              <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 rounded-2xl bg-red-500 blur-xl opacity-50 animate-pulse" />
+                <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center"
+                  style={{ background: 'linear-gradient(135deg, hsl(0 80% 55%), hsl(0 75% 42%))', boxShadow: '0 4px 16px hsl(0 80% 45% / 0.5)' }}>
+                  <AlertTriangle className="w-6 h-6 text-white" />
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md text-white"
+                    style={{ background: 'hsl(0 75% 50%)' }}>
+                    URGENT
+                  </span>
+                  <span className="text-2xl font-extrabold text-white tracking-tight">
+                    {overdueActions.length}
+                  </span>
+                  <span className="font-bold text-white text-base">
+                    Overdue Action{overdueActions.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                  {overdueActions.slice(0, 2).map(a => (
+                    <span key={a.id}
+                      className="text-[11px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[280px]"
+                      style={{ background: 'hsl(0 60% 30% / 0.6)', border: '1px solid hsl(0 60% 45% / 0.4)' }}>
+                      {a.title}
+                    </span>
+                  ))}
+                  {overdueActions.length > 2 && (
+                    <span className="text-[11px] font-semibold text-white/80">
+                      +{overdueActions.length - 2} more
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="font-bold text-destructive text-sm">
-                {overdueActions.length} overdue action{overdueActions.length > 1 ? 's' : ''} need{overdueActions.length === 1 ? 's' : ''} attention
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {overdueActions.slice(0, 2).map(a => a.title).join(' · ')}
-                {overdueActions.length > 2 ? ` · +${overdueActions.length - 2} more` : ''}
-              </p>
-            </div>
+
+            <button className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-red-600 bg-white hover:scale-105 active:scale-95 transition-transform shadow-lg">
+              Resolve Now <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
-          <span className="text-xs font-semibold text-destructive whitespace-nowrap flex items-center gap-1">
-            View Actions <ArrowRight className="w-3.5 h-3.5" />
-          </span>
         </div>
       )}
 
-      {/* ── TODAY ALERT (if no overdue) ── */}
+      {/* ════ TODAY ALERT — amber, prominent ════ */}
       {overdueActions.length === 0 && todayActions.length > 0 && (
         <div
-          className="rounded-xl p-4 flex items-center justify-between gap-4 cursor-pointer hover:opacity-90 transition-opacity"
-          style={{ background: 'linear-gradient(135deg, hsl(35 92% 50% / 0.12), hsl(35 92% 50% / 0.06))', border: '1px solid hsl(35 92% 50% / 0.35)' }}
+          className="alert-today relative overflow-hidden rounded-2xl p-5 cursor-pointer group"
           onClick={() => navigate('/actions')}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-warning/15 flex items-center justify-center flex-shrink-0">
-              <Clock className="w-5 h-5 text-warning" />
+          <div className="relative flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 rounded-2xl bg-amber-400 blur-xl opacity-40" />
+                <div className="relative w-12 h-12 rounded-2xl flex items-center justify-center"
+                  style={{ background: 'linear-gradient(135deg, hsl(40 95% 55%), hsl(30 90% 48%))', boxShadow: '0 4px 16px hsl(35 90% 45% / 0.5)' }}>
+                  <Clock className="w-6 h-6 text-white" />
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md text-white"
+                    style={{ background: 'hsl(35 90% 45%)' }}>
+                    TODAY
+                  </span>
+                  <span className="text-2xl font-extrabold text-white tracking-tight">
+                    {todayActions.length}
+                  </span>
+                  <span className="font-bold text-white text-base">
+                    Action{todayActions.length > 1 ? 's' : ''} Due
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                  {todayActions.slice(0, 2).map(a => (
+                    <span key={a.id}
+                      className="text-[11px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[280px]"
+                      style={{ background: 'hsl(30 70% 25% / 0.6)', border: '1px solid hsl(35 60% 45% / 0.4)' }}>
+                      {a.title}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="font-bold text-warning text-sm">
-                {todayActions.length} action{todayActions.length > 1 ? 's' : ''} due today
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {todayActions.slice(0, 2).map(a => a.title).join(' · ')}
-              </p>
-            </div>
+
+            <button className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-amber-700 bg-white hover:scale-105 active:scale-95 transition-transform shadow-lg">
+              View Actions <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
-          <span className="text-xs font-semibold text-warning whitespace-nowrap flex items-center gap-1">
-            View Actions <ArrowRight className="w-3.5 h-3.5" />
-          </span>
         </div>
       )}
 
-      {/* Welcome */}
-      <div className="flex items-end justify-between">
+      {/* ════ WELCOME + DAILY BRIEFING ════ */}
+      <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <p className="text-muted-foreground text-sm font-medium">Welcome back 👋</p>
           <h2 className="text-3xl font-bold text-foreground mt-0.5 tracking-tight">{user?.name}</h2>
         </div>
-        {/* ── DAILY BRIEFING ── */}
+
         {briefingGroups.length > 0 && (
           <div
-            className="hidden sm:flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
-            style={{ background: 'hsl(var(--primary) / 0.08)', border: '1px solid hsl(var(--primary) / 0.2)' }}
+            className="relative overflow-hidden rounded-2xl px-5 py-3 cursor-pointer group hover:scale-[1.02] active:scale-[0.98] transition-transform"
+            style={{
+              background: 'linear-gradient(135deg, hsl(var(--primary) / 0.18), hsl(var(--primary) / 0.06))',
+              border: '1px solid hsl(var(--primary) / 0.35)',
+              boxShadow: '0 4px 24px hsl(var(--primary) / 0.15)',
+            }}
             onClick={() => navigate('/actions')}
           >
-            <Zap className="w-4 h-4 text-primary flex-shrink-0" />
-            <div>
-              <p className="text-xs font-semibold text-primary">Today's briefing</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {briefingGroups.map(g => `${g.count} ${g.label}`).join(' · ')}
-              </p>
+            <div className="flex items-center gap-3 relative">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(158 60% 30%))', boxShadow: '0 0 16px hsl(var(--primary) / 0.5)' }}>
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">
+                  Today's Briefing
+                </p>
+                <p className="text-sm font-bold text-foreground mt-0.5">
+                  {briefingGroups.map(g => `${g.count} ${g.label}`).join(' · ')}
+                </p>
+              </div>
             </div>
           </div>
         )}

@@ -271,6 +271,55 @@
   50%       { border-color: hsl(var(--destructive)); }
 }
 
+/* ── Dashboard alert banners ── */
+.alert-overdue {
+  background: linear-gradient(135deg, hsl(0 75% 40%) 0%, hsl(0 80% 30%) 50%, hsl(355 70% 25%) 100%);
+  box-shadow:
+    0 0 0 1px hsl(0 80% 50% / 0.6),
+    0 8px 32px -4px hsl(0 75% 30% / 0.6),
+    0 4px 12px -2px hsl(0 75% 40% / 0.4),
+    inset 0 1px 0 hsl(0 100% 80% / 0.15);
+}
+.alert-overdue:hover {
+  box-shadow:
+    0 0 0 1px hsl(0 80% 55% / 0.8),
+    0 12px 40px -4px hsl(0 75% 35% / 0.7),
+    0 4px 16px -2px hsl(0 75% 45% / 0.5),
+    inset 0 1px 0 hsl(0 100% 80% / 0.2);
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+.alert-today {
+  background: linear-gradient(135deg, hsl(35 90% 45%) 0%, hsl(30 85% 38%) 50%, hsl(25 80% 32%) 100%);
+  box-shadow:
+    0 0 0 1px hsl(35 90% 50% / 0.5),
+    0 8px 32px -4px hsl(30 80% 30% / 0.5),
+    0 4px 12px -2px hsl(35 80% 40% / 0.3),
+    inset 0 1px 0 hsl(45 100% 80% / 0.15);
+}
+.alert-today:hover {
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+/* Shimmer overlay for the overdue banner */
+.alert-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(0 100% 80% / 0.15) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 @keyframes badge-pulse {
   0%, 100% {
     box-shadow: 0 0 0 2px hsl(var(--sidebar-background)),
