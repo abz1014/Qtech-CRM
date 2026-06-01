@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCRM } from '@/contexts/CRMContext';
 import {
   LayoutDashboard, Users, Target, ShoppingCart,
   Factory, UserCog, Wrench, LogOut, Zap, FileText,
@@ -44,6 +45,14 @@ interface AppSidebarProps { open: boolean; onClose: () => void; }
 export function AppSidebar({ open, onClose }: AppSidebarProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const { followUpActions } = useCRM();
+
+  const today = new Date().toISOString().split('T')[0];
+  const urgentCount = useMemo(() => followUpActions.filter(a =>
+    a.status === 'pending' &&
+    a.due_date <= today &&
+    (!a.assigned_to || a.assigned_to === user?.id)
+  ).length, [followUpActions, today, user?.id]);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -97,7 +106,12 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
                       )}
                       style={{ color: isActive ? undefined : 'hsl(var(--sidebar-foreground))' }}>
                       <item.icon className="w-4 h-4 flex-shrink-0" />
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {item.path === '/actions' && urgentCount > 0 && (
+                        <span className="ml-auto flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                          {urgentCount > 9 ? '9+' : urgentCount}
+                        </span>
+                      )}
                     </button>
                   );
                 })}

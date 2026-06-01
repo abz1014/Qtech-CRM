@@ -7,6 +7,7 @@ import {
   RotateCcw, AlarmClock, Users, ChevronDown, ChevronUp,
   ChevronLeft, ChevronRight, ExternalLink,
 } from 'lucide-react';
+import React from 'react';
 import { cn } from '@/lib/utils';
 import { FollowUpForm } from '@/components/followup/FollowUpForm';
 import { OutcomeModal, OutcomeResult } from '@/components/followup/OutcomeModal';
@@ -714,17 +715,69 @@ export default function ActionsPage() {
     { key: 'activity', label: '📣 Activity' },
   ];
 
+  const overdue  = myActions.filter(a => a.due_date < todayStr);
+  const dueToday = myActions.filter(a => a.due_date === todayStr);
+  const upcoming = myActions.filter(a => a.due_date > todayStr);
+
+  const renderSection = (
+    actions: any[],
+    title: string,
+    accent: string,       // tailwind colour token like 'destructive' | 'warning' | 'primary'
+    icon: React.ReactNode,
+  ) => {
+    if (actions.length === 0) return null;
+    return (
+      <div className="space-y-2">
+        <div className={`flex items-center gap-2 px-1`}>
+          {icon}
+          <h3 className={`text-sm font-bold uppercase tracking-widest text-${accent}`}>
+            {title}
+          </h3>
+          <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-${accent}/15 text-${accent}`}>
+            {actions.length}
+          </span>
+        </div>
+        {actions.map(action => {
+          const entity = resolveEntity(action);
+          const assignedUser = users.find((u: any) => u.id === action.assigned_to);
+          return (
+            <ActionCard
+              key={action.id}
+              action={action}
+              entityLabel={entity?.label}
+              entityPath={entity?.path}
+              assignedName={assignedUser?.name}
+              onCompleteClick={handleCompleteClick}
+              onSnooze={handleSnooze}
+              onDelete={handleDelete}
+              completing={completing}
+            />
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Actions</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {isAdmin ? 'Your actions + team oversight' : 'Your follow-ups and tasks'}
+          <p className="text-muted-foreground text-sm">
+            {myActions.length === 0 ? 'All clear — nothing pending' :
+             `${overdue.length > 0 ? `${overdue.length} overdue · ` : ''}${dueToday.length} today · ${upcoming.length} upcoming`}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={() => setTab(tab === 'team' ? 'all' : 'team')}
+              className={cn('flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                tab === 'team' ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground hover:bg-muted/80')}
+            >
+              <Users className="w-4 h-4" /> Team
+            </button>
+          )}
           <button onClick={load} className="p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors" title="Refresh">
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -732,70 +785,13 @@ export default function ActionsPage() {
             onClick={() => setShowForm(true)}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm"
           >
-            <Bell className="w-4 h-4" />
-            New Action
+            <Bell className="w-4 h-4" /> New Action
           </button>
         </div>
       </div>
 
-      {/* Escalation banner — appears when actions are 3+ days overdue */}
-      {myActions.some(a => getDaysOverdue(a.due_date) >= 3) && (
-        <div className="glass-card p-4 border border-red-600/40 bg-red-600/5">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 animate-bounce" />
-            <div className="flex-1">
-              <p className="font-bold text-red-600">
-                {myActions.filter(a => getDaysOverdue(a.due_date) >= 3).length} action{myActions.filter(a => getDaysOverdue(a.due_date) >= 3).length !== 1 ? 's' : ''} critically overdue (3+ days)
-              </p>
-              <p className="text-sm text-muted-foreground">These need immediate attention before other tasks</p>
-            </div>
-            <button onClick={() => setTab('overdue')} className="text-xs font-semibold text-red-600 hover:underline flex-shrink-0">
-              View now →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Standard overdue banner */}
-      {counts.overdue > 0 && !myActions.some(a => getDaysOverdue(a.due_date) >= 3) && (
-        <div className="glass-card p-4 border border-red-500/30 bg-red-500/5">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <p className="font-semibold text-red-500">{counts.overdue} overdue action{counts.overdue !== 1 ? 's' : ''} — needs attention</p>
-            <button onClick={() => setTab('overdue')} className="ml-auto text-xs font-semibold text-red-500 hover:underline">View →</button>
-          </div>
-        </div>
-      )}
-
-      {/* Filter tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {TABS.filter(t => !t.adminOnly || isAdmin).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              'px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors',
-              tab === t.key
-                ? t.key === 'overdue'
-                  ? 'bg-red-500 text-white'
-                  : t.key === 'today'
-                  ? 'bg-yellow-500 text-white'
-                  : t.key === 'team'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            )}
-          >
-            {t.label} ({counts[t.key]})
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
       {loading ? (
         <div className="glass-card p-8 text-center text-muted-foreground">Loading actions...</div>
-      ) : tab === 'activity' ? (
-        <ActivityFeed activity={activity} users={users} patterns={patterns} />
       ) : tab === 'team' && isAdmin ? (
         <TeamOverview
           allActions={allActions}
@@ -805,31 +801,21 @@ export default function ActionsPage() {
           onDelete={handleDelete}
           completing={completing}
         />
-      ) : filtered.length === 0 ? (
-        <div className="glass-card p-12 text-center">
-          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-          <p className="text-foreground font-semibold text-lg">
-            {tab === 'today' ? 'Nothing due today! 🎉' : 'All clear!'}
-          </p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {tab === 'today' ? 'Check upcoming actions or create a new one.' : `No ${tab} actions right now.`}
-          </p>
-          {tab === 'today' && counts.upcoming > 0 && (
-            <button onClick={() => setTab('upcoming')} className="mt-3 text-sm text-primary hover:underline">
-              View {counts.upcoming} upcoming →
-            </button>
-          )}
+      ) : myActions.length === 0 ? (
+        <div className="glass-card p-16 text-center space-y-3">
+          <CheckCircle className="w-14 h-14 text-success mx-auto" />
+          <p className="text-xl font-bold text-foreground">All clear! 🎉</p>
+          <p className="text-sm text-muted-foreground">No pending actions. Create one or check back later.</p>
         </div>
       ) : (
-        <GroupedActionList
-          actions={filtered}
-          users={users}
-          resolveEntity={resolveEntity}
-          onCompleteClick={handleCompleteClick}
-          onSnooze={handleSnooze}
-          onDelete={handleDelete}
-          completing={completing}
-        />
+        <div className="space-y-8">
+          {renderSection(overdue, 'Overdue', 'destructive',
+            <AlertCircle className="w-4 h-4 text-destructive" />)}
+          {renderSection(dueToday, 'Due Today', 'warning',
+            <Clock className="w-4 h-4 text-warning" />)}
+          {renderSection(upcoming, 'Upcoming', 'muted-foreground',
+            <CheckCircle className="w-4 h-4 text-muted-foreground" />)}
+        </div>
       )}
 
       {showForm && (

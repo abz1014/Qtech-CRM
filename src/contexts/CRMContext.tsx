@@ -118,6 +118,9 @@ interface CRMContextType {
   updateQuoteRecommendation: (quoteId: string, isRecommended: boolean) => Promise<void>;
   getRecommendedQuote: (rfqId: string) => Promise<any | null>;
 
+  // Live action state (pre-loaded, reactive)
+  followUpActions: any[];
+
   // Follow-Up Automation Methods
   createFollowUp: (followUp: {
     action_type: 'rfq_followup' | 'supplier_response' | 'overdue_invoice' | 'order_status';
@@ -177,6 +180,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { data: inquiriesData },
         { data: quotesData },
         { data: lineItemsData },
+        { data: actionsData },
         { data: invoicesData },
         { data: expensesData },
         { data: paymentsData },
@@ -192,6 +196,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         supabase.from('supplier_inquiries').select('*').order('sent_at', { ascending: false }),
         supabase.from('supplier_quotes').select('*').order('received_at', { ascending: false }),
         supabase.from('rfq_line_items').select('*'),
+        supabase.from('follow_up_actions').select('*').eq('status', 'pending').order('due_date', { ascending: true }),
         supabase.from('invoices').select('*').order('issued_date', { ascending: false }).then(res => res).catch(() => ({ data: null })),
         supabase.from('expenses').select('*').order('date', { ascending: false }).then(res => res).catch(() => ({ data: null })),
         supabase.from('payment_records').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })),
@@ -207,6 +212,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setSupplierInquiries((inquiriesData ?? []) as SupplierInquiry[]);
       setSupplierQuotes((quotesData ?? []) as SupplierQuote[]);
       setRFQLineItems((lineItemsData ?? []) as RFQLineItem[]);
+      setFollowUpActions((actionsData ?? []) as any[]);
       setInvoices((invoicesData ?? []) as Invoice[]);
       setExpenses((expensesData ?? []) as Expense[]);
       setPaymentRecords((paymentsData ?? []) as PaymentRecord[]);
@@ -1741,6 +1747,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       getCashflowStatement, getARAgingBuckets, getAPAgingBuckets, getNextInvoiceNumber,
       updateOrderCosts, getOrderWithProfitability, getOrdersWithProfitability, getProfitabilityMetrics,
       getQuotesForRFQ, calculateValueScore, updateQuoteRecommendation, getRecommendedQuote,
+      followUpActions,
       createFollowUp, getPendingFollowUps, getAllFollowUps, completeFollowUp, snoozeFollowUp,
       deleteFollowUp, getOverdueFollowUps, getFollowUpsForEntity, getUserWorkload,
       applySequence, getRecentActivity, getPatternInsights,
