@@ -116,6 +116,7 @@ export interface RFQ {
   quote_expiry_date: string | null;
   loss_reason: LossReason | null;
   loss_notes: string | null;
+  quote_deadline: string | null;  // last date client will accept a quote
 }
 
 export interface RFQLineItem {

@@ -43,6 +43,7 @@ export default function RFQsPage() {
     rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '',
     rfq_date: '', assigned_to: user?.id ?? '',
     priority: 'medium' as RFQPriority, status: 'new' as RFQStatus, notes: '',
+    quote_deadline: '',
   });
 
   // All hooks MUST be called before any early return
@@ -126,7 +127,7 @@ export default function RFQsPage() {
       estimated_value: 0,
     });
     setShowForm(false);
-    setForm({ rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '' });
+    setForm({ rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '', quote_deadline: '' });
   };
 
   const handleDelete = async (rfqId: string) => {
@@ -197,8 +198,15 @@ export default function RFQsPage() {
             </tr>
           </thead>
           <tbody>
-            {paginatedRFQs.map(rfq => (
-              <tr key={rfq.id} onClick={() => navigate(`/rfqs/${rfq.id}`)} className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
+            {paginatedRFQs.map(rfq => {
+              const today = new Date().toISOString().split('T')[0];
+              const daysToDeadline = rfq.quote_deadline
+                ? Math.round((new Date(rfq.quote_deadline).getTime() - new Date(today).getTime()) / 86400000)
+                : null;
+              const deadlineUrgent = daysToDeadline !== null && daysToDeadline <= 2 && rfq.status !== 'converted' && rfq.status !== 'lost';
+              return (
+              <tr key={rfq.id} onClick={() => navigate(`/rfqs/${rfq.id}`)}
+                className={`border-b cursor-pointer transition-colors ${deadlineUrgent ? 'border-destructive/40 bg-destructive/5 hover:bg-destructive/10' : 'border-border/50 hover:bg-muted/30'}`}>
                 <td className="px-5 py-3">
                   <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
                     {rfq.rfq_number || '—'}
@@ -213,7 +221,24 @@ export default function RFQsPage() {
                   </div>
                 </td>
                 <td className="px-5 py-3 text-sm text-foreground">{rfq.contact_person}</td>
-                <td className="px-5 py-3 text-sm text-muted-foreground">{formatDate(rfq.rfq_date)}</td>
+                <td className="px-5 py-3 text-sm text-muted-foreground">
+                  <div className="flex flex-col gap-0.5">
+                    <span>{formatDate(rfq.rfq_date)}</span>
+                    {rfq.quote_deadline && (
+                      <span className={`text-[10px] font-semibold flex items-center gap-1 ${deadlineUrgent ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        {deadlineUrgent ? '🔴' : '📅'} Deadline: {formatDate(rfq.quote_deadline)}
+                        {daysToDeadline !== null && daysToDeadline <= 2 && daysToDeadline >= 0 && (
+                          <span className="px-1 py-0.5 rounded bg-destructive/15 text-destructive text-[10px] font-bold">
+                            {daysToDeadline === 0 ? 'TODAY' : `${daysToDeadline}d left`}
+                          </span>
+                        )}
+                        {daysToDeadline !== null && daysToDeadline < 0 && (
+                          <span className="px-1 py-0.5 rounded bg-destructive/15 text-destructive text-[10px] font-bold">EXPIRED</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-5 py-3">
                   <span className={`status-badge capitalize ${rfqStatusColors[rfq.status]}`}>{rfq.status.replace('_', ' ')}</span>
                 </td>
@@ -295,7 +320,8 @@ export default function RFQsPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -365,10 +391,20 @@ export default function RFQsPage() {
                   </div>
                 </>
               
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">RFQ Date</label>
-                <input type="date" value={form.rfq_date} onChange={e => setForm(p => ({ ...p, rfq_date: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">RFQ Date</label>
+                  <input type="date" value={form.rfq_date} onChange={e => setForm(p => ({ ...p, rfq_date: e.target.value }))}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Quote Deadline
+                    <span className="text-muted-foreground font-normal text-xs ml-1">(client's last date)</span>
+                  </label>
+                  <input type="date" value={form.quote_deadline} onChange={e => setForm(p => ({ ...p, quote_deadline: e.target.value }))}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Assigned To</label>

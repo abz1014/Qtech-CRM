@@ -623,6 +623,28 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         priority: rfq.priority === 'high' ? 'high' : 'medium',
         daysFromNow: 1,
       });
+      // Auto-trigger: quote deadline reminder — fires 2 days before deadline
+      if (rfq.quote_deadline) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const reminderDate = new Date(rfq.quote_deadline);
+        reminderDate.setDate(reminderDate.getDate() - 2);
+        const daysUntilReminder = Math.round(
+          (reminderDate.getTime() - today.getTime()) / 86400000
+        );
+        // Create reminder even if it's today (daysFromNow = 0)
+        if (daysUntilReminder >= 0) {
+          autoFollowUp({
+            title: `⚠ Quote deadline in 2 days — ${rfq.company_name}`,
+            action_type: 'rfq_followup',
+            entity_type: 'rfq',
+            entity_id: data.id,
+            assigned_to: rfq.assigned_to ?? null,
+            priority: 'high',
+            daysFromNow: daysUntilReminder,
+          });
+        }
+      }
     }
   }, [autoFollowUp]);
 

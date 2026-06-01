@@ -355,18 +355,42 @@ export default function RFQDetailPage() {
       </div>
 
       {/* RFQ Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'RFQ Date', value: formatDate(rfq.rfq_date) },
-          { label: 'Inquiries Sent', value: inquiries.length },
-          { label: 'Quotes Received', value: quotes.length },
-        ].map(kpi => (
-          <div key={kpi.label} className="glass-card p-4">
-            <p className="text-xs text-muted-foreground">{kpi.label}</p>
-            <p className="text-lg font-semibold text-foreground mt-1">{kpi.value}</p>
+      {(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const daysToDeadline = rfq.quote_deadline
+          ? Math.round((new Date(rfq.quote_deadline).getTime() - new Date(today).getTime()) / 86400000)
+          : null;
+        const deadlineUrgent = daysToDeadline !== null && daysToDeadline <= 2;
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'RFQ Date', value: formatDate(rfq.rfq_date) },
+              { label: 'Inquiries Sent', value: inquiries.length },
+              { label: 'Quotes Received', value: quotes.length },
+            ].map(kpi => (
+              <div key={kpi.label} className="glass-card p-4">
+                <p className="text-xs text-muted-foreground">{kpi.label}</p>
+                <p className="text-lg font-semibold text-foreground mt-1">{kpi.value}</p>
+              </div>
+            ))}
+            {rfq.quote_deadline && (
+              <div className={`p-4 rounded-xl border ${deadlineUrgent ? 'border-destructive/50 bg-destructive/10' : 'glass-card'}`}>
+                <p className={`text-xs font-medium ${deadlineUrgent ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  Quote Deadline {deadlineUrgent ? '🔴' : '📅'}
+                </p>
+                <p className={`text-lg font-bold mt-1 ${deadlineUrgent ? 'text-destructive' : 'text-foreground'}`}>
+                  {formatDate(rfq.quote_deadline)}
+                </p>
+                {daysToDeadline !== null && (
+                  <p className={`text-xs mt-0.5 font-semibold ${deadlineUrgent ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {daysToDeadline < 0 ? 'EXPIRED' : daysToDeadline === 0 ? 'Due TODAY' : `${daysToDeadline} day${daysToDeadline > 1 ? 's' : ''} left`}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {/* Linked Orders */}
       {linkedOrders.length > 0 && (
@@ -811,10 +835,17 @@ export default function RFQDetailPage() {
                 <input type="email" value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))}
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">RFQ Date</label>
-                <input type="date" value={editForm.rfq_date} onChange={e => setEditForm(p => ({ ...p, rfq_date: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">RFQ Date</label>
+                  <input type="date" value={editForm.rfq_date} onChange={e => setEditForm(p => ({ ...p, rfq_date: e.target.value }))}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Quote Deadline</label>
+                  <input type="date" value={(editForm as any).quote_deadline || ''} onChange={e => setEditForm(p => ({ ...p, quote_deadline: e.target.value } as any))}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Status</label>
