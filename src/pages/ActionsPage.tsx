@@ -626,7 +626,7 @@ export default function ActionsPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc'); // earliest due first by default
   const [onlyMine, setOnlyMine] = useState(false);
   const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // ALL pending team actions — everyone sees everything
   const myActions = useMemo(
@@ -760,7 +760,7 @@ export default function ActionsPage() {
   }, [filtered, sortDir, rfqs, orders]);
 
   const toggleGroup = (key: string) => {
-    setCollapsedGroups(prev => {
+    setExpandedGroups(prev => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
@@ -978,7 +978,7 @@ export default function ActionsPage() {
       ) : (
         <div className="space-y-3">
           {grouped.map(([key, { info, actions }]) => {
-            const isCollapsed = collapsedGroups.has(key);
+            const isExpanded = expandedGroups.has(key);
             const overdueCount = actions.filter(a => a.due_date < todayStr).length;
             const dueTodayCount = actions.filter(a => a.due_date === todayStr).length;
             const urgentBorder = overdueCount > 0 ? 'border-destructive/40'
@@ -1023,7 +1023,7 @@ export default function ActionsPage() {
                       <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">
                         {actions.length}
                       </span>
-                      {isCollapsed ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronUp className="w-4 h-4 text-muted-foreground" />}
+                      {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                     </div>
                   </button>
                   {info.path && (
@@ -1038,7 +1038,7 @@ export default function ActionsPage() {
                 </div>
 
                 {/* Action list inside group */}
-                {!isCollapsed && (
+                {isExpanded && (
                   <div className="p-3 space-y-2 bg-background/40">
                     {actions.map(action => {
                       const assignedUser = users.find((u: any) => u.id === action.assigned_to);
