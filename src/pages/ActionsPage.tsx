@@ -112,50 +112,66 @@ function ActionCard({ action, entityLabel, entityPath, assignedName, onCompleteC
   const navigate = useNavigate();
   const tier = getTier(action.due_date);
 
-  return (
-    <div className={cn('glass-card p-4 border-l-4 transition-all relative', TIER_CARD[tier])}>
-      <div className="flex items-start gap-3">
-        {/* Priority badge */}
-        <div className={cn('mt-0.5 px-2 py-0.5 rounded text-xs font-semibold border flex-shrink-0 capitalize', PRIORITY_STYLES[action.priority])}>
-          {action.priority}
-        </div>
+  const entityIcon = action.entity_type === 'rfq' ? '📋' :
+                     action.entity_type === 'order' ? '📦' :
+                     action.entity_type === 'client' ? '🏢' :
+                     action.entity_type === 'prospect' ? '🎯' : '📌';
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 flex-wrap">
-            <div className="min-w-0">
-              <p className="font-semibold text-foreground">{action.title}</p>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="text-xs text-muted-foreground">
-                  {ACTION_TYPE_LABELS[action.action_type] || action.action_type}
-                </span>
-                {/* Entity reference — clickable link to the RFQ or Order */}
-                {entityLabel && entityPath && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); navigate(entityPath); }}
-                    className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded hover:bg-primary/20 transition-colors"
-                  >
-                    → {ENTITY_TYPE_LABELS[action.entity_type] || action.entity_type}: {entityLabel}
-                  </button>
-                )}
-                {/* Assigned sales person */}
-                {assignedName && (
-                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded flex items-center gap-1">
-                    👤 {assignedName}
-                  </span>
-                )}
-                {action.description === 'Auto-created by system' && (
-                  <span className="text-xs text-muted-foreground italic">· Auto-created</span>
-                )}
-                {action.description && action.description !== 'Auto-created by system' &&
-                  !action.description.startsWith('✅') &&
-                  !action.description.startsWith('📵') &&
-                  !action.description.startsWith('💬') && (
-                  <span className="text-xs text-muted-foreground">· {action.description}</span>
-                )}
-              </div>
-            </div>
-            <DueLabel due_date={action.due_date} />
+  return (
+    <div className={cn('glass-card border-l-4 transition-all relative overflow-hidden', TIER_CARD[tier])}>
+      {/* ── PROMINENT ENTITY BANNER (top of card) ── */}
+      {entityLabel && entityPath && (
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate(entityPath); }}
+          className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-primary/10 hover:bg-primary/15 transition-colors border-b border-primary/20 text-left"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base flex-shrink-0">{entityIcon}</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-primary flex-shrink-0">
+              {ENTITY_TYPE_LABELS[action.entity_type] || action.entity_type}
+            </span>
+            <span className="text-sm font-bold text-foreground truncate">{entityLabel}</span>
           </div>
+          <span className="text-xs font-semibold text-primary flex items-center gap-1 flex-shrink-0">
+            Open <ExternalLink className="w-3 h-3" />
+          </span>
+        </button>
+      )}
+
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          {/* Priority badge */}
+          <div className={cn('mt-0.5 px-2 py-0.5 rounded text-xs font-semibold border flex-shrink-0 capitalize', PRIORITY_STYLES[action.priority])}>
+            {action.priority}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground">{action.title}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="text-xs text-muted-foreground">
+                    {ACTION_TYPE_LABELS[action.action_type] || action.action_type}
+                  </span>
+                  {/* Assigned sales person */}
+                  {assignedName && (
+                    <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded flex items-center gap-1">
+                      👤 {assignedName}
+                    </span>
+                  )}
+                  {action.description === 'Auto-created by system' && (
+                    <span className="text-xs text-muted-foreground italic">· Auto-created</span>
+                  )}
+                  {action.description && action.description !== 'Auto-created by system' &&
+                    !action.description.startsWith('✅') &&
+                    !action.description.startsWith('📵') &&
+                    !action.description.startsWith('💬') && (
+                    <span className="text-xs text-muted-foreground">· {action.description}</span>
+                  )}
+                </div>
+              </div>
+              <DueLabel due_date={action.due_date} />
+            </div>
 
           {/* Buttons */}
           <div className="flex gap-2 mt-3 flex-wrap">
@@ -194,6 +210,7 @@ function ActionCard({ action, entityLabel, entityPath, assignedName, onCompleteC
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
@@ -606,15 +623,13 @@ export default function ActionsPage() {
   const [tab, setTab]         = useState<Tab>('today');
   const [allActions, setAllActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc'); // earliest due first by default
+  const [onlyMine, setOnlyMine] = useState(false);
 
-  // Derive myActions from live CRMContext state — same source as sidebar badge
-  // so counts are ALWAYS in sync. Filter: pending + (mine or unassigned)
+  // ALL pending team actions — everyone sees everything
   const myActions = useMemo(
-    () => followUpActions.filter(a =>
-      a.status === 'pending' &&
-      (!a.assigned_to || a.assigned_to === user?.id)
-    ),
-    [followUpActions, user?.id]
+    () => followUpActions.filter(a => a.status === 'pending'),
+    [followUpActions]
   );
   const [showForm, setShowForm]         = useState(false);
   const [showNextForm, setShowNextForm] = useState(false);
@@ -645,23 +660,19 @@ export default function ActionsPage() {
     [myActions, todayStr]
   );
 
-  // Sort actions: overdue first, then today, then upcoming — within each group sort by date
-  const sortActions = (list: any[]) => [...list].sort((a, b) => {
-    const ta = getTier(a.due_date), tb = getTier(b.due_date);
-    if (ta !== tb) return tb - ta; // higher tier (more urgent) first
-    return a.due_date < b.due_date ? -1 : 1;
-  });
+  // Sort purely by due_date (user-controlled direction)
+  const sortByDate = (list: any[]) => [...list].sort((a, b) =>
+    sortDir === 'asc'
+      ? a.due_date.localeCompare(b.due_date)
+      : b.due_date.localeCompare(a.due_date)
+  );
 
   const filtered = useMemo(() => {
-    let list: any[];
-    switch (tab) {
-      case 'overdue':   list = myActions.filter(a => a.due_date < todayStr); break;
-      case 'today':     list = myActions.filter(a => a.due_date === todayStr); break;
-      case 'upcoming':  list = myActions.filter(a => a.due_date > todayStr); break;
-      default:          list = myActions;
-    }
-    return sortActions(list);
-  }, [myActions, tab, todayStr]);
+    let list = onlyMine
+      ? myActions.filter(a => a.assigned_to === user?.id)
+      : myActions;
+    return sortByDate(list);
+  }, [myActions, sortDir, onlyMine, user?.id]);
 
   // Resolve a human-readable label + navigation path for an action's linked entity
   const resolveEntity = (action: any): { label: string; path: string } | null => {
@@ -772,7 +783,7 @@ export default function ActionsPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-muted-foreground text-sm">
-            {myActions.length === 0 ? 'All clear — nothing pending' :
+            {filtered.length === 0 ? 'All clear — nothing pending' :
              `${overdue.length > 0 ? `${overdue.length} overdue · ` : ''}${dueToday.length} today · ${upcoming.length} upcoming`}
           </p>
         </div>
@@ -798,6 +809,39 @@ export default function ActionsPage() {
         </div>
       </div>
 
+      {/* ── Filter + sort controls ── */}
+      {myActions.length > 0 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setOnlyMine(false)}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                !onlyMine ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80')}
+            >
+              All Team ({myActions.length})
+            </button>
+            <button
+              onClick={() => setOnlyMine(true)}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                onlyMine ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80')}
+            >
+              Mine ({myActions.filter(a => a.assigned_to === user?.id).length})
+            </button>
+          </div>
+          <button
+            onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+            title="Sort by due date"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            Due date
+            {sortDir === 'asc'
+              ? <span className="font-bold">↑ Earliest</span>
+              : <span className="font-bold">↓ Latest</span>}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="glass-card p-8 text-center text-muted-foreground">Loading actions...</div>
       ) : tab === 'team' && isAdmin ? (
@@ -809,20 +853,33 @@ export default function ActionsPage() {
           onDelete={handleDelete}
           completing={completing}
         />
-      ) : myActions.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="glass-card p-16 text-center space-y-3">
           <CheckCircle className="w-14 h-14 text-success mx-auto" />
           <p className="text-xl font-bold text-foreground">All clear! 🎉</p>
-          <p className="text-sm text-muted-foreground">No pending actions. Create one or check back later.</p>
+          <p className="text-sm text-muted-foreground">
+            {onlyMine ? 'You have no pending actions assigned to you.' : 'No pending actions. Create one or check back later.'}
+          </p>
         </div>
       ) : (
-        <div className="space-y-8">
-          {renderSection(overdue, 'Overdue', 'destructive',
-            <AlertCircle className="w-4 h-4 text-destructive" />)}
-          {renderSection(dueToday, 'Due Today', 'warning',
-            <Clock className="w-4 h-4 text-warning" />)}
-          {renderSection(upcoming, 'Upcoming', 'muted-foreground',
-            <CheckCircle className="w-4 h-4 text-muted-foreground" />)}
+        <div className="space-y-3">
+          {filtered.map(action => {
+            const entity = resolveEntity(action);
+            const assignedUser = users.find((u: any) => u.id === action.assigned_to);
+            return (
+              <ActionCard
+                key={action.id}
+                action={action}
+                entityLabel={entity?.label}
+                entityPath={entity?.path}
+                assignedName={assignedUser?.name}
+                onCompleteClick={handleCompleteClick}
+                onSnooze={handleSnooze}
+                onDelete={handleDelete}
+                completing={completing}
+              />
+            );
+          })}
         </div>
       )}
 

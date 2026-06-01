@@ -17,9 +17,8 @@ export default function DashboardPage() {
   // ── All hooks MUST be before any early return ────────────────────────────
   const today = new Date().toISOString().split('T')[0];
 
-  const myActions = followUpActions.filter(a =>
-    a.status === 'pending' && (!a.assigned_to || a.assigned_to === user?.id)
-  );
+  // Team-wide pending actions — everyone sees everything
+  const myActions = followUpActions.filter(a => a.status === 'pending');
   const overdueActions  = myActions.filter(a => a.due_date < today);
   const todayActions    = myActions.filter(a => a.due_date === today);
 

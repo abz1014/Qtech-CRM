@@ -48,11 +48,10 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
   const { followUpActions } = useCRM();
 
   const today = new Date().toISOString().split('T')[0];
+  // Team-wide urgent count — overdue or due today across the whole team
   const urgentCount = useMemo(() => followUpActions.filter(a =>
-    a.status === 'pending' &&
-    a.due_date <= today &&
-    (!a.assigned_to || a.assigned_to === user?.id)
-  ).length, [followUpActions, today, user?.id]);
+    a.status === 'pending' && a.due_date <= today
+  ).length, [followUpActions, today]);
   const location = useLocation();
   const navigate = useNavigate();
 
