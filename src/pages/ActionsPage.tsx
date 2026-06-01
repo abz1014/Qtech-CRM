@@ -588,14 +588,23 @@ function GroupedActionList({ actions, users, resolveEntity, onCompleteClick, onS
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ActionsPage() {
-  const { getPendingFollowUps, getAllFollowUps, getOverdueFollowUps, completeFollowUp, snoozeFollowUp, deleteFollowUp, users, rfqs, orders, getClientName, getRecentActivity, getPatternInsights } = useCRM();
+  const { followUpActions, getAllFollowUps, completeFollowUp, snoozeFollowUp, deleteFollowUp, users, rfqs, orders, getClientName, getRecentActivity, getPatternInsights } = useCRM();
   const { user, isAdmin } = useAuth();
 
   type Tab = 'all' | 'overdue' | 'today' | 'upcoming' | 'team' | 'activity';
   const [tab, setTab]         = useState<Tab>('today');
-  const [myActions, setMyActions]   = useState<any[]>([]);
   const [allActions, setAllActions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  // Derive myActions from live CRMContext state — same source as sidebar badge
+  // so counts are ALWAYS in sync. Filter: pending + (mine or unassigned)
+  const myActions = useMemo(
+    () => followUpActions.filter(a =>
+      a.status === 'pending' &&
+      (!a.assigned_to || a.assigned_to === user?.id)
+    ),
+    [followUpActions, user?.id]
+  );
   const [showForm, setShowForm]         = useState(false);
   const [showNextForm, setShowNextForm] = useState(false);
   const [completing, setCompleting]     = useState<string | null>(null);
@@ -604,28 +613,19 @@ export default function ActionsPage() {
 
   const patterns = useMemo(() => getPatternInsights(), [getPatternInsights]);
 
+  // Only fetch team + activity feed; myActions comes from live state
   const load = async () => {
     setLoading(true);
-    const [pending, overdue, all, recent] = await Promise.all([
-      getPendingFollowUps(isAdmin ? undefined : user?.id),
-      getOverdueFollowUps(),
+    const [all, recent] = await Promise.all([
       isAdmin ? getAllFollowUps() : Promise.resolve([]),
       getRecentActivity(25),
     ]);
-    // Merge pending + overdue, deduplicate
-    const seen = new Set<string>();
-    const merged = [...overdue, ...pending].filter(a => {
-      if (seen.has(a.id)) return false;
-      seen.add(a.id);
-      return true;
-    });
-    setMyActions(merged);
     if (isAdmin) setAllActions(all);
     setActivity(recent);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [user?.id]); // re-fetch if user changes
+  useEffect(() => { load(); }, [user?.id]);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -685,7 +685,6 @@ export default function ActionsPage() {
     const label = { reached: '✅ Reached them', no_answer: '📵 No answer', left_message: '💬 Left message', not_required: '' }[outcome];
     const fullNote = [label, note].filter(Boolean).join(' — ');
     await completeFollowUp(outcomeAction.id, fullNote || undefined);
-    setMyActions(prev => prev.filter(a => a.id !== outcomeAction.id));
     setAllActions(prev => prev.filter(a => a.id !== outcomeAction.id));
     setCompleting(null);
     setOutcomeAction(null);
@@ -695,14 +694,12 @@ export default function ActionsPage() {
   const handleSnooze = async (id: string, date: string) => {
     await snoozeFollowUp(id, date);
     // Remove from current view — will resurface on the new date
-    setMyActions(prev => prev.filter(a => a.id !== id));
     setAllActions(prev => prev.filter(a => a.id !== id));
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this action?')) return;
     await deleteFollowUp(id);
-    setMyActions(prev => prev.filter(a => a.id !== id));
     setAllActions(prev => prev.filter(a => a.id !== id));
   };
 
