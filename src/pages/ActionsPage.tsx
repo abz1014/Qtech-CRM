@@ -627,6 +627,7 @@ export default function ActionsPage() {
   const [onlyMine, setOnlyMine] = useState(false);
   const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
 
   // ALL pending team actions — everyone sees everything
   const myActions = useMemo(
@@ -673,8 +674,34 @@ export default function ActionsPage() {
     let list = onlyMine
       ? myActions.filter(a => a.assigned_to === user?.id)
       : myActions;
+
+    // Search filter: matches RFQ number, company name, order client, or action title
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(a => {
+        // Try to find linked RFQ or order
+        if (a.entity_type === 'rfq') {
+          const rfq = rfqs.find(r => r.id === a.entity_id);
+          if (rfq) {
+            const haystack = `${rfq.rfq_number || ''} ${rfq.company_name || ''} ${getClientName(rfq.client_id)}`.toLowerCase();
+            if (haystack.includes(q)) return true;
+          }
+        }
+        if (a.entity_type === 'order') {
+          const order = orders.find(o => o.id === a.entity_id);
+          if (order) {
+            const linkedRfq = order.rfq_id ? rfqs.find(r => r.id === order.rfq_id) : null;
+            const haystack = `${linkedRfq?.rfq_number || ''} ${getClientName(order.client_id)} ${order.product_type || ''} ${order.customer_po_number || ''}`.toLowerCase();
+            if (haystack.includes(q)) return true;
+          }
+        }
+        // Also match action title as fallback
+        return (a.title || '').toLowerCase().includes(q);
+      });
+    }
+
     return sortByDate(list);
-  }, [myActions, sortDir, onlyMine, user?.id]);
+  }, [myActions, sortDir, onlyMine, user?.id, search, rfqs, orders, getClientName]);
 
   // Resolve a human-readable label + navigation path for an action's linked entity
   const resolveEntity = (action: any): { label: string; path: string } | null => {
@@ -886,6 +913,31 @@ export default function ActionsPage() {
         </div>
       </div>
 
+      {/* ── Search bar ── */}
+      {myActions.length > 0 && (
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by RFQ number, company, client, PO number, or action title..."
+            className="w-full pl-10 pr-10 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── Filter + sort controls ── */}
       {myActions.length > 0 && (
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -949,11 +1001,21 @@ export default function ActionsPage() {
         />
       ) : filtered.length === 0 ? (
         <div className="glass-card p-16 text-center space-y-3">
-          <CheckCircle className="w-14 h-14 text-success mx-auto" />
-          <p className="text-xl font-bold text-foreground">All clear! 🎉</p>
-          <p className="text-sm text-muted-foreground">
-            {onlyMine ? 'You have no pending actions assigned to you.' : 'No pending actions. Create one or check back later.'}
-          </p>
+          {search.trim() ? (
+            <>
+              <p className="text-xl font-bold text-foreground">No matches found</p>
+              <p className="text-sm text-muted-foreground">No actions match "{search}". Try a different RFQ number, company name, or client.</p>
+              <button onClick={() => setSearch('')} className="mt-2 text-sm text-primary hover:underline">Clear search</button>
+            </>
+          ) : (
+            <>
+              <CheckCircle className="w-14 h-14 text-success mx-auto" />
+              <p className="text-xl font-bold text-foreground">All clear! 🎉</p>
+              <p className="text-sm text-muted-foreground">
+                {onlyMine ? 'You have no pending actions assigned to you.' : 'No pending actions. Create one or check back later.'}
+              </p>
+            </>
+          )}
         </div>
       ) : viewMode === 'list' ? (
         <div className="space-y-3">
@@ -978,7 +1040,8 @@ export default function ActionsPage() {
       ) : (
         <div className="space-y-3">
           {grouped.map(([key, { info, actions }]) => {
-            const isExpanded = expandedGroups.has(key);
+            // Auto-expand when searching so results are visible immediately
+            const isExpanded = expandedGroups.has(key) || !!search.trim();
             const overdueCount = actions.filter(a => a.due_date < todayStr).length;
             const dueTodayCount = actions.filter(a => a.due_date === todayStr).length;
             const urgentBorder = overdueCount > 0 ? 'border-destructive/40'
