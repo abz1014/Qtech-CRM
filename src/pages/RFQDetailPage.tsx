@@ -21,7 +21,7 @@ export default function RFQDetailPage() {
   const { isAdmin, isSales, user } = useAuth();
   const {
     rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients, users,
-    addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus,
+    addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateSupplierInquiry, updateInquiryStatus,
     getVendorName, updateRFQStatus, updateRFQ, getClientName, addVendor, convertRFQToOrder, getUserName,
     getFollowUpsForEntity,
   } = useCRM();
@@ -43,6 +43,7 @@ export default function RFQDetailPage() {
   const [showLossModal, setShowLossModal] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [viewingEmailId, setViewingEmailId] = useState<string | null>(null);
+  const [editingInquiry, setEditingInquiry] = useState<{ id: string; email_draft: string; sent_at: string } | null>(null);
 
   const [lineItemForm, setLineItemForm] = useState({
     product_type: '', quantity: '', specification: '',
@@ -159,7 +160,18 @@ export default function RFQDetailPage() {
     } catch (error) {
       console.error('Failed to add inquiry:', error);
       alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
+
     }
+  };
+
+  const handleEditInquiry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingInquiry) return;
+    await updateSupplierInquiry(editingInquiry.id, {
+      email_draft: editingInquiry.email_draft,
+      sent_at: editingInquiry.sent_at,
+    });
+    setEditingInquiry(null);
   };
 
   const handleAddQuote = async (e: React.FormEvent) => {
@@ -535,10 +547,14 @@ export default function RFQDetailPage() {
                       {si.status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="py-2 space-x-2 flex items-center">
+                  <td className="py-2 flex items-center gap-2">
                     <button onClick={() => setViewingEmailId(si.id)}
-                      className="text-xs text-info hover:underline">
+                      className="px-2.5 py-1 text-xs font-medium bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors border border-border">
                       View Email
+                    </button>
+                    <button onClick={() => setEditingInquiry({ id: si.id, email_draft: si.email_draft || '', sent_at: si.sent_at })}
+                      className="px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors border border-primary/20">
+                      Edit
                     </button>
                     {si.status === 'pending' && (
                       <>
@@ -739,6 +755,50 @@ export default function RFQDetailPage() {
           </form>
         )}
       </div>
+
+      {/* Edit Inquiry Modal */}
+      {editingInquiry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Edit Supplier Inquiry</h2>
+              <button onClick={() => setEditingInquiry(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleEditInquiry} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Date Sent</label>
+                <input
+                  type="date"
+                  value={editingInquiry.sent_at.split('T')[0]}
+                  onChange={e => setEditingInquiry(p => p ? { ...p, sent_at: e.target.value } : null)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Email Draft</label>
+                <textarea
+                  value={editingInquiry.email_draft}
+                  onChange={e => setEditingInquiry(p => p ? { ...p, email_draft: e.target.value } : null)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  rows={8}
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditingInquiry(null)}
+                  className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* View Email Draft Modal */}
       {viewingEmailId && (() => {
