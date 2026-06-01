@@ -49,7 +49,8 @@ export default function RFQsPage() {
   const debouncedSearch = useDebounce(search);
   const filtered = useMemo(() => rfqs.filter(r => {
     const matchesSearch = r.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      r.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase());
+      r.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      (r.rfq_number?.toLowerCase().includes(debouncedSearch.toLowerCase()) ?? false);
     const matchesDateRange = (!fromDate || r.rfq_date >= fromDate) &&
       (!toDate || r.rfq_date <= toDate);
     return matchesSearch && matchesDateRange;
