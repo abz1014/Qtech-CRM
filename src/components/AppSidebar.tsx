@@ -101,14 +101,21 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
                   return (
                     <button key={item.path} onClick={() => handleNav(item.path)}
                       className={cn(
-                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
+                        'relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
                         isActive ? 'sidebar-active' : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                       )}
                       style={{ color: isActive ? undefined : 'hsl(var(--sidebar-foreground))' }}>
                       <item.icon className="w-4 h-4 flex-shrink-0" />
-                      <span className="flex-1">{item.label}</span>
+                      <span>{item.label}</span>
                       {item.path === '/actions' && urgentCount > 0 && (
-                        <span className="ml-auto flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                        <span
+                          className="absolute right-3 top-1/2 -translate-y-1/2 min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-extrabold flex items-center justify-center text-white"
+                          style={{
+                            background: 'linear-gradient(135deg, hsl(0 80% 55%), hsl(0 75% 42%))',
+                            boxShadow: '0 0 0 2px hsl(var(--sidebar-background)), 0 0 12px hsl(0 80% 55% / 0.6), 0 2px 6px hsl(0 80% 30% / 0.4)',
+                            animation: 'badge-pulse 1.8s ease-in-out infinite',
+                          }}
+                        >
                           {urgentCount > 9 ? '9+' : urgentCount}
                         </span>
                       )}
