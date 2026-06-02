@@ -845,27 +845,32 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deleteRFQ = useCallback(async (rfqId: string) => {
-    await supabase.from('rfqs').delete().eq('id', rfqId);
+    const { error } = await supabase.from('rfqs').delete().eq('id', rfqId);
+    if (error) throw new Error(`Failed to delete RFQ: ${error.message}`);
     setRFQs(prev => prev.filter(r => r.id !== rfqId));
   }, []);
 
   const deleteOrder = useCallback(async (orderId: string) => {
-    await supabase.from('orders').delete().eq('id', orderId);
+    const { error } = await supabase.from('orders').delete().eq('id', orderId);
+    if (error) throw new Error(`Failed to delete order: ${error.message}`);
     setOrders(prev => prev.filter(o => o.id !== orderId));
   }, []);
 
   const deleteClient = useCallback(async (clientId: string) => {
-    await supabase.from('clients').delete().eq('id', clientId);
+    const { error } = await supabase.from('clients').delete().eq('id', clientId);
+    if (error) throw new Error(`Failed to delete client: ${error.message}`);
     setClients(prev => prev.filter(c => c.id !== clientId));
   }, []);
 
   const deleteVendor = useCallback(async (vendorId: string) => {
-    await supabase.from('vendors').delete().eq('id', vendorId);
+    const { error } = await supabase.from('vendors').delete().eq('id', vendorId);
+    if (error) throw new Error(`Failed to delete vendor: ${error.message}`);
     setVendors(prev => prev.filter(v => v.id !== vendorId));
   }, []);
 
   const deleteProspect = useCallback(async (prospectId: string) => {
-    await supabase.from('prospects').delete().eq('id', prospectId);
+    const { error } = await supabase.from('prospects').delete().eq('id', prospectId);
+    if (error) throw new Error(`Failed to delete prospect: ${error.message}`);
     setProspects(prev => prev.filter(p => p.id !== prospectId));
   }, []);
 
