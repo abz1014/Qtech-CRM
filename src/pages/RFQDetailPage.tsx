@@ -227,19 +227,25 @@ export default function RFQDetailPage() {
       }
     }
 
-    await updateRFQ(id!, {
-      rfq_number: editForm.rfq_number || null,
-      company_name: editForm.company_name,
-      contact_person: editForm.contact_person,
-      phone: editForm.phone,
-      email: editForm.email,
-      rfq_date: editForm.rfq_date,
-      estimated_value: rfq.estimated_value ?? 0,
-      priority: editForm.priority,
-      notes: editForm.notes,
-      status: editForm.status,
-    } as any);
-    setShowEditRFQ(false);
+    try {
+      await updateRFQ(id!, {
+        rfq_number: editForm.rfq_number || null,
+        company_name: editForm.company_name,
+        contact_person: editForm.contact_person,
+        phone: editForm.phone,
+        email: editForm.email,
+        rfq_date: editForm.rfq_date,
+        estimated_value: rfq.estimated_value ?? 0,
+        priority: editForm.priority,
+        notes: editForm.notes,
+        status: editForm.status,
+        // Empty date strings must be sent as null — Postgres rejects ''
+        quote_deadline: (editForm as any).quote_deadline || null,
+      } as any);
+      setShowEditRFQ(false);
+    } catch (error) {
+      alert('Failed to update RFQ: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
   };
 
   const handleConvertToOrder = async (e: React.FormEvent) => {
