@@ -611,7 +611,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addRFQ = useCallback(async (rfq: Omit<RFQ, 'id' | 'converted_order_id'>) => {
-    const { data } = await supabase.from('rfqs').insert({ ...rfq, converted_order_id: null }).select().single();
+    const { data, error } = await supabase.from('rfqs').insert({ ...rfq, converted_order_id: null }).select().single();
+    if (error) throw new Error(error.message);
     if (data) {
       setRFQs(prev => [data as RFQ, ...prev]);
       // Auto-trigger: new RFQ received → float to supplier

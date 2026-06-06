@@ -120,14 +120,20 @@ export default function RFQsPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addRFQ({
-      ...form,
-      estimated_value: 0,
-    });
-    setShowForm(false);
-    setForm({ rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '', quote_deadline: '' });
+    try {
+      await addRFQ({
+        ...form,
+        estimated_value: 0,
+        // Empty date strings must be sent as null — Postgres rejects ''
+        quote_deadline: form.quote_deadline || null,
+      } as any);
+      setShowForm(false);
+      setForm({ rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '', quote_deadline: '' });
+    } catch (error) {
+      alert('Failed to add RFQ: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
   };
 
   const handleDelete = async (rfqId: string) => {
