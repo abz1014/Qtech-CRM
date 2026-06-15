@@ -72,6 +72,7 @@ export default function RFQDetailPage() {
   // Per-line-item quote selection (keyed by quote ID so same vendor with multiple quotes works)
   const [itemVendors, setItemVendors] = useState<Record<string, { quote_id: string; vendor_id: string; unit_cost: string }>>({});
   const [convertForm, setConvertForm] = useState({
+    client_id: rfq?.client_id || '',   // confirmed client for the order
     order_value: '',   // customer approved amount (incl. margin)
     sales_person_id: user?.id || '',
     notes: '',
@@ -254,6 +255,10 @@ export default function RFQDetailPage() {
       alert('Please assign a sales person');
       return;
     }
+    if (!convertForm.client_id) {
+      alert('Please select a client for this order');
+      return;
+    }
     if (!convertForm.customer_po_number.trim()) {
       alert('Customer PO Number is required');
       return;
@@ -298,7 +303,7 @@ export default function RFQDetailPage() {
       const fullNotes = `Supplier breakdown:\n${breakdown}${convertForm.notes ? '\n\n' + convertForm.notes : ''}`;
 
       await convertRFQToOrder(rfq.id, {
-        client_id: rfq.client_id,
+        client_id: convertForm.client_id,
         vendor_id: primaryVendor,
         order_value: Number(convertForm.order_value),
         product_type: productLabel || 'Multiple Products',
@@ -349,7 +354,7 @@ export default function RFQDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {rfq.status !== 'lost' && quotes.length > 0 && (
-            <button onClick={() => { setShowConvertOrder(true); setItemVendors({}); }} className="flex items-center gap-1.5 px-3 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors">
+            <button onClick={() => { setShowConvertOrder(true); setItemVendors({}); setConvertForm(p => ({ ...p, client_id: rfq.client_id || '' })); }} className="flex items-center gap-1.5 px-3 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors">
               <ShoppingCart className="w-4 h-4" /> Create Order
             </button>
           )}
@@ -969,11 +974,25 @@ export default function RFQDetailPage() {
             </div>
 
             <form onSubmit={handleConvertToOrder} className="p-6 space-y-4 overflow-y-auto flex-1">
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                <p className="text-sm font-semibold text-foreground">RFQ Details</p>
-                <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
-                  <div><span className="text-muted-foreground">Client:</span> <span className="text-foreground font-medium">{getClientName(rfq!.client_id)}</span></div>
-                </div>
+              {/* Client selector — required, defaults to RFQ's client */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Client * <span className="text-muted-foreground font-normal text-xs">(confirm the client for this order)</span>
+                </label>
+                <select
+                  value={convertForm.client_id}
+                  onChange={e => setConvertForm(p => ({ ...p, client_id: e.target.value }))}
+                  required
+                  className={`w-full px-3 py-2 bg-muted border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 ${convertForm.client_id ? 'border-border' : 'border-destructive/50'}`}
+                >
+                  <option value="">⚠ Select a client...</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.company_name}</option>
+                  ))}
+                </select>
+                {!convertForm.client_id && (
+                  <p className="text-xs text-destructive mt-1">This RFQ has no linked client — pick one so the order isn't created as "Unknown".</p>
+                )}
               </div>
 
               {/* Per-product supplier + cost mapping */}
