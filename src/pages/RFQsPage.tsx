@@ -39,6 +39,7 @@ export default function RFQsPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc'); // newest first by default
+  const [tab, setTab] = useState<'all' | 'lost'>('all');
 
   const [form, setForm] = useState({
     rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '',
@@ -63,6 +64,40 @@ export default function RFQsPage() {
       sortDir === 'desc' ? b.rfq_date.localeCompare(a.rfq_date) : a.rfq_date.localeCompare(b.rfq_date)
     );
   }, [rfqs, debouncedSearch, fromDate, toDate, sortDir]);
+
+  // ── Lost RFQ analysis ──────────────────────────────────────────────────────
+  const lostRFQs = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    return rfqs
+      .filter(r => r.status === 'lost')
+      .filter(r => !q ||
+        r.company_name.toLowerCase().includes(q) ||
+        (r.rfq_number?.toLowerCase().includes(q) ?? false) ||
+        ((r as any).loss_notes?.toLowerCase().includes(q) ?? false))
+      .sort((a, b) => b.rfq_date.localeCompare(a.rfq_date));
+  }, [rfqs, debouncedSearch]);
+
+  const lostMetrics = useMemo(() => {
+    const all = rfqs.filter(r => r.status === 'lost');
+    const totalValue = all.reduce((s, r) => s + (r.estimated_value || 0), 0);
+    // Preventable = our fault (poor follow-up / too slow), not the client's
+    const preventable = all.filter(r =>
+      (r as any).loss_reason === 'poor_follow_up' || (r as any).loss_reason === 'delivery_too_slow'
+    ).length;
+    // Top reason
+    const counts: Record<string, number> = {};
+    all.forEach(r => {
+      const reason = (r as any).loss_reason;
+      if (reason) counts[reason] = (counts[reason] || 0) + 1;
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    return {
+      count: all.length,
+      totalValue,
+      preventable,
+      topReason: top ? { reason: top[0], n: top[1] } : null,
+    };
+  }, [rfqs]);
 
   if (loading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
 
@@ -165,6 +200,36 @@ export default function RFQsPage() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-border">
+        <button
+          onClick={() => { setTab('all'); setCurrentPage(1); }}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${tab === 'all' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+        >
+          All RFQs
+        </button>
+        <button
+          onClick={() => { setTab('lost'); setCurrentPage(1); }}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5 ${tab === 'lost' ? 'border-destructive text-destructive' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+        >
+          Lost Deals
+          {lostMetrics.count > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive text-[10px] font-bold">{lostMetrics.count}</span>
+          )}
+        </button>
+      </div>
+
+      {tab === 'lost' ? (
+        <LostDealsView
+          lostRFQs={lostRFQs}
+          metrics={lostMetrics}
+          search={search}
+          setSearch={setSearch}
+          getUserName={getUserName}
+          navigate={navigate}
+        />
+      ) : (
+      <>
       <div className="flex flex-col sm:flex-row gap-4 items-end">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -353,6 +418,8 @@ export default function RFQsPage() {
           setCurrentPage(1);
         }}
       />
+      </>
+      )}
 
       {/* Add RFQ Modal */}
       {showForm && (
@@ -472,6 +539,118 @@ export default function RFQsPage() {
               >
                 Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Lost Deals View ──────────────────────────────────────────────────────────
+function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navigate }: {
+  lostRFQs: any[];
+  metrics: { count: number; totalValue: number; preventable: number; topReason: { reason: string; n: number } | null };
+  search: string;
+  setSearch: (s: string) => void;
+  getUserName: (id: string) => string;
+  navigate: (path: string) => void;
+}) {
+  const [viewNote, setViewNote] = useState<{ company: string; note: string } | null>(null);
+
+  return (
+    <div className="space-y-5">
+      {/* 3-number strip — total lost value, preventable, top reason */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="glass-card p-5 border-l-4 border-destructive">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total Value Lost</p>
+          <p className="text-3xl font-extrabold text-destructive mt-1 tracking-tight">{formatPKR(metrics.totalValue)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{metrics.count} lost RFQ{metrics.count !== 1 ? 's' : ''}</p>
+        </div>
+        <div className={`glass-card p-5 border-l-4 ${metrics.preventable > 0 ? 'border-warning' : 'border-success'}`}>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Preventable (Our Fault)</p>
+          <p className={`text-3xl font-extrabold mt-1 tracking-tight ${metrics.preventable > 0 ? 'text-warning' : 'text-success'}`}>{metrics.preventable}</p>
+          <p className="text-xs text-muted-foreground mt-1">poor follow-up or too slow</p>
+        </div>
+        <div className="glass-card p-5 border-l-4 border-info">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Top Loss Reason</p>
+          {metrics.topReason ? (
+            <>
+              <p className="text-lg font-bold text-foreground mt-1 flex items-center gap-1.5 leading-tight">
+                {lossReasonIcon(metrics.topReason.reason)} {lossReasonLabel(metrics.topReason.reason)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">{metrics.topReason.n} occurrence{metrics.topReason.n !== 1 ? 's' : ''}</p>
+            </>
+          ) : (
+            <p className="text-lg font-bold text-muted-foreground mt-1">—</p>
+          )}
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by company, RFQ #, or notes..."
+          className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+      </div>
+
+      {/* Lost RFQ table */}
+      <div className="glass-card overflow-x-auto">
+        {lostRFQs.length === 0 ? (
+          <p className="text-center text-muted-foreground py-12 text-sm">No lost deals{search ? ' match your search' : ' — keep it up! 🎉'}</p>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                {['Company', 'RFQ #', 'Value', 'Reason', 'What Happened', 'Lost By', 'Date'].map(h => (
+                  <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {lostRFQs.map(r => (
+                <tr key={r.id} onClick={() => navigate(`/rfqs/${r.id}`)} className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
+                  <td className="px-5 py-3 text-sm font-medium text-foreground">{r.company_name}</td>
+                  <td className="px-5 py-3 text-xs font-mono text-muted-foreground">{r.rfq_number || '—'}</td>
+                  <td className="px-5 py-3 text-sm font-semibold text-destructive">{formatPKR(r.estimated_value || 0)}</td>
+                  <td className="px-5 py-3">
+                    <span className="text-xs font-medium text-foreground flex items-center gap-1">
+                      {lossReasonIcon(r.loss_reason)} {lossReasonLabel(r.loss_reason)}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 max-w-[280px]">
+                    {r.loss_notes ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground line-clamp-1">{r.loss_notes}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setViewNote({ company: r.company_name, note: r.loss_notes }); }}
+                          className="text-xs text-primary hover:underline flex-shrink-0 whitespace-nowrap"
+                        >
+                          Read
+                        </button>
+                      </div>
+                    ) : <span className="text-xs text-muted-foreground italic">No notes</span>}
+                  </td>
+                  <td className="px-5 py-3 text-sm text-muted-foreground">{getUserName(r.assigned_to)}</td>
+                  <td className="px-5 py-3 text-sm text-muted-foreground whitespace-nowrap">{formatDate(r.rfq_date)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Notes popup */}
+      {viewNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setViewNote(null)}>
+          <div className="modal-card max-w-lg p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-foreground">Why we lost — {viewNote.company}</h2>
+              <button onClick={() => setViewNote(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-muted rounded-lg p-4">{viewNote.note}</p>
+            <div className="flex justify-end pt-4">
+              <button onClick={() => setViewNote(null)} className="px-4 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">Close</button>
             </div>
           </div>
         </div>
