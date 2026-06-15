@@ -1,23 +1,13 @@
 import { useState } from 'react';
 import { X, TrendingDown } from 'lucide-react';
 import { LossReason } from '@/types/crm';
+import { LOSS_REASONS } from '@/lib/lossReasons';
 
 interface LossReasonModalProps {
   rfqTitle: string;
   onConfirm: (reason: LossReason, notes: string) => void;
   onCancel: () => void;
 }
-
-const LOSS_REASONS: { value: LossReason; label: string; icon: string }[] = [
-  { value: 'price_too_high',          label: 'Price too high',               icon: '💰' },
-  { value: 'delivery_too_slow',       label: 'Delivery time too slow',        icon: '⏱️' },
-  { value: 'competitor_won',          label: 'Competitor won the deal',       icon: '🏆' },
-  { value: 'client_budget_cut',       label: 'Client budget cut / cancelled', icon: '❌' },
-  { value: 'specs_changed',           label: 'Client specs changed',          icon: '📋' },
-  { value: 'went_direct_to_supplier', label: 'Client went direct to supplier',icon: '🔄' },
-  { value: 'poor_follow_up',          label: 'Poor follow-up on our end',    icon: '📞' },
-  { value: 'other',                   label: 'Other reason',                  icon: '✏️' },
-];
 
 export function LossReasonModal({ rfqTitle, onConfirm, onCancel }: LossReasonModalProps) {
   const [selected, setSelected] = useState<LossReason | null>(null);

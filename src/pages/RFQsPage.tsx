@@ -9,6 +9,7 @@ import { RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '@/hooks/useDebounce';
 import { TableSkeleton } from '@/components/ui/skeleton';
+import { lossReasonLabel, lossReasonIcon } from '@/lib/lossReasons';
 
 const rfqStatusColors: Record<RFQStatus, string> = {
   new: 'bg-muted text-muted-foreground',
@@ -246,7 +247,14 @@ export default function RFQsPage() {
                   </div>
                 </td>
                 <td className="px-5 py-3">
-                  <span className={`status-badge capitalize ${rfqStatusColors[rfq.status]}`}>{rfq.status.replace('_', ' ')}</span>
+                  <div className="flex flex-col gap-1">
+                    <span className={`status-badge capitalize w-fit ${rfqStatusColors[rfq.status]}`}>{rfq.status.replace('_', ' ')}</span>
+                    {rfq.status === 'lost' && (rfq as any).loss_reason && (
+                      <span className="text-[10px] font-medium text-destructive flex items-center gap-1 max-w-[180px]">
+                        {lossReasonIcon((rfq as any).loss_reason)} {lossReasonLabel((rfq as any).loss_reason)}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-5 py-3">
                   <span className={`status-badge capitalize ${priorityColors[rfq.priority]}`}>{rfq.priority}</span>
