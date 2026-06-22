@@ -280,12 +280,12 @@ export default function RFQsPage() {
                 : null;
               const isExpiring = daysToDeadline !== null && daysToDeadline <= 2 && rfq.status !== 'converted' && rfq.status !== 'lost';
               const rowHighlight = rfq.status === 'converted'
-                ? 'border-l-4 border-l-success border-b-border/50 bg-success/10 hover:bg-success/15'
+                ? 'border-l-4 border-l-success border-b border-b-border/50 bg-success/10 hover:bg-success/15'
                 : rfq.status === 'quoted' && isExpiring
-                  ? 'border-l-4 border-l-warning border-b-border/50 bg-warning/5 hover:bg-warning/10'
+                  ? 'border-l-4 border-l-warning border-b border-b-border/50 bg-warning/5 hover:bg-warning/10'
                   : isExpiring
-                    ? 'border-destructive/40 bg-destructive/5 hover:bg-destructive/10'
-                    : 'border-border/50 hover:bg-muted/30';
+                    ? 'border-l-4 border-l-destructive border-b border-b-border/50 bg-destructive/5 hover:bg-destructive/10'
+                    : 'border-l-4 border-l-transparent border-b border-b-border/50 hover:bg-muted/30';
               return (
               <tr key={rfq.id} onClick={() => navigate(`/rfqs/${rfq.id}`)}
                 className={`border-b cursor-pointer transition-colors ${rowHighlight}`}>
