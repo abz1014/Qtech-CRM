@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useURLState, useURLNumber } from '@/hooks/useURLState';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
@@ -34,16 +35,16 @@ export default function OrdersPage() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useURLState('q', '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [vendorQuery, setVendorQuery] = useState('');
   const [vendorOpen, setVendorOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc'); // newest first by default
+  const [currentPage, setCurrentPage] = useURLNumber('page', 1);
+  const [itemsPerPage, setItemsPerPage] = useURLNumber('per', 10);
+  const [fromDate, setFromDate] = useURLState('from', '');
+  const [toDate, setToDate] = useURLState('to', '');
+  const [sortDir, setSortDir] = useURLState('sort', 'desc') as [string, (v: string) => void];
   const [editPO, setEditPO] = useState<{ id: string; customer_po_number: string; customer_po_date: string } | null>(null);
   const [form, setForm] = useState({
     client_id: '', vendor_id: '', product_type: 'DVR' as ProductType,
@@ -243,7 +244,7 @@ export default function OrdersPage() {
               ))}
               <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">
                 <button
-                  onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+                  onClick={() => setSortDir(sortDir === 'desc' ? 'asc' : 'desc')}
                   className="flex items-center gap-1 hover:text-foreground transition-colors"
                 >
                   PO Date

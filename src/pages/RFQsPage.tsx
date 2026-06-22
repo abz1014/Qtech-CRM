@@ -7,6 +7,7 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { Plus, X, Search, ArrowRightCircle, Trash2, Download, ArrowUp, ArrowDown } from 'lucide-react';
 import { RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
+import { useURLState, useURLNumber } from '@/hooks/useURLState';
 import { useDebounce } from '@/hooks/useDebounce';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { lossReasonLabel, lossReasonIcon } from '@/lib/lossReasons';
@@ -31,13 +32,13 @@ export default function RFQsPage() {
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc'); // newest first by default
-  const [tab, setTab] = useState<'all' | 'lost'>('all');
+  const [search, setSearch] = useURLState('q', '');
+  const [currentPage, setCurrentPage] = useURLNumber('page', 1);
+  const [itemsPerPage, setItemsPerPage] = useURLNumber('per', 10);
+  const [fromDate, setFromDate] = useURLState('from', '');
+  const [toDate, setToDate] = useURLState('to', '');
+  const [sortDir, setSortDir] = useURLState('sort', 'desc') as [string, (v: string) => void];
+  const [tab, setTab] = useURLState('tab', 'all') as [string, (v: string) => void];
 
   const [form, setForm] = useState({
     rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '',
@@ -304,7 +305,7 @@ export default function RFQsPage() {
               ))}
               <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">
                 <button
-                  onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+                  onClick={() => setSortDir(sortDir === 'desc' ? 'asc' : 'desc')}
                   className="flex items-center gap-1 hover:text-foreground transition-colors"
                 >
                   RFQ Date
