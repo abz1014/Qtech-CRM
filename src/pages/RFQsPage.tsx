@@ -113,6 +113,7 @@ export default function RFQsPage() {
       count: lost.length,
       winRate,
       avgResponseDays,
+      avgResponseSample: quotedRfqs.length,
       pendingQuotes,
       preventable,
       topReason: top ? { reason: top[0], n: top[1] } : null,
@@ -616,7 +617,7 @@ export default function RFQsPage() {
 // ─── Lost Deals View ──────────────────────────────────────────────────────────
 function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navigate }: {
   lostRFQs: any[];
-  metrics: { count: number; winRate: number; avgResponseDays: number; pendingQuotes: number; preventable: number; topReason: { reason: string; n: number } | null };
+  metrics: { count: number; winRate: number; avgResponseDays: number; avgResponseSample: number; pendingQuotes: number; preventable: number; topReason: { reason: string; n: number } | null };
   search: string;
   setSearch: (s: string) => void;
   getUserName: (id: string) => string;
@@ -639,7 +640,7 @@ function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navi
         <div className={`glass-card p-5 border-l-4 ${metrics.avgResponseDays <= 3 ? 'border-success' : metrics.avgResponseDays <= 7 ? 'border-warning' : 'border-destructive'}`}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Avg Response Time</p>
           <p className={`text-3xl font-extrabold mt-1 tracking-tight ${metrics.avgResponseDays <= 3 ? 'text-success' : metrics.avgResponseDays <= 7 ? 'text-warning' : 'text-destructive'}`}>{metrics.avgResponseDays}d</p>
-          <p className="text-xs text-muted-foreground mt-1">RFQ received → quote sent</p>
+          <p className="text-xs text-muted-foreground mt-1">{metrics.avgResponseSample > 0 ? `based on ${metrics.avgResponseSample} quote${metrics.avgResponseSample !== 1 ? 's' : ''}` : 'no data yet — tracks from next quote'}</p>
         </div>
         <div className={`glass-card p-5 border-l-4 ${metrics.pendingQuotes > 0 ? 'border-info' : 'border-muted'}`}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pending Quotes</p>

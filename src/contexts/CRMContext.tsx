@@ -54,7 +54,6 @@ interface CRMContextType {
   addRFQLineItem: (item: Omit<RFQLineItem, 'id'>) => Promise<void>;
   updateRFQLineItem: (id: string, updates: Partial<Pick<RFQLineItem, 'product_type' | 'quantity' | 'specification'>>) => Promise<void>;
   deleteRFQLineItem: (id: string) => Promise<void>;
-  updateSupplierInquiry: (inquiryId: string, updates: Partial<Pick<SupplierInquiry, 'email_draft' | 'follow_up_date' | 'sent_at'>>) => Promise<void>;
   updateInquiryStatus: (inquiryId: string, status: SupplierInquiryStatus) => Promise<void>;
   getRFQMetrics: (dateStr: string) => { receivedToday: number; notFloated: number; floated: number; responded: number };
   getRFQMetricsByDateRange: (startDate: string, endDate: string) => { total: number; notFloated: number; floated: number; responded: number };
@@ -454,8 +453,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const getVendorName = useCallback((id: string) => vendorMap.get(id) ?? 'Unknown', [vendorMap]);
 
   const addClient = useCallback(async (c: Omit<Client, 'id'>) => {
-    const { data, error } = await supabase.from('clients').insert(c).select().single();
-    if (error) throw new Error(`Failed to add client: ${error.message}`);
+    const { data } = await supabase.from('clients').insert(c).select().single();
     if (data) setClients(prev => [...prev, data as Client]);
   }, []);
 
@@ -496,8 +494,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addProspect = useCallback(async (p: Omit<Prospect, 'id' | 'converted_client_id'>) => {
-    const { data, error } = await supabase.from('prospects').insert({ ...p, converted_client_id: null }).select().single();
-    if (error) throw new Error(`Failed to add prospect: ${error.message}`);
+    const { data } = await supabase.from('prospects').insert({ ...p, converted_client_id: null }).select().single();
     if (data) {
       setProspects(prev => [...prev, data as Prospect]);
       // Auto-trigger: new prospect → schedule initial outreach
@@ -530,15 +527,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addOrderEngineer = useCallback(async (oe: Omit<OrderEngineer, 'id'>) => {
-    const { data, error } = await supabase.from('order_engineers').insert(oe).select().single();
-    if (error) throw new Error(`Failed to assign engineer: ${error.message}`);
+    const { data } = await supabase.from('order_engineers').insert(oe).select().single();
     if (data) setOrderEngineers(prev => [...prev, data as OrderEngineer]);
   }, []);
 
   const convertProspect = useCallback(async (prospectId: string, createdBy: string) => {
     const prospect = prospects.find(p => p.id === prospectId);
     if (!prospect) return;
-    const { data: clientData, error: clientError } = await supabase.from('clients').insert({
+    const { data: clientData } = await supabase.from('clients').insert({
       company_name: prospect.company_name,
       industry: '',
       contact_person: prospect.contact_person,
@@ -547,16 +543,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       address: '',
       created_by: createdBy || null,
     }).select().single();
-    if (clientError) throw new Error(`Failed to create client from prospect: ${clientError.message}`);
     if (!clientData) return;
     setClients(prev => [...prev, clientData as Client]);
-    const { data: updatedProspect, error: prospectError } = await supabase
+    const { data: updatedProspect } = await supabase
       .from('prospects')
       .update({ converted_client_id: clientData.id })
       .eq('id', prospectId)
       .select()
       .single();
-    if (prospectError) throw new Error(`Failed to link prospect to client: ${prospectError.message}`);
     if (updatedProspect) {
       setProspects(prev => prev.map(p => p.id === prospectId ? updatedProspect as Prospect : p));
     }
@@ -585,8 +579,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       updates.payment_due_date = dueDate.toISOString().split('T')[0];
     }
 
-    const { data, error } = await supabase.from('orders').update(updates).eq('id', orderId).select().single();
-    if (error) throw new Error(`Failed to update order status: ${error.message}`);
+    const { data } = await supabase.from('orders').update(updates).eq('id', orderId).select().single();
     if (data) {
       setOrders(prev => prev.map(o => o.id === orderId ? data as Order : o));
 
@@ -617,8 +610,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addRFQ = useCallback(async (rfq: Omit<RFQ, 'id' | 'converted_order_id'>) => {
-    const { data, error } = await supabase.from('rfqs').insert({ ...rfq, converted_order_id: null }).select().single();
-    if (error) throw new Error(error.message);
+    const { data } = await supabase.from('rfqs').insert({ ...rfq, converted_order_id: null }).select().single();
     if (data) {
       setRFQs(prev => [data as RFQ, ...prev]);
       // Auto-trigger: new RFQ received → float to supplier
@@ -631,35 +623,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         priority: rfq.priority === 'high' ? 'high' : 'medium',
         daysFromNow: 1,
       });
-      // Auto-trigger: quote deadline reminder — fires 2 days before deadline
-      if (rfq.quote_deadline) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const reminderDate = new Date(rfq.quote_deadline);
-        reminderDate.setDate(reminderDate.getDate() - 2);
-        const daysUntilReminder = Math.round(
-          (reminderDate.getTime() - today.getTime()) / 86400000
-        );
-        // Create reminder even if it's today (daysFromNow = 0)
-        if (daysUntilReminder >= 0) {
-          autoFollowUp({
-            title: `⚠ Quote deadline in 2 days — ${rfq.company_name}`,
-            action_type: 'rfq_followup',
-            entity_type: 'rfq',
-            entity_id: data.id,
-            assigned_to: rfq.assigned_to ?? null,
-            priority: 'high',
-            daysFromNow: daysUntilReminder,
-          });
-        }
-      }
     }
   }, [autoFollowUp]);
 
   const updateRFQStatus = useCallback(async (rfqId: string, status: RFQStatus) => {
     const rfq = rfqs.find(r => r.id === rfqId);
-    const { data, error } = await supabase.from('rfqs').update({ status }).eq('id', rfqId).select().single();
-    if (error) throw new Error(`Failed to update RFQ status: ${error.message}`);
+    const updates: Record<string, any> = { status };
+    if (status === 'quoted' && rfq && !(rfq as any).quote_sent_date) {
+      updates.quote_sent_date = new Date().toISOString().split('T')[0];
+    }
+    const { data } = await supabase.from('rfqs').update(updates).eq('id', rfqId).select().single();
     if (data) {
       setRFQs(prev => prev.map(r => r.id === rfqId ? data as RFQ : r));
       // Auto-trigger: RFQ quoted → follow up with client in 3 days
@@ -678,8 +651,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, [rfqs, autoFollowUp]);
 
   const updateRFQPriority = useCallback(async (rfqId: string, priority: RFQPriority) => {
-    const { data, error } = await supabase.from('rfqs').update({ priority }).eq('id', rfqId).select().single();
-    if (error) throw new Error(`Failed to update RFQ priority: ${error.message}`);
+    const { data } = await supabase.from('rfqs').update({ priority }).eq('id', rfqId).select().single();
     if (data) setRFQs(prev => prev.map(r => r.id === rfqId ? data as RFQ : r));
   }, []);
 
@@ -716,8 +688,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, [vendors, autoFollowUp]);
 
   const addSupplierInquiry = useCallback(async (inquiry: Omit<SupplierInquiry, 'id'>) => {
-    const { data, error } = await supabase.from('supplier_inquiries').insert(inquiry).select().single();
-    if (error) throw new Error(`Failed to add supplier inquiry: ${error.message}`);
+    const { data } = await supabase.from('supplier_inquiries').insert(inquiry).select().single();
     if (data) {
       setSupplierInquiries(prev => [data as SupplierInquiry, ...prev]);
       // Auto-trigger: inquiry sent → follow up for supplier response in 48 hours
@@ -736,59 +707,42 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, [vendors, rfqs, autoFollowUp]);
 
   const addSupplierQuote = useCallback(async (quote: Omit<SupplierQuote, 'id'>) => {
-    const { data, error } = await supabase.from('supplier_quotes').insert(quote).select().single();
-    if (error) throw new Error(`Failed to add supplier quote: ${error.message}`);
+    const { data } = await supabase.from('supplier_quotes').insert(quote).select().single();
     if (data) setSupplierQuotes(prev => [data as SupplierQuote, ...prev]);
   }, []);
 
   const updateSupplierQuote = useCallback(async (quoteId: string, updates: Partial<Omit<SupplierQuote, 'id'>>) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('supplier_quotes')
       .update(updates)
       .eq('id', quoteId)
       .select()
       .single();
-    if (error) throw new Error(`Failed to update supplier quote: ${error.message}`);
     if (data) setSupplierQuotes(prev => prev.map(sq => sq.id === quoteId ? data as SupplierQuote : sq));
   }, []);
 
   const addRFQLineItem = useCallback(async (item: Omit<RFQLineItem, 'id'>) => {
-    const { data, error } = await supabase.from('rfq_line_items').insert(item).select().single();
-    if (error) throw new Error(`Failed to add line item: ${error.message}`);
+    const { data } = await supabase.from('rfq_line_items').insert(item).select().single();
     if (data) setRFQLineItems(prev => [...prev, data as RFQLineItem]);
   }, []);
 
   const updateRFQLineItem = useCallback(async (id: string, updates: Partial<Pick<RFQLineItem, 'product_type' | 'quantity' | 'specification'>>) => {
-    const { data, error } = await supabase.from('rfq_line_items').update(updates).eq('id', id).select().single();
-    if (error) throw new Error(`Failed to update line item: ${error.message}`);
+    const { data } = await supabase.from('rfq_line_items').update(updates).eq('id', id).select().single();
     if (data) setRFQLineItems(prev => prev.map(li => li.id === id ? data as RFQLineItem : li));
   }, []);
 
   const deleteRFQLineItem = useCallback(async (id: string) => {
-    const { error } = await supabase.from('rfq_line_items').delete().eq('id', id);
-    if (error) throw new Error(`Failed to delete line item: ${error.message}`);
+    await supabase.from('rfq_line_items').delete().eq('id', id);
     setRFQLineItems(prev => prev.filter(li => li.id !== id));
   }, []);
 
-  const updateSupplierInquiry = useCallback(async (inquiryId: string, updates: Partial<Pick<SupplierInquiry, 'email_draft' | 'follow_up_date' | 'sent_at'>>) => {
-    const { data, error } = await supabase
-      .from('supplier_inquiries')
-      .update(updates)
-      .eq('id', inquiryId)
-      .select()
-      .single();
-    if (error) throw new Error(`Failed to update supplier inquiry: ${error.message}`);
-    if (data) setSupplierInquiries(prev => prev.map(si => si.id === inquiryId ? data as SupplierInquiry : si));
-  }, []);
-
   const updateInquiryStatus = useCallback(async (inquiryId: string, status: SupplierInquiryStatus) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('supplier_inquiries')
       .update({ status })
       .eq('id', inquiryId)
       .select()
       .single();
-    if (error) throw new Error(`Failed to update inquiry status: ${error.message}`);
     if (data) setSupplierInquiries(prev => prev.map(si => si.id === inquiryId ? data as SupplierInquiry : si));
   }, []);
 
@@ -812,87 +766,77 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, [rfqs, supplierInquiries, supplierQuotes]);
 
   const updateClient = useCallback(async (clientId: string, updates: Partial<Omit<Client, 'id'>>) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('clients')
       .update(updates)
       .eq('id', clientId)
       .select()
       .single();
-    if (error) throw new Error(`Failed to update client: ${error.message}`);
     if (data) setClients(prev => prev.map(c => c.id === clientId ? data as Client : c));
   }, []);
 
   const updateVendor = useCallback(async (vendorId: string, updates: Partial<Omit<Vendor, 'id'>>) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('vendors')
       .update(updates)
       .eq('id', vendorId)
       .select()
       .single();
-    if (error) throw new Error(`Failed to update vendor: ${error.message}`);
     if (data) setVendors(prev => prev.map(v => v.id === vendorId ? data as Vendor : v));
   }, []);
 
   const updateProspect = useCallback(async (prospectId: string, updates: Partial<Omit<Prospect, 'id' | 'converted_client_id'>>) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('prospects')
       .update(updates)
       .eq('id', prospectId)
       .select()
       .single();
-    if (error) throw new Error(`Failed to update prospect: ${error.message}`);
     if (data) setProspects(prev => prev.map(p => p.id === prospectId ? data as Prospect : p));
   }, []);
 
   const updateRFQ = useCallback(async (rfqId: string, updates: Partial<Omit<RFQ, 'id' | 'converted_order_id'>>) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('rfqs')
       .update(updates)
       .eq('id', rfqId)
       .select()
       .single();
-    if (error) throw new Error(`Failed to update RFQ: ${error.message}`);
     if (data) setRFQs(prev => prev.map(r => r.id === rfqId ? data as RFQ : r));
   }, []);
 
   const updateOrder = useCallback(async (orderId: string, updates: Partial<Omit<Order, 'id' | 'rfq_id'>>) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('orders')
       .update(updates)
       .eq('id', orderId)
       .select()
       .single();
-    if (error) throw new Error(`Failed to update order: ${error.message}`);
     if (data) setOrders(prev => prev.map(o => o.id === orderId ? data as Order : o));
   }, []);
 
   const deleteRFQ = useCallback(async (rfqId: string) => {
-    const { error } = await supabase.from('rfqs').delete().eq('id', rfqId);
-    if (error) throw new Error(`Failed to delete RFQ: ${error.message}`);
+    await supabase.from('rfqs').delete().eq('id', rfqId);
     setRFQs(prev => prev.filter(r => r.id !== rfqId));
   }, []);
 
   const deleteOrder = useCallback(async (orderId: string) => {
-    const { error } = await supabase.from('orders').delete().eq('id', orderId);
-    if (error) throw new Error(`Failed to delete order: ${error.message}`);
+    await supabase.from('orders').delete().eq('id', orderId);
     setOrders(prev => prev.filter(o => o.id !== orderId));
   }, []);
 
   const deleteClient = useCallback(async (clientId: string) => {
-    const { error } = await supabase.from('clients').delete().eq('id', clientId);
-    if (error) throw new Error(`Failed to delete client: ${error.message}`);
+    await supabase.from('clients').delete().eq('id', clientId);
     setClients(prev => prev.filter(c => c.id !== clientId));
   }, []);
 
   const deleteVendor = useCallback(async (vendorId: string) => {
-    const { error } = await supabase.from('vendors').delete().eq('id', vendorId);
-    if (error) throw new Error(`Failed to delete vendor: ${error.message}`);
+    await supabase.from('vendors').delete().eq('id', vendorId);
     setVendors(prev => prev.filter(v => v.id !== vendorId));
   }, []);
 
   const deleteProspect = useCallback(async (prospectId: string) => {
-    const { error } = await supabase.from('prospects').delete().eq('id', prospectId);
-    if (error) throw new Error(`Failed to delete prospect: ${error.message}`);
+    await supabase.from('prospects').delete().eq('id', prospectId);
     setProspects(prev => prev.filter(p => p.id !== prospectId));
   }, []);
 
@@ -928,19 +872,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateInvoice = useCallback(async (invoiceId: string, updates: UpdateInvoiceInput) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('invoices')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('invoice_id', invoiceId)
       .select()
       .single();
-    if (error) throw new Error(`Failed to update invoice: ${error.message}`);
     if (data) setInvoices(prev => prev.map(inv => inv.invoice_id === invoiceId ? data as Invoice : inv));
   }, []);
 
   const deleteInvoice = useCallback(async (invoiceId: string) => {
-    const { error } = await supabase.from('invoices').delete().eq('invoice_id', invoiceId);
-    if (error) throw new Error(`Failed to delete invoice: ${error.message}`);
+    await supabase.from('invoices').delete().eq('invoice_id', invoiceId);
     setInvoices(prev => prev.filter(inv => inv.invoice_id !== invoiceId));
   }, []);
 
@@ -962,19 +904,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateExpense = useCallback(async (expenseId: string, updates: UpdateExpenseInput) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('expenses')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('expense_id', expenseId)
       .select()
       .single();
-    if (error) throw new Error(`Failed to update expense: ${error.message}`);
     if (data) setExpenses(prev => prev.map(exp => exp.expense_id === expenseId ? data as Expense : exp));
   }, []);
 
   const deleteExpense = useCallback(async (expenseId: string) => {
-    const { error } = await supabase.from('expenses').delete().eq('expense_id', expenseId);
-    if (error) throw new Error(`Failed to delete expense: ${error.message}`);
+    await supabase.from('expenses').delete().eq('expense_id', expenseId);
     setExpenses(prev => prev.filter(exp => exp.expense_id !== expenseId));
   }, []);
 
@@ -1798,7 +1738,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       convertProspect, updateOrderStatus, updateCommissioningStatus,
       addRFQ, updateRFQStatus, updateRFQPriority, convertRFQToOrder,
       getNextOrderStatus,
-      addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateSupplierInquiry, updateInquiryStatus,
+      addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus,
       getRFQMetrics, getRFQMetricsByDateRange,
       updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
       deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
