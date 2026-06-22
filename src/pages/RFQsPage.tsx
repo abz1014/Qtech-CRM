@@ -328,7 +328,7 @@ export default function RFQsPage() {
                     return (
                       <div className="flex flex-wrap gap-1">
                         {items.slice(0, 3).map(li => (
-                          <span key={li.id} className="text-[11px] font-medium bg-info/10 text-info px-1.5 py-0.5 rounded">{li.product_type}{li.quantity > 1 ? ` ×${li.quantity}` : ''}</span>
+                          <span key={li.id} className="text-[11px] font-medium bg-info/10 text-foreground px-1.5 py-0.5 rounded">{li.product_type}{li.quantity > 1 ? ` ×${li.quantity}` : ''}</span>
                         ))}
                         {items.length > 3 && <span className="text-[10px] text-muted-foreground">+{items.length - 3} more</span>}
                       </div>
