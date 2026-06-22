@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { Pagination } from '@/components/Pagination';
-import { Plus, X, Search, Trash2, Download } from 'lucide-react';
+import { Plus, X, Search, Trash2, Download, Pencil } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -10,13 +10,14 @@ import { TableSkeleton } from '@/components/ui/skeleton';
 
 export default function VendorsPage() {
   const navigate = useNavigate();
-  const { vendors, addVendor, deleteVendor, orders, supplierInquiries, loading } = useCRM();
+  const { vendors, addVendor, updateVendor, deleteVendor, orders, supplierInquiries, loading } = useCRM();
   const { isAdmin } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [editVendor, setEditVendor] = useState<{ id: string; name: string; country: string; contact_person: string; phone: string; email: string; products_supplied: string } | null>(null);
   const [form, setForm] = useState({
     name: '', country: '', contact_person: '', phone: '', email: '', products_supplied: '',
   });
@@ -49,6 +50,24 @@ export default function VendorsPage() {
       alert('Vendor deleted successfully');
     } catch (error) {
       alert('Error deleting vendor: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editVendor) return;
+    try {
+      await updateVendor(editVendor.id, {
+        name: editVendor.name,
+        country: editVendor.country,
+        contact_person: editVendor.contact_person,
+        phone: editVendor.phone,
+        email: editVendor.email,
+        products_supplied: editVendor.products_supplied,
+      });
+      setEditVendor(null);
+    } catch (error) {
+      alert('Failed to update vendor: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -117,18 +136,30 @@ export default function VendorsPage() {
                 <td className="px-5 py-3 text-sm text-muted-foreground">{v.phone}</td>
                 <td className="px-5 py-3 text-sm text-muted-foreground">{v.products_supplied}</td>
                 <td className="px-5 py-3">
-                  {isAdmin && (
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowDeleteConfirm(v.id);
+                        setEditVendor({ id: v.id, name: v.name, country: v.country, contact_person: v.contact_person, phone: v.phone, email: v.email, products_supplied: v.products_supplied });
                       }}
-                      className="text-destructive hover:text-destructive/80 transition-colors"
-                      title="Delete Vendor"
+                      className="text-primary hover:text-primary/80 transition-colors"
+                      title="Edit Vendor"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Pencil className="w-4 h-4" />
                     </button>
-                  )}
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowDeleteConfirm(v.id);
+                        }}
+                        className="text-destructive hover:text-destructive/80 transition-colors"
+                        title="Delete Vendor"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -175,6 +206,38 @@ export default function VendorsPage() {
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">Add Vendor</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Vendor Modal */}
+      {editVendor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Edit Vendor</h2>
+              <button onClick={() => setEditVendor(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="space-y-3">
+              {([
+                ['name', 'Company Name'],
+                ['country', 'Country'],
+                ['contact_person', 'Contact Person'],
+                ['phone', 'Phone'],
+                ['email', 'Email'],
+                ['products_supplied', 'Products Supplied'],
+              ] as const).map(([key, label]) => (
+                <div key={key}>
+                  <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
+                  <input value={(editVendor as any)[key]} onChange={e => setEditVendor(prev => prev ? { ...prev, [key]: e.target.value } : null)}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+                </div>
+              ))}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditVendor(null)} className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">Save Changes</button>
               </div>
             </form>
           </div>

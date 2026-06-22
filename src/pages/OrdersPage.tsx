@@ -54,7 +54,8 @@ export default function OrdersPage() {
   const filtered = useMemo(() => {
     const list = orders.filter(o => {
       const matchesSearch = getClientName(o.client_id).toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        o.product_type.toLowerCase().includes(debouncedSearch.toLowerCase());
+        o.product_type.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        ((o as any).customer_po_number?.toLowerCase().includes(debouncedSearch.toLowerCase()) ?? false);
       const matchesDateRange = (!fromDate || (o.confirmed_date && o.confirmed_date >= fromDate)) &&
         (!toDate || (o.confirmed_date && o.confirmed_date <= toDate));
       return matchesSearch && matchesDateRange;
@@ -66,7 +67,7 @@ export default function OrdersPage() {
     });
   }, [orders, debouncedSearch, fromDate, toDate, getClientName, sortDir]);
 
-  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
+  if (loading) return <TableSkeleton cols={6} rows={8} headers={['PO #', 'Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
 
   const paginatedOrders = filtered.slice(
     (currentPage - 1) * itemsPerPage,
@@ -179,7 +180,7 @@ export default function OrdersPage() {
       <div className="flex flex-col sm:flex-row gap-4 items-end">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search orders..."
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by PO#, client, product..."
             className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
         </div>
         <div>
@@ -198,7 +199,7 @@ export default function OrdersPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              {['Client', 'Vendor', 'Product', 'Order Value', 'Status'].map(h => (
+              {['PO #', 'Client', 'Vendor', 'Product', 'Order Value', 'Status'].map(h => (
                 <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
               ))}
               <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">
@@ -217,6 +218,11 @@ export default function OrdersPage() {
             {paginatedOrders.map(o => (
                 <tr key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
                   className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
+                  <td className="px-5 py-3">
+                    <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
+                      {(o as any).customer_po_number || '—'}
+                    </span>
+                  </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className="avatar-xs bg-primary/15 text-primary">

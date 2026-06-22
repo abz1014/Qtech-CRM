@@ -25,10 +25,8 @@ const priorityColors: Record<RFQPriority, string> = {
   low: 'bg-muted text-muted-foreground',
 };
 
-const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
-
 export default function RFQsPage() {
-  const { rfqs, clients, users, supplierInquiries, supplierQuotes, addRFQ, updateRFQStatus, updateRFQPriority, deleteRFQ, getUserName, loading } = useCRM();
+  const { rfqs, clients, users, supplierInquiries, supplierQuotes, rfqLineItems, addRFQ, updateRFQStatus, updateRFQPriority, deleteRFQ, getUserName, loading } = useCRM();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
@@ -99,7 +97,7 @@ export default function RFQsPage() {
     };
   }, [rfqs]);
 
-  if (loading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Contact', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
+  if (loading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Products', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedRFQs = filtered.slice(
@@ -110,20 +108,24 @@ export default function RFQsPage() {
   const handleExportCSV = () => {
     const headers = [
       'Company Name', 'Contact Person', 'Phone', 'Email',
-      'RFQ Date', 'Status', 'Priority', 'Assigned To',
+      'RFQ Date', 'Quote Deadline', 'Status', 'Priority', 'Assigned To',
       'Inquiries Sent', 'Quotes Received',
-      'Quoted Price (PKR)', 'Quote Sent Date', 'Quote Expiry Date',
+      'Quoted Price (PKR)', 'Quote Sent Date', 'Quote Expiry Date', 'Expired',
       'Loss Reason', 'Loss Notes', 'Notes',
     ];
+    const today = new Date().toISOString().split('T')[0];
     const rows = filtered.map(r => {
       const inquiryCount = supplierInquiries.filter(si => si.rfq_id === r.id).length;
       const quoteCount = supplierQuotes.filter(sq => sq.rfq_id === r.id).length;
+      const expiry = (r as any).quote_expiry_date || '';
+      const isExpired = expiry && expiry < today ? 'Yes' : expiry ? 'No' : '';
       return [
         r.company_name,
         r.contact_person,
         r.phone,
         r.email,
         r.rfq_date,
+        r.quote_deadline || '',
         r.status.replace(/_/g, ' ').toUpperCase(),
         r.priority.toUpperCase(),
         getUserName(r.assigned_to),
@@ -131,7 +133,8 @@ export default function RFQsPage() {
         quoteCount,
         (r as any).quoted_price ?? '',
         (r as any).quote_sent_date ?? '',
-        (r as any).quote_expiry_date ?? '',
+        expiry,
+        isExpired,
         (r as any).loss_reason?.replace(/_/g, ' ') ?? '',
         (r as any).loss_notes ?? '',
         r.notes || '',
@@ -252,7 +255,7 @@ export default function RFQsPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
-              {['RFQ #', 'Company', 'Contact'].map(h => (
+              {['RFQ #', 'Company', 'Products'].map(h => (
                 <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
               ))}
               <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">
@@ -275,10 +278,17 @@ export default function RFQsPage() {
               const daysToDeadline = rfq.quote_deadline
                 ? Math.round((new Date(rfq.quote_deadline).getTime() - new Date(today).getTime()) / 86400000)
                 : null;
-              const deadlineUrgent = daysToDeadline !== null && daysToDeadline <= 2 && rfq.status !== 'converted' && rfq.status !== 'lost';
+              const isExpiring = daysToDeadline !== null && daysToDeadline <= 2 && rfq.status !== 'converted' && rfq.status !== 'lost';
+              const rowHighlight = rfq.status === 'converted'
+                ? 'border-success/40 bg-success/5 hover:bg-success/10'
+                : rfq.status === 'quoted' && isExpiring
+                  ? 'border-warning/40 bg-warning/5 hover:bg-warning/10'
+                  : isExpiring
+                    ? 'border-destructive/40 bg-destructive/5 hover:bg-destructive/10'
+                    : 'border-border/50 hover:bg-muted/30';
               return (
               <tr key={rfq.id} onClick={() => navigate(`/rfqs/${rfq.id}`)}
-                className={`border-b cursor-pointer transition-colors ${deadlineUrgent ? 'border-destructive/40 bg-destructive/5 hover:bg-destructive/10' : 'border-border/50 hover:bg-muted/30'}`}>
+                className={`border-b cursor-pointer transition-colors ${rowHighlight}`}>
                 <td className="px-5 py-3">
                   <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
                     {rfq.rfq_number || '—'}
@@ -292,20 +302,33 @@ export default function RFQsPage() {
                     <span className="text-sm font-medium text-foreground">{rfq.company_name}</span>
                   </div>
                 </td>
-                <td className="px-5 py-3 text-sm text-foreground">{rfq.contact_person}</td>
+                <td className="px-5 py-3">
+                  {(() => {
+                    const items = rfqLineItems.filter(li => li.rfq_id === rfq.id);
+                    if (items.length === 0) return <span className="text-sm text-muted-foreground italic">No items</span>;
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {items.slice(0, 3).map(li => (
+                          <span key={li.id} className="text-[11px] font-medium bg-info/10 text-info px-1.5 py-0.5 rounded">{li.product_type}{li.quantity > 1 ? ` ×${li.quantity}` : ''}</span>
+                        ))}
+                        {items.length > 3 && <span className="text-[10px] text-muted-foreground">+{items.length - 3} more</span>}
+                      </div>
+                    );
+                  })()}
+                </td>
                 <td className="px-5 py-3 text-sm text-muted-foreground">
                   <div className="flex flex-col gap-0.5">
                     <span>{formatDate(rfq.rfq_date)}</span>
-                    {rfq.quote_deadline && (
-                      <span className={`text-[10px] font-semibold flex items-center gap-1 ${deadlineUrgent ? 'text-destructive' : 'text-muted-foreground'}`}>
-                        {deadlineUrgent ? '🔴' : '📅'} Deadline: {formatDate(rfq.quote_deadline)}
-                        {daysToDeadline !== null && daysToDeadline <= 2 && daysToDeadline >= 0 && (
-                          <span className="px-1 py-0.5 rounded bg-destructive/15 text-destructive text-[10px] font-bold">
+                    {rfq.quote_deadline && rfq.status !== 'converted' && (
+                      <span className={`text-[10px] font-semibold flex items-center gap-1 ${isExpiring ? (rfq.status === 'quoted' ? 'text-warning' : 'text-destructive') : 'text-muted-foreground'}`}>
+                        {isExpiring ? (rfq.status === 'quoted' ? '🟡' : '🔴') : '📅'} Deadline: {formatDate(rfq.quote_deadline)}
+                        {daysToDeadline !== null && daysToDeadline <= 2 && daysToDeadline >= 0 && rfq.status !== 'lost' && (
+                          <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${rfq.status === 'quoted' ? 'bg-warning/15 text-warning' : 'bg-destructive/15 text-destructive'}`}>
                             {daysToDeadline === 0 ? 'TODAY' : `${daysToDeadline}d left`}
                           </span>
                         )}
-                        {daysToDeadline !== null && daysToDeadline < 0 && (
-                          <span className="px-1 py-0.5 rounded bg-destructive/15 text-destructive text-[10px] font-bold">EXPIRED</span>
+                        {daysToDeadline !== null && daysToDeadline < 0 && rfq.status !== 'lost' && (
+                          <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${rfq.status === 'quoted' ? 'bg-warning/15 text-warning' : 'bg-destructive/15 text-destructive'}`}>EXPIRED</span>
                         )}
                       </span>
                     )}
@@ -557,6 +580,9 @@ function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navi
   navigate: (path: string) => void;
 }) {
   const [viewNote, setViewNote] = useState<{ company: string; note: string } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const paginatedLost = lostRFQs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="space-y-5">
@@ -608,7 +634,7 @@ function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navi
               </tr>
             </thead>
             <tbody>
-              {lostRFQs.map(r => (
+              {paginatedLost.map(r => (
                 <tr key={r.id} onClick={() => navigate(`/rfqs/${r.id}`)} className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
                   <td className="px-5 py-3 text-sm font-medium text-foreground">{r.company_name}</td>
                   <td className="px-5 py-3 text-xs font-mono text-muted-foreground">{r.rfq_number || '—'}</td>
@@ -639,6 +665,20 @@ function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navi
           </table>
         )}
       </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalItems={lostRFQs.length}
+        itemsPerPage={itemsPerPage}
+        onPageChange={(page) => {
+          setCurrentPage(page);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onItemsPerPageChange={(items) => {
+          setItemsPerPage(items);
+          setCurrentPage(1);
+        }}
+      />
 
       {/* Notes popup */}
       {viewNote && (
