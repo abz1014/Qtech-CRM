@@ -195,21 +195,42 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-end">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by PO#, client, product..."
-            className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-4 items-end">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by PO#, client, product..."
+              className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">From Date</label>
+            <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setCurrentPage(1); }}
+              className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">To Date</label>
+            <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setCurrentPage(1); }}
+              className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">From Date</label>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-            className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">To Date</label>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-            className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+        <div className="flex flex-wrap gap-2">
+          {([
+            ['This Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day + 1); setFromDate(mon.toISOString().split('T')[0]); setToDate(new Date().toISOString().split('T')[0]); }],
+            ['Last Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day - 6); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); setFromDate(mon.toISOString().split('T')[0]); setToDate(sun.toISOString().split('T')[0]); }],
+            ['This Month', () => { const d = new Date(); setFromDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`); setToDate(d.toISOString().split('T')[0]); }],
+            ['Last Month', () => { const d = new Date(); d.setMonth(d.getMonth()-1); const start = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; const end = new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().split('T')[0]; setFromDate(start); setToDate(end); }],
+          ] as [string, () => void][]).map(([label, fn]) => (
+            <button key={label} type="button" onClick={() => { fn(); setCurrentPage(1); }}
+              className="px-3 py-1.5 text-xs font-medium bg-muted border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors">
+              {label}
+            </button>
+          ))}
+          {(fromDate || toDate) && (
+            <button type="button" onClick={() => { setFromDate(''); setToDate(''); setCurrentPage(1); }}
+              className="px-3 py-1.5 text-xs font-medium bg-destructive/10 border border-destructive/30 rounded-lg text-destructive hover:bg-destructive/20 transition-colors">
+              Reset Dates
+            </button>
+          )}
         </div>
       </div>
 
