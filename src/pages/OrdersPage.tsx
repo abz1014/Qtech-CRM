@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
-import { Plus, X, Search, Trash2, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, X, Search, Trash2, Download, ArrowUp, ArrowDown, Pencil } from 'lucide-react';
 import { formatDate } from '@/lib/format';
 import { OrderStatus, ProductType } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -30,7 +30,7 @@ const statusLabels: Record<string, string> = {
 const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
 
 export default function OrdersPage() {
-  const { orders, clients, vendors, addOrder, addVendor, deleteOrder, getClientName, getVendorName, getUserName, loading } = useCRM();
+  const { orders, clients, vendors, addOrder, updateOrder, addVendor, deleteOrder, getClientName, getVendorName, getUserName, loading } = useCRM();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
@@ -44,9 +44,11 @@ export default function OrdersPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc'); // newest first by default
+  const [editPO, setEditPO] = useState<{ id: string; customer_po_number: string; customer_po_date: string } | null>(null);
   const [form, setForm] = useState({
     client_id: '', vendor_id: '', product_type: 'DVR' as ProductType,
     order_value: '', cost_value: '', status: 'po_received' as OrderStatus, notes: '',
+    customer_po_number: '', customer_po_date: '',
   });
 
   const debouncedSearch = useDebounce(search);
@@ -144,9 +146,11 @@ export default function OrdersPage() {
       sales_person_id: user?.id ?? '',
       confirmed_date: null,
       rfq_id: null,
-    });
+      customer_po_number: form.customer_po_number.trim() || null,
+      customer_po_date: form.customer_po_date || null,
+    } as any);
     setShowForm(false);
-    setForm({ client_id: '', vendor_id: '', product_type: 'DVR', order_value: '', cost_value: '', status: 'po_received', notes: '' });
+    setForm({ client_id: '', vendor_id: '', product_type: 'DVR', order_value: '', cost_value: '', status: 'po_received', notes: '', customer_po_number: '', customer_po_date: '' });
     setVendorQuery('');
   };
 
@@ -157,6 +161,20 @@ export default function OrdersPage() {
       alert('Order deleted successfully');
     } catch (error) {
       alert('Error deleting order: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
+  const handleEditPO = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPO) return;
+    try {
+      await updateOrder(editPO.id, {
+        customer_po_number: editPO.customer_po_number.trim() || null,
+        customer_po_date: editPO.customer_po_date || null,
+      } as any);
+      setEditPO(null);
+    } catch (error) {
+      alert('Failed to update: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -241,18 +259,30 @@ export default function OrdersPage() {
                     {o.confirmed_date ? formatDate(o.confirmed_date) : '—'}
                   </td>
                   <td className="px-5 py-3">
-                    {isAdmin && (
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setShowDeleteConfirm(o.id);
+                          setEditPO({ id: o.id, customer_po_number: (o as any).customer_po_number || '', customer_po_date: (o as any).customer_po_date || '' });
                         }}
-                        className="text-destructive hover:text-destructive/80 transition-colors"
-                        title="Delete Order"
+                        className="text-primary hover:text-primary/80 transition-colors"
+                        title="Edit PO Details"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Pencil className="w-4 h-4" />
                       </button>
-                    )}
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowDeleteConfirm(o.id);
+                          }}
+                          className="text-destructive hover:text-destructive/80 transition-colors"
+                          title="Delete Order"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
             ))}
@@ -360,6 +390,18 @@ export default function OrdersPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">PO Number *</label>
+                  <input type="text" placeholder="e.g. PO-2026-001" value={form.customer_po_number} onChange={e => setForm(prev => ({ ...prev, customer_po_number: e.target.value }))}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">PO Date</label>
+                  <input type="date" value={form.customer_po_date} onChange={e => setForm(prev => ({ ...prev, customer_po_date: e.target.value }))}
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Order Value (PKR)</label>
                   <input type="number" value={form.order_value} onChange={e => setForm(prev => ({ ...prev, order_value: e.target.value }))}
                     className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
@@ -378,6 +420,36 @@ export default function OrdersPage() {
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">Create Order</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit PO Modal */}
+      {editPO && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="modal-card max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Edit PO Details</h2>
+              <button onClick={() => setEditPO(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleEditPO} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">PO Number</label>
+                <input type="text" placeholder="e.g. PO-2026-001" value={editPO.customer_po_number}
+                  onChange={e => setEditPO(prev => prev ? { ...prev, customer_po_number: e.target.value } : null)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">PO Date</label>
+                <input type="date" value={editPO.customer_po_date}
+                  onChange={e => setEditPO(prev => prev ? { ...prev, customer_po_date: e.target.value } : null)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setEditPO(null)} className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">Save</button>
               </div>
             </form>
           </div>
