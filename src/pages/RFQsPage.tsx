@@ -76,22 +76,41 @@ export default function RFQsPage() {
   }, [rfqs, debouncedSearch]);
 
   const lostMetrics = useMemo(() => {
-    const all = rfqs.filter(r => r.status === 'lost');
-    const totalValue = all.reduce((s, r) => s + (r.estimated_value || 0), 0);
-    // Preventable = our fault (poor follow-up / too slow), not the client's
-    const preventable = all.filter(r =>
+    const lost = rfqs.filter(r => r.status === 'lost');
+    const converted = rfqs.filter(r => r.status === 'converted');
+    const closed = lost.length + converted.length;
+    const winRate = closed > 0 ? Math.round((converted.length / closed) * 100) : 0;
+
+    const preventable = lost.filter(r =>
       (r as any).loss_reason === 'poor_follow_up' || (r as any).loss_reason === 'delivery_too_slow'
     ).length;
+
+    // Avg response time: RFQ date → quote sent date (only for RFQs that have been quoted)
+    const quotedRfqs = rfqs.filter(r => (r as any).quote_sent_date && r.rfq_date);
+    let avgResponseDays = 0;
+    if (quotedRfqs.length > 0) {
+      const totalDays = quotedRfqs.reduce((sum, r) => {
+        const diff = (new Date((r as any).quote_sent_date).getTime() - new Date(r.rfq_date).getTime()) / 86400000;
+        return sum + Math.max(0, diff);
+      }, 0);
+      avgResponseDays = Math.round(totalDays / quotedRfqs.length);
+    }
+
+    const pendingQuotes = rfqs.filter(r => r.status === 'quoted').length;
+
     // Top reason
     const counts: Record<string, number> = {};
-    all.forEach(r => {
+    lost.forEach(r => {
       const reason = (r as any).loss_reason;
       if (reason) counts[reason] = (counts[reason] || 0) + 1;
     });
     const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+
     return {
-      count: all.length,
-      totalValue,
+      count: lost.length,
+      winRate,
+      avgResponseDays,
+      pendingQuotes,
       preventable,
       topReason: top ? { reason: top[0], n: top[1] } : null,
     };
@@ -573,7 +592,7 @@ export default function RFQsPage() {
 // ─── Lost Deals View ──────────────────────────────────────────────────────────
 function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navigate }: {
   lostRFQs: any[];
-  metrics: { count: number; totalValue: number; preventable: number; topReason: { reason: string; n: number } | null };
+  metrics: { count: number; winRate: number; avgResponseDays: number; pendingQuotes: number; preventable: number; topReason: { reason: string; n: number } | null };
   search: string;
   setSearch: (s: string) => void;
   getUserName: (id: string) => string;
@@ -586,30 +605,27 @@ function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navi
 
   return (
     <div className="space-y-5">
-      {/* 3-number strip — total lost value, preventable, top reason */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="glass-card p-5 border-l-4 border-destructive">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total Value Lost</p>
-          <p className="text-3xl font-extrabold text-destructive mt-1 tracking-tight">{formatPKR(metrics.totalValue)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{metrics.count} lost RFQ{metrics.count !== 1 ? 's' : ''}</p>
+      {/* Metrics strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className={`glass-card p-5 border-l-4 ${metrics.winRate >= 50 ? 'border-success' : 'border-warning'}`}>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Win Rate</p>
+          <p className={`text-3xl font-extrabold mt-1 tracking-tight ${metrics.winRate >= 50 ? 'text-success' : 'text-warning'}`}>{metrics.winRate}%</p>
+          <p className="text-xs text-muted-foreground mt-1">{metrics.count} lost deals total</p>
+        </div>
+        <div className={`glass-card p-5 border-l-4 ${metrics.avgResponseDays <= 3 ? 'border-success' : metrics.avgResponseDays <= 7 ? 'border-warning' : 'border-destructive'}`}>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Avg Response Time</p>
+          <p className={`text-3xl font-extrabold mt-1 tracking-tight ${metrics.avgResponseDays <= 3 ? 'text-success' : metrics.avgResponseDays <= 7 ? 'text-warning' : 'text-destructive'}`}>{metrics.avgResponseDays}d</p>
+          <p className="text-xs text-muted-foreground mt-1">RFQ received → quote sent</p>
+        </div>
+        <div className={`glass-card p-5 border-l-4 ${metrics.pendingQuotes > 0 ? 'border-info' : 'border-muted'}`}>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pending Quotes</p>
+          <p className={`text-3xl font-extrabold mt-1 tracking-tight ${metrics.pendingQuotes > 0 ? 'text-info' : 'text-muted-foreground'}`}>{metrics.pendingQuotes}</p>
+          <p className="text-xs text-muted-foreground mt-1">awaiting client decision</p>
         </div>
         <div className={`glass-card p-5 border-l-4 ${metrics.preventable > 0 ? 'border-warning' : 'border-success'}`}>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Preventable (Our Fault)</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Preventable Losses</p>
           <p className={`text-3xl font-extrabold mt-1 tracking-tight ${metrics.preventable > 0 ? 'text-warning' : 'text-success'}`}>{metrics.preventable}</p>
           <p className="text-xs text-muted-foreground mt-1">poor follow-up or too slow</p>
-        </div>
-        <div className="glass-card p-5 border-l-4 border-info">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Top Loss Reason</p>
-          {metrics.topReason ? (
-            <>
-              <p className="text-lg font-bold text-foreground mt-1 flex items-center gap-1.5 leading-tight">
-                {lossReasonIcon(metrics.topReason.reason)} {lossReasonLabel(metrics.topReason.reason)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">{metrics.topReason.n} occurrence{metrics.topReason.n !== 1 ? 's' : ''}</p>
-            </>
-          ) : (
-            <p className="text-lg font-bold text-muted-foreground mt-1">—</p>
-          )}
         </div>
       </div>
 
