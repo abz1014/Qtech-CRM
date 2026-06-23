@@ -32,12 +32,12 @@ export default function RFQsPage() {
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [search, setSearch] = useURLState('q', '');
+  const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useURLNumber('page', 1);
-  const [itemsPerPage, setItemsPerPage] = useURLNumber('per', 10);
-  const [fromDate, setFromDate] = useURLState('from', '');
-  const [toDate, setToDate] = useURLState('to', '');
-  const [sortDir, setSortDir] = useURLState('sort', 'desc') as [string, (v: string) => void];
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [tab, setTab] = useURLState('tab', 'all') as [string, (v: string) => void];
 
   const [form, setForm] = useState({
@@ -305,7 +305,7 @@ export default function RFQsPage() {
               ))}
               <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">
                 <button
-                  onClick={() => setSortDir(sortDir === 'desc' ? 'asc' : 'desc')}
+                  onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
                   className="flex items-center gap-1 hover:text-foreground transition-colors"
                 >
                   RFQ Date
