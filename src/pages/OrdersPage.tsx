@@ -63,13 +63,14 @@ export default function OrdersPage() {
         (o.customer_po_number?.toLowerCase().includes(q) ?? false) ||
         (o.notes?.toLowerCase().includes(q) ?? false) ||
         getVendorName(o.vendor_id).toLowerCase().includes(q);
-      const matchesDateRange = (!fromDate || (o.confirmed_date && o.confirmed_date >= fromDate)) &&
-        (!toDate || (o.confirmed_date && o.confirmed_date <= toDate));
+      const orderDate = o.customer_po_date || o.confirmed_date || '';
+      const matchesDateRange = (!fromDate || orderDate >= fromDate) &&
+        (!toDate || orderDate <= toDate);
       return matchesSearch && matchesDateRange;
     });
     return [...list].sort((a, b) => {
-      const da = a.confirmed_date || '';
-      const db = b.confirmed_date || '';
+      const da = a.customer_po_date || a.confirmed_date || '';
+      const db = b.customer_po_date || b.confirmed_date || '';
       return sortDir === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
     });
   }, [orders, debouncedSearch, fromDate, toDate, getClientName, sortDir]);
@@ -282,7 +283,7 @@ export default function OrdersPage() {
                     <span className={`status-badge ${statusColors[o.status] || 'bg-muted text-muted-foreground'}`}>{statusLabels[o.status] || o.status}</span>
                   </td>
                   <td className="px-5 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                    {o.confirmed_date ? formatDate(o.confirmed_date) : '—'}
+                    {o.customer_po_date ? formatDate(o.customer_po_date) : o.confirmed_date ? formatDate(o.confirmed_date) : '—'}
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
