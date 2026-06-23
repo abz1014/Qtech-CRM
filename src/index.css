@@ -151,11 +151,14 @@
 @layer utilities {
 
   /* ── Glass card ── */
+  /* NOTE: no backdrop-filter/blur — it forces a full repaint of everything
+     behind the card on every scroll/paint, causing site-wide ~30fps jank.
+     Background gradient is near-opaque, so blur was barely visible anyway. */
   .glass-card {
-    @apply rounded-xl border backdrop-blur-md;
+    @apply rounded-xl border;
     background: linear-gradient(145deg,
-      hsl(var(--card) / 0.9) 0%,
-      hsl(var(--card) / 0.75) 100%
+      hsl(var(--card)) 0%,
+      hsl(var(--card) / 0.92) 100%
     );
     border-color: hsl(var(--border) / 0.7);
     box-shadow:
@@ -167,8 +170,8 @@
 
   :root[data-theme="light"] .glass-card {
     background: linear-gradient(145deg,
-      hsl(0 0% 100% / 0.95) 0%,
-      hsl(0 0% 100% / 0.85) 100%
+      hsl(0 0% 100%) 0%,
+      hsl(0 0% 100% / 0.96) 100%
     );
     box-shadow:
       0 0 0 1px hsl(0 0% 100% / 0.8) inset,
