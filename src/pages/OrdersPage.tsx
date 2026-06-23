@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useURLNumber } from '@/hooks/useURLState';
+import { usePersistedNumber } from '@/hooks/useURLState';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
@@ -40,7 +40,7 @@ export default function OrdersPage() {
   const [vendorQuery, setVendorQuery] = useState('');
   const [vendorOpen, setVendorOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useURLNumber('page', 1);
+  const [currentPage, setCurrentPage] = usePersistedNumber('orders_page', 1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');

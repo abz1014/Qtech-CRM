@@ -7,7 +7,7 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { Plus, X, Search, ArrowRightCircle, Trash2, Download, ArrowUp, ArrowDown } from 'lucide-react';
 import { RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
-import { useURLState, useURLNumber } from '@/hooks/useURLState';
+import { usePersistedNumber } from '@/hooks/useURLState';
 import { useDebounce } from '@/hooks/useDebounce';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { lossReasonLabel, lossReasonIcon } from '@/lib/lossReasons';
@@ -33,12 +33,12 @@ export default function RFQsPage() {
   const [showForm, setShowForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [currentPage, setCurrentPage] = useURLNumber('page', 1);
+  const [currentPage, setCurrentPage] = usePersistedNumber('rfq_page', 1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
-  const [tab, setTab] = useURLState('tab', 'all') as [string, (v: string) => void];
+  const [tab, setTab] = useState<'all' | 'lost'>('all');
 
   const [form, setForm] = useState({
     rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '',

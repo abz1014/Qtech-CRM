@@ -1,28 +1,15 @@
-import { useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useCallback } from 'react';
 
-export function useURLState(key: string, defaultValue: string): [string, (val: string) => void] {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const value = searchParams.get(key) ?? defaultValue;
+export function usePersistedNumber(key: string, defaultValue: number): [number, (val: number) => void] {
+  const [value, setValue] = useState(() => {
+    const stored = sessionStorage.getItem(key);
+    return stored ? parseInt(stored, 10) || defaultValue : defaultValue;
+  });
 
-  const setValue = useCallback((val: string) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (val === defaultValue) {
-        next.delete(key);
-      } else {
-        next.set(key, val);
-      }
-      return next;
-    }, { replace: true });
-  }, [key, defaultValue, setSearchParams]);
+  const set = useCallback((val: number) => {
+    sessionStorage.setItem(key, String(val));
+    setValue(val);
+  }, [key]);
 
-  return [value, setValue];
-}
-
-export function useURLNumber(key: string, defaultValue: number): [number, (val: number) => void] {
-  const [raw, setRaw] = useURLState(key, String(defaultValue));
-  const value = parseInt(raw, 10) || defaultValue;
-  const setValue = useCallback((val: number) => setRaw(String(val)), [setRaw]);
-  return [value, setValue];
+  return [value, set];
 }
