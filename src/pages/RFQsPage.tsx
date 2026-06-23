@@ -37,6 +37,7 @@ export default function RFQsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [tab, setTab] = useState<'all' | 'lost'>('all');
 
@@ -60,12 +61,13 @@ export default function RFQsPage() {
         rfqLineItems.some(li => li.rfq_id === r.id && li.product_type.toLowerCase().includes(q));
       const matchesDateRange = (!fromDate || r.rfq_date >= fromDate) &&
         (!toDate || r.rfq_date <= toDate);
-      return matchesSearch && matchesDateRange;
+      const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+      return matchesSearch && matchesDateRange && matchesStatus;
     });
     return [...list].sort((a, b) =>
       sortDir === 'desc' ? b.rfq_date.localeCompare(a.rfq_date) : a.rfq_date.localeCompare(b.rfq_date)
     );
-  }, [rfqs, rfqLineItems, debouncedSearch, fromDate, toDate, sortDir]);
+  }, [rfqs, rfqLineItems, debouncedSearch, fromDate, toDate, statusFilter, sortDir]);
 
   // ── Lost RFQ analysis ──────────────────────────────────────────────────────
   const lostRFQs = useMemo(() => {
@@ -263,6 +265,18 @@ export default function RFQsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Search by RFQ#, company, product..."
               className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Status</label>
+            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+              className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+              <option value="all">All Statuses</option>
+              <option value="new">New</option>
+              <option value="in_progress">In Progress</option>
+              <option value="quoted">Quoted</option>
+              <option value="converted">Converted</option>
+              <option value="lost">Lost</option>
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">From Date</label>
@@ -670,7 +684,7 @@ function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navi
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                {['Company', 'RFQ #', 'Value', 'Reason', 'What Happened', 'Lost By', 'Date'].map(h => (
+                {['Company', 'RFQ #', 'Reason', 'What Happened', 'Lost By', 'Date'].map(h => (
                   <th key={h} className="text-left text-xs font-medium text-muted-foreground px-5 py-3">{h}</th>
                 ))}
               </tr>
@@ -680,7 +694,6 @@ function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navi
                 <tr key={r.id} onClick={() => navigate(`/rfqs/${r.id}`)} className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
                   <td className="px-5 py-3 text-sm font-medium text-foreground">{r.company_name}</td>
                   <td className="px-5 py-3 text-xs font-mono text-muted-foreground">{r.rfq_number || '—'}</td>
-                  <td className="px-5 py-3 text-sm font-semibold text-destructive">{formatPKR(r.estimated_value || 0)}</td>
                   <td className="px-5 py-3">
                     <span className="text-xs font-medium text-foreground flex items-center gap-1">
                       {lossReasonIcon(r.loss_reason)} {lossReasonLabel(r.loss_reason)}

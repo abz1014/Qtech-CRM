@@ -89,7 +89,13 @@ export function DailyRFQReportPage() {
     const responded = filteredRFQs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id) && r.status !== 'converted');
     const converted = filteredRFQs.filter(r => r.status === 'converted');
 
-    return { notFloated, floated, responded, converted };
+    const byDate = (a: any, b: any) => b.rfq_date.localeCompare(a.rfq_date);
+    return {
+      notFloated: notFloated.sort(byDate),
+      floated: floated.sort(byDate),
+      responded: responded.sort(byDate),
+      converted: converted.sort(byDate),
+    };
   }, [filteredRFQs, supplierInquiries, supplierQuotes]);
 
   // Sanitize cell values to prevent CSV formula injection
@@ -162,7 +168,7 @@ export function DailyRFQReportPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-3 px-4 font-semibold text-muted-foreground">RFQ ID</th>
+                <th className="text-left py-3 px-4 font-semibold text-muted-foreground">RFQ #</th>
                 <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Client</th>
                 <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Priority</th>
                 <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Date</th>
@@ -187,7 +193,11 @@ export function DailyRFQReportPage() {
                     }}
                     className="border-b border-border/50 hover:bg-muted/50 transition-colors cursor-pointer"
                   >
-                    <td className="py-3 px-4 font-medium text-foreground">RFQ #{rfq.id.slice(0, 8)}</td>
+                    <td className="py-3 px-4">
+                      <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
+                        {rfq.rfq_number || '—'}
+                      </span>
+                    </td>
                     <td className="py-3 px-4 text-foreground">{getClientName(rfq.client_id)}</td>
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
