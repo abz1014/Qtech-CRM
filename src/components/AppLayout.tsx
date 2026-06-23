@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppSidebar } from '@/components/AppSidebar';
-import { Menu } from 'lucide-react';
+import { Menu, ArrowLeft } from 'lucide-react';
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':        'Dashboard',
@@ -24,10 +24,14 @@ function getPageTitle(pathname: string): string {
   return base ? PAGE_TITLES[base] : 'Q Tech Solutions';
 }
 
+const DETAIL_PATTERN = /^\/(rfqs|orders|clients|prospects|vendors)\/.+$/;
+
 export function AppLayout() {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const isDetailPage = DETAIL_PATTERN.test(location.pathname);
 
   if (!user) return <Navigate to="/" replace />;
 
@@ -74,7 +78,15 @@ export function AppLayout() {
         </header>
 
         {/* ── Page content ── */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto relative">
+          {isDetailPage && (
+            <button
+              onClick={() => navigate(-1)}
+              className="fixed bottom-6 left-72 z-40 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-medium shadow-lg hover:bg-primary/90 transition-all hover:scale-105"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+          )}
           <div key={location.pathname} className="p-4 sm:p-6 lg:p-8 animate-fade-in">
             <Outlet />
           </div>
