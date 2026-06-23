@@ -56,9 +56,13 @@ export default function OrdersPage() {
 
   const filtered = useMemo(() => {
     const list = orders.filter(o => {
-      const matchesSearch = getClientName(o.client_id).toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        o.product_type.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        ((o as any).customer_po_number?.toLowerCase().includes(debouncedSearch.toLowerCase()) ?? false);
+      const q = debouncedSearch.toLowerCase();
+      const matchesSearch = !q ||
+        getClientName(o.client_id).toLowerCase().includes(q) ||
+        o.product_type.toLowerCase().includes(q) ||
+        (o.customer_po_number?.toLowerCase().includes(q) ?? false) ||
+        (o.notes?.toLowerCase().includes(q) ?? false) ||
+        getVendorName(o.vendor_id).toLowerCase().includes(q);
       const matchesDateRange = (!fromDate || (o.confirmed_date && o.confirmed_date >= fromDate)) &&
         (!toDate || (o.confirmed_date && o.confirmed_date <= toDate));
       return matchesSearch && matchesDateRange;
