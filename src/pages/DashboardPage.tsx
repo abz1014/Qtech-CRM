@@ -103,6 +103,16 @@ export default function DashboardPage() {
   const quarterStart = `${currentYear}-${String(quarterStartMonth + 1).padStart(2, '0')}-01`;
   const quarterlyPipeline = getPipelineMetrics(quarterStart, today);
 
+  // Last quarter range
+  const lastQuarter = currentQuarter === 1 ? 4 : currentQuarter - 1;
+  const lastQuarterYear = currentQuarter === 1 ? currentYear - 1 : currentYear;
+  const lastQuarterStartMonth = (lastQuarter - 1) * 3;
+  const lastQuarterStart = `${lastQuarterYear}-${String(lastQuarterStartMonth + 1).padStart(2, '0')}-01`;
+  const lastQuarterEnd = `${lastQuarterYear}-${String(lastQuarterStartMonth + 3).padStart(2, '0')}-01`;
+  const adjustedLastQuarterEnd = new Date(lastQuarterEnd);
+  adjustedLastQuarterEnd.setDate(adjustedLastQuarterEnd.getDate() - 1);
+  const lastQuarterPipeline = getPipelineMetrics(lastQuarterStart, adjustedLastQuarterEnd.toISOString().split('T')[0]);
+
   // Target achieved = order values from converted RFQs this quarter
   const targetAchieved = orders
     .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= quarterStart && r.rfq_date <= today))
@@ -142,6 +152,13 @@ export default function DashboardPage() {
     { label: 'Quote from Supplier', value: quarterlyPipeline.quoteReceived, icon: MessageSquare, color: 'text-info' },
     { label: 'Quoted to Client', value: quarterlyPipeline.quotedToClient, icon: Send, color: 'text-warning' },
     { label: 'PO Received', value: quarterlyPipeline.poReceived, icon: CheckCircle, color: 'text-success' },
+  ];
+
+  const lastQuarterKpis = [
+    { label: 'RFQs Received', value: lastQuarterPipeline.received, icon: FileText, color: 'text-primary' },
+    { label: 'Quote from Supplier', value: lastQuarterPipeline.quoteReceived, icon: MessageSquare, color: 'text-info' },
+    { label: 'Quoted to Client', value: lastQuarterPipeline.quotedToClient, icon: Send, color: 'text-warning' },
+    { label: 'PO Received', value: lastQuarterPipeline.poReceived, icon: CheckCircle, color: 'text-success' },
   ];
 
   const overallKpis = [
@@ -362,6 +379,24 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {quarterlyKpis.map(kpi => (
             <div key={`q-${kpi.label}`} className="kpi-card">
+              <div className="flex items-start justify-between mb-4">
+                <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg[kpi.color] || 'bg-muted text-muted-foreground'}`}>
+                  <kpi.icon className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-4xl font-extrabold text-foreground tracking-tight">{kpi.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ════ LAST QUARTER RESULTS ════ */}
+      <div>
+        <p className="section-title mb-3">Last Quarter Results (Q{lastQuarter} {lastQuarterYear})</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {lastQuarterKpis.map(kpi => (
+            <div key={`lq-${kpi.label}`} className="kpi-card opacity-80">
               <div className="flex items-start justify-between mb-4">
                 <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg[kpi.color] || 'bg-muted text-muted-foreground'}`}>
