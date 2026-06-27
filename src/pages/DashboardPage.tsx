@@ -9,7 +9,7 @@ import { DashboardSkeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase';
 
 export default function DashboardPage() {
-  const { clients, orders, prospects, rfqs, supplierInquiries, supplierQuotes, followUpActions, getClientName, getVendorName, getRFQMetrics, getUserName, loading } = useCRM();
+  const { clients, orders, prospects, rfqs, supplierInquiries, supplierQuotes, followUpActions, getClientName, getVendorName, getUserName, loading } = useCRM();
   const { user, isAdmin, isSales } = useAuth();
   const navigate = useNavigate();
 
@@ -71,8 +71,6 @@ export default function DashboardPage() {
 
   if (loading) return <DashboardSkeleton />;
 
-  const rfqMetrics = getRFQMetrics(today);
-
   // ── Helper: compute pipeline metrics for a date range ──
   const getPipelineMetrics = (startDate: string, endDate: string) => {
     const rangeRfqs = rfqs.filter(r => r.rfq_date >= startDate && r.rfq_date <= endDate);
@@ -81,6 +79,18 @@ export default function DashboardPage() {
     const quotedToClient = rangeRfqs.filter(r => r.status === 'quoted' || r.status === 'converted').length;
     const poReceived = rangeRfqs.filter(r => r.status === 'converted').length;
     return { received, quoteReceived, quotedToClient, poReceived };
+  };
+
+  // Last 10 days range
+  const tenDaysAgo = new Date();
+  tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+  const tenDaysStart = tenDaysAgo.toISOString().split('T')[0];
+  const last10Rfqs = rfqs.filter(r => r.rfq_date >= tenDaysStart && r.rfq_date <= today);
+  const last10Metrics = {
+    received: last10Rfqs.length,
+    floated: last10Rfqs.filter(r => supplierInquiries.some(si => si.rfq_id === r.id)).length,
+    notFloated: last10Rfqs.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted' && r.status !== 'lost').length,
+    responded: last10Rfqs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id)).length,
   };
 
   // Monthly range
@@ -114,10 +124,10 @@ export default function DashboardPage() {
     .map(([clientId, count]) => ({ name: getClientName(clientId), count }));
 
   const todayKpis = [
-    { label: 'RFQs Received Today', value: rfqMetrics.receivedToday, icon: FileText, color: 'text-primary' },
-    { label: 'Floated to Suppliers', value: rfqMetrics.floated, icon: Send, color: 'text-info' },
-    { label: 'Not Floated', value: rfqMetrics.notFloated, icon: Target, color: 'text-warning' },
-    { label: 'Got Responses', value: rfqMetrics.responded, icon: MessageSquare, color: 'text-success' },
+    { label: 'RFQs Received', value: last10Metrics.received, icon: FileText, color: 'text-primary' },
+    { label: 'Floated to Suppliers', value: last10Metrics.floated, icon: Send, color: 'text-info' },
+    { label: 'Not Floated', value: last10Metrics.notFloated, icon: Target, color: 'text-warning' },
+    { label: 'Got Responses', value: last10Metrics.responded, icon: MessageSquare, color: 'text-success' },
   ];
 
   const monthlyKpis = [
@@ -312,7 +322,7 @@ export default function DashboardPage() {
 
       {/* ════ TODAY'S PIPELINE ════ */}
       <div>
-        <p className="section-title mb-3">Today's Pipeline</p>
+        <p className="section-title mb-3">Last 10 Days Pipeline</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {todayKpis.map(kpi => (
             <div key={kpi.label} className="kpi-card">
