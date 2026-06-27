@@ -831,78 +831,61 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deleteRFQ = useCallback(async (rfqId: string) => {
-    // Clean up orphaned follow-up actions for this RFQ
-    const rfqActions = followUpActions.filter(a => a.entity_id === rfqId && a.entity_type === 'rfq');
-    for (const action of rfqActions) {
-      await supabase.from('follow_up_actions').delete().eq('id', action.id);
-    }
+    // Delete all follow-up actions for this RFQ from database
+    await supabase.from('follow_up_actions').delete().eq('entity_id', rfqId).eq('entity_type', 'rfq');
 
     await supabase.from('rfqs').delete().eq('id', rfqId);
     setRFQs(prev => prev.filter(r => r.id !== rfqId));
     setFollowUpActions(prev => prev.filter(a => !(a.entity_id === rfqId && a.entity_type === 'rfq')));
-  }, [followUpActions]);
+  }, []);
 
   const deleteOrder = useCallback(async (orderId: string) => {
-    // Clean up orphaned follow-up actions for this order
-    const orderActions = followUpActions.filter(a => a.entity_id === orderId && a.entity_type === 'order');
-    for (const action of orderActions) {
-      await supabase.from('follow_up_actions').delete().eq('id', action.id);
-    }
+    // Delete all follow-up actions for this order from database
+    await supabase.from('follow_up_actions').delete().eq('entity_id', orderId).eq('entity_type', 'order');
 
-    // If this order has a linked RFQ, reset the RFQ's converted status
-    const order = orders.find(o => o.id === orderId);
-    if (order?.rfq_id) {
-      await supabase
-        .from('rfqs')
-        .update({ status: 'quoted', converted_order_id: null })
-        .eq('id', order.rfq_id);
-      setRFQs(prev => prev.map(r => r.id === order.rfq_id ? { ...r, status: 'quoted' as RFQStatus, converted_order_id: null } : r));
-    }
+    // Get the order from state to check for linked RFQ
+    setOrders(prev => {
+      const order = prev.find(o => o.id === orderId);
+      if (order?.rfq_id) {
+        supabase
+          .from('rfqs')
+          .update({ status: 'quoted', converted_order_id: null })
+          .eq('id', order.rfq_id);
+        setRFQs(prev => prev.map(r => r.id === order.rfq_id ? { ...r, status: 'quoted' as RFQStatus, converted_order_id: null } : r));
+      }
+      return prev;
+    });
 
     await supabase.from('orders').delete().eq('id', orderId);
     setOrders(prev => prev.filter(o => o.id !== orderId));
     setFollowUpActions(prev => prev.filter(a => !(a.entity_id === orderId && a.entity_type === 'order')));
-  }, [orders, followUpActions]);
+  }, []);
 
   const deleteClient = useCallback(async (clientId: string) => {
-    // Get all RFQs and orders for this client
-    const clientRFQs = rfqs.filter(r => r.client_id === clientId);
-    const clientOrders = orders.filter(o => o.client_id === clientId);
+    // Get IDs before deleting
+    const clientRFQIds = rfqs.filter(r => r.client_id === clientId).map(r => r.id);
+    const clientOrderIds = orders.filter(o => o.client_id === clientId).map(o => o.id);
 
-    // Delete all follow-up actions for this client's RFQs and orders
-    for (const rfq of clientRFQs) {
-      const rfqActions = followUpActions.filter(a => a.entity_id === rfq.id && a.entity_type === 'rfq');
-      for (const action of rfqActions) {
-        await supabase.from('follow_up_actions').delete().eq('id', action.id);
-      }
+    // Delete cascade: follow-up actions → RFQs, orders → client
+    for (const rfqId of clientRFQIds) {
+      await supabase.from('follow_up_actions').delete().eq('entity_id', rfqId);
     }
-    for (const order of clientOrders) {
-      const orderActions = followUpActions.filter(a => a.entity_id === order.id && a.entity_type === 'order');
-      for (const action of orderActions) {
-        await supabase.from('follow_up_actions').delete().eq('id', action.id);
-      }
+    for (const orderId of clientOrderIds) {
+      await supabase.from('follow_up_actions').delete().eq('entity_id', orderId);
     }
 
-    // Delete all RFQs for this client (will cascade delete supplier interactions)
-    for (const rfq of clientRFQs) {
-      await supabase.from('rfqs').delete().eq('id', rfq.id);
-    }
-
-    // Delete all orders for this client
-    for (const order of clientOrders) {
-      await supabase.from('orders').delete().eq('id', order.id);
-    }
-
-    // Delete the client
+    await supabase.from('rfqs').delete().eq('client_id', clientId);
+    await supabase.from('orders').delete().eq('client_id', clientId);
     await supabase.from('clients').delete().eq('id', clientId);
+
+    // Update local state
     setClients(prev => prev.filter(c => c.id !== clientId));
     setRFQs(prev => prev.filter(r => r.client_id !== clientId));
     setOrders(prev => prev.filter(o => o.client_id !== clientId));
     setFollowUpActions(prev => prev.filter(a =>
-      !(clientRFQs.some(r => r.id === a.entity_id && a.entity_type === 'rfq') ||
-        clientOrders.some(o => o.id === a.entity_id && a.entity_type === 'order'))
+      !(clientRFQIds.includes(a.entity_id) || clientOrderIds.includes(a.entity_id))
     ));
-  }, [rfqs, orders, followUpActions]);
+  }, [rfqs, orders]);
 
   const deleteVendor = useCallback(async (vendorId: string) => {
     await supabase.from('vendors').delete().eq('id', vendorId);
