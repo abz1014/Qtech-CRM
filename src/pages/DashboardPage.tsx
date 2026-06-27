@@ -126,16 +126,16 @@ export default function DashboardPage() {
     return { selectedStart: start, selectedEnd: adjustedEndStr, selectedQuarterPipeline: getPipelineMetrics(start, adjustedEndStr) };
   }, [selectedYear, selectedQtr, getPipelineMetrics]);
 
-  // Target achieved calculations
+  // Target achieved calculations — only count orders from converted RFQs (actual POs)
   const selectedTargetAchieved = useMemo(() => {
     return orders
-      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= selectedStart && r.rfq_date <= selectedEnd))
+      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.status === 'converted' && r.rfq_date >= selectedStart && r.rfq_date <= selectedEnd))
       .reduce((s, o) => s + o.order_value, 0);
   }, [orders, rfqs, selectedStart, selectedEnd]);
 
   const targetAchieved = useMemo(() => {
     return orders
-      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= quarterStart && r.rfq_date <= today))
+      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.status === 'converted' && r.rfq_date >= quarterStart && r.rfq_date <= today))
       .reduce((s, o) => s + o.order_value, 0);
   }, [orders, rfqs, quarterStart, today]);
 
