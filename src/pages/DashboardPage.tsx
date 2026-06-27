@@ -16,13 +16,13 @@ export default function DashboardPage() {
   if (!isAdmin && !isSales) return <Navigate to="/" replace />;
 
   // ── All hooks MUST be before any early return ────────────────────────────
-  const today = new Date().toISOString().split('T')[0];
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const myActions = followUpActions.filter(a =>
     a.status === 'pending' && (!a.assigned_to || a.assigned_to === user?.id)
   );
-  const overdueActions  = myActions.filter(a => a.due_date < today);
-  const todayActions    = myActions.filter(a => a.due_date === today);
+  const overdueActions  = useMemo(() => myActions.filter(a => a.due_date < today), [myActions, today]);
+  const todayActions    = useMemo(() => myActions.filter(a => a.due_date === today), [myActions, today]);
 
   const briefingGroups = useMemo(() => {
     const typeCounts: Record<string, number> = {};
