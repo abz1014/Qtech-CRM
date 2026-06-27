@@ -41,6 +41,8 @@ export default function DashboardPage() {
   const [quarterlyTarget, setQuarterlyTarget] = useState<number>(0);
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetInput, setTargetInput] = useState('');
+  const [editingSelectedTarget, setEditingSelectedTarget] = useState(false);
+  const [selectedTargetInput, setSelectedTargetInput] = useState('');
 
   // ── Selected quarter for comparison ──
   const now = useMemo(() => new Date(), []);
@@ -102,6 +104,16 @@ export default function DashboardPage() {
     );
     setQuarterlyTarget(val);
     setEditingTarget(false);
+  };
+
+  const saveSelectedTarget = async () => {
+    const val = Number(selectedTargetInput) || 0;
+    await supabase.from('quarterly_targets').upsert(
+      { year: selectedYear, quarter: selectedQtr, target_value: val, updated_at: new Date().toISOString() },
+      { onConflict: 'year,quarter' }
+    );
+    setSelectedQuarterTarget(val);
+    setEditingSelectedTarget(false);
   };
 
   if (loading) return <DashboardSkeleton />;
@@ -442,46 +454,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ════ PREVIOUS QUARTER TARGET ════ */}
+      {/* ════ CURRENT QUARTER TARGET ════ */}
       <div>
-        <p className="section-title mb-3">Previous Quarter Target (Q{selectedQtr} {selectedYear})</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="kpi-card opacity-80">
-            <div className="flex items-start justify-between mb-4">
-              <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">Quarter Target</p>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/15 text-primary">
-                <Target className="w-4 h-4" />
-              </div>
-            </div>
-            <p className="text-4xl font-extrabold text-foreground tracking-tight">{formatPKR(selectedQuarterTarget)}</p>
-          </div>
-          <div className="kpi-card opacity-80">
-            <div className="flex items-start justify-between mb-4">
-              <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">Target Achieved</p>
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${selectedQuarterTarget > 0 && selectedTargetAchieved >= selectedQuarterTarget ? 'bg-success/15 text-success' : 'bg-info/15 text-info'}`}>
-                <TrendingUp className="w-4 h-4" />
-              </div>
-            </div>
-            <p className="text-4xl font-extrabold text-foreground tracking-tight">{formatPKR(selectedTargetAchieved)}</p>
-            {selectedQuarterTarget > 0 && (
-              <div className="mt-3">
-                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                  <span>{Math.min(100, Math.round((selectedTargetAchieved / selectedQuarterTarget) * 100))}% achieved</span>
-                  <span>{formatPKR(selectedQuarterTarget - selectedTargetAchieved > 0 ? selectedQuarterTarget - selectedTargetAchieved : 0)} remaining</span>
-                </div>
-                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${selectedTargetAchieved >= selectedQuarterTarget ? 'bg-success' : 'bg-primary'}`}
-                    style={{ width: `${Math.min(100, (selectedTargetAchieved / selectedQuarterTarget) * 100)}%` }} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ════ TARGET ════ */}
-      <div>
-        <p className="section-title mb-3">Target (Q{currentQuarter} {currentYear})</p>
+        <p className="section-title mb-3">Current Quarter Target (Q{currentQuarter} {currentYear})</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="kpi-card">
             <div className="flex items-start justify-between mb-4">
@@ -526,6 +501,60 @@ export default function DashboardPage() {
                 <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                   <div className={`h-full rounded-full transition-all ${targetAchieved >= quarterlyTarget ? 'bg-success' : 'bg-primary'}`}
                     style={{ width: `${Math.min(100, (targetAchieved / quarterlyTarget) * 100)}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ════ PREVIOUS QUARTER TARGET ════ */}
+      <div>
+        <p className="section-title mb-3">Previous Quarter Target (Q{selectedQtr} {selectedYear})</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="kpi-card opacity-80">
+            <div className="flex items-start justify-between mb-4">
+              <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">Quarter Target</p>
+              <div className="flex items-center gap-1.5">
+                {isAdmin && !editingSelectedTarget && (
+                  <button onClick={() => { setSelectedTargetInput(String(selectedQuarterTarget)); setEditingSelectedTarget(true); }}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Set Target">
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/15 text-primary">
+                  <Target className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+            {editingSelectedTarget ? (
+              <div className="flex items-center gap-2">
+                <input type="number" value={selectedTargetInput} onChange={e => setSelectedTargetInput(e.target.value)} placeholder="Enter target value"
+                  className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" autoFocus />
+                <button onClick={saveSelectedTarget} className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">Save</button>
+                <button onClick={() => setEditingSelectedTarget(false)} className="p-2 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              </div>
+            ) : (
+              <p className="text-4xl font-extrabold text-foreground tracking-tight">{formatPKR(selectedQuarterTarget)}</p>
+            )}
+          </div>
+          <div className="kpi-card opacity-80">
+            <div className="flex items-start justify-between mb-4">
+              <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">Target Achieved</p>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${selectedQuarterTarget > 0 && selectedTargetAchieved >= selectedQuarterTarget ? 'bg-success/15 text-success' : 'bg-info/15 text-info'}`}>
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-4xl font-extrabold text-foreground tracking-tight">{formatPKR(selectedTargetAchieved)}</p>
+            {selectedQuarterTarget > 0 && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                  <span>{Math.min(100, Math.round((selectedTargetAchieved / selectedQuarterTarget) * 100))}% achieved</span>
+                  <span>{formatPKR(selectedQuarterTarget - selectedTargetAchieved > 0 ? selectedQuarterTarget - selectedTargetAchieved : 0)} remaining</span>
+                </div>
+                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${selectedTargetAchieved >= selectedQuarterTarget ? 'bg-success' : 'bg-primary'}`}
+                    style={{ width: `${Math.min(100, (selectedTargetAchieved / selectedQuarterTarget) * 100)}%` }} />
                 </div>
               </div>
             )}
