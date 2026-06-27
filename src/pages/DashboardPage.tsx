@@ -13,16 +13,36 @@ export default function DashboardPage() {
   const { user, isAdmin, isSales } = useAuth();
   const navigate = useNavigate();
 
-  if (!isAdmin && !isSales) return <Navigate to="/" replace />;
+  // ══════════════════════════════════════════════════════════════════════════
+  // ALL HOOKS MUST BE ABOVE EVERY EARLY RETURN — React rules of hooks
+  // ══════════════════════════════════════════════════════════════════════════
 
-  // ── All hooks MUST be before any early return ────────────────────────────
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const now = useMemo(() => new Date(), []);
+  const today = useMemo(() => now.toISOString().split('T')[0], [now]);
+  const currentQuarter = useMemo(() => Math.floor(now.getMonth() / 3) + 1, [now]);
+  const currentYear = useMemo(() => now.getFullYear(), [now]);
+  const currentMonth = useMemo(() => now.getMonth(), [now]);
 
-  const myActions = followUpActions.filter(a =>
+  // State
+  const [quarterlyTarget, setQuarterlyTarget] = useState<number>(0);
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [targetInput, setTargetInput] = useState('');
+  const [editingSelectedTarget, setEditingSelectedTarget] = useState(false);
+  const [selectedTargetInput, setSelectedTargetInput] = useState('');
+  const [selectedQuarter, setSelectedQuarter] = useState(() => {
+    const cq = Math.floor(new Date().getMonth() / 3) + 1;
+    const cy = new Date().getFullYear();
+    return `${cq === 1 ? cy - 1 : cy}-Q${cq === 1 ? 4 : cq - 1}`;
+  });
+  const [selectedQuarterTarget, setSelectedQuarterTarget] = useState<number>(0);
+
+  // Actions derived data
+  const myActions = useMemo(() => followUpActions.filter(a =>
     a.status === 'pending' && (!a.assigned_to || a.assigned_to === user?.id)
-  );
-  const overdueActions  = useMemo(() => myActions.filter(a => a.due_date < today), [myActions, today]);
-  const todayActions    = useMemo(() => myActions.filter(a => a.due_date === today), [myActions, today]);
+  ), [followUpActions, user?.id]);
+
+  const overdueActions = useMemo(() => myActions.filter(a => a.due_date < today), [myActions, today]);
+  const todayActions = useMemo(() => myActions.filter(a => a.due_date === today), [myActions, today]);
 
   const briefingGroups = useMemo(() => {
     const typeCounts: Record<string, number> = {};
@@ -37,54 +57,11 @@ export default function DashboardPage() {
     return Object.entries(typeCounts).map(([label, count]) => ({ label, count }));
   }, [myActions]);
 
-  // ── Quarterly target from Supabase ──
-  const [quarterlyTarget, setQuarterlyTarget] = useState<number>(0);
-  const [editingTarget, setEditingTarget] = useState(false);
-  const [targetInput, setTargetInput] = useState('');
-  const [editingSelectedTarget, setEditingSelectedTarget] = useState(false);
-  const [selectedTargetInput, setSelectedTargetInput] = useState('');
-
-  // ── Selected quarter for comparison ──
-  const now = useMemo(() => new Date(), []);
-  const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
-  const currentYear = now.getFullYear();
-  const [selectedQuarter, setSelectedQuarter] = useState(`${currentYear}-Q${currentQuarter === 1 ? 4 : currentQuarter - 1}`);
-  const [selectedQuarterTarget, setSelectedQuarterTarget] = useState<number>(0);
-
-  // Fetch target for selected quarter
-  const fetchSelectedTarget = useCallback(async () => {
-    try {
-      const [yStr, qStr] = selectedQuarter.split('-Q');
-      const y = parseInt(yStr);
-      const q = parseInt(qStr);
-      const { data, error } = await supabase
-        .from('quarterly_targets')
-        .select('target_value')
-        .eq('year', y)
-        .eq('quarter', q)
-        .maybeSingle();
-      if (error) {
-        console.error('Error fetching quarterly target:', error);
-        setSelectedQuarterTarget(0);
-      } else if (data) {
-        setSelectedQuarterTarget(Number(data.target_value));
-      } else {
-        setSelectedQuarterTarget(0);
-      }
-    } catch (err) {
-      console.error('Unexpected error fetching quarterly target:', err);
-      setSelectedQuarterTarget(0);
-    }
-  }, [selectedQuarter]);
-
-  useEffect(() => { fetchSelectedTarget(); }, [fetchSelectedTarget]);
-
-  // Generate list of available quarters (last 8 quarters)
+  // Available quarters for dropdown
   const availableQuarters = useMemo(() => {
     const quarters: { value: string; label: string }[] = [];
     let q = currentQuarter === 1 ? 4 : currentQuarter - 1;
     let y = currentQuarter === 1 ? currentYear - 1 : currentYear;
-
     for (let i = 0; i < 8; i++) {
       quarters.push({ value: `${y}-Q${q}`, label: `Q${q} ${y}` });
       q = q === 1 ? 4 : q - 1;
@@ -93,8 +70,92 @@ export default function DashboardPage() {
     return quarters;
   }, [currentQuarter, currentYear]);
 
-  const currentMonth = now.getMonth();
+  // Selected quarter parsed values
+  const { selectedYear, selectedQtr } = useMemo(() => {
+    const [yStr, qStr] = selectedQuarter.split('-Q');
+    return { selectedYear: parseInt(yStr), selectedQtr: parseInt(qStr) };
+  }, [selectedQuarter]);
 
+  // Pipeline metrics helper (stable via useCallback)
+  const getPipelineMetrics = useCallback((startDate: string, endDate: string) => {
+    const rangeRfqs = rfqs.filter(r => r.rfq_date >= startDate && r.rfq_date <= endDate);
+    const received = rangeRfqs.length;
+    const quoteReceived = rangeRfqs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id)).length;
+    const quotedToClient = rangeRfqs.filter(r => r.status === 'quoted' || r.status === 'converted').length;
+    const poReceived = rangeRfqs.filter(r => r.status === 'converted').length;
+    return { received, quoteReceived, quotedToClient, poReceived };
+  }, [rfqs, supplierQuotes]);
+
+  // Last 10 days metrics
+  const { last10Metrics } = useMemo(() => {
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+    const tenDaysStart = tenDaysAgo.toISOString().split('T')[0];
+    const last10Rfqs = rfqs.filter(r => r.rfq_date >= tenDaysStart && r.rfq_date <= today);
+    return {
+      last10Metrics: {
+        received: last10Rfqs.length,
+        floated: last10Rfqs.filter(r => supplierInquiries.some(si => si.rfq_id === r.id)).length,
+        notFloated: last10Rfqs.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted' && r.status !== 'lost').length,
+        responded: last10Rfqs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id)).length,
+      }
+    };
+  }, [rfqs, supplierInquiries, supplierQuotes, today]);
+
+  // Monthly pipeline
+  const { monthStart, monthlyPipeline } = useMemo(() => {
+    const start = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+    return { monthStart: start, monthlyPipeline: getPipelineMetrics(start, today) };
+  }, [currentYear, currentMonth, today, getPipelineMetrics]);
+
+  // Quarterly pipeline
+  const { quarterStart, quarterlyPipeline } = useMemo(() => {
+    const startMonth = (currentQuarter - 1) * 3;
+    const start = `${currentYear}-${String(startMonth + 1).padStart(2, '0')}-01`;
+    return { quarterStart: start, quarterlyPipeline: getPipelineMetrics(start, today) };
+  }, [currentQuarter, currentYear, today, getPipelineMetrics]);
+
+  // Selected quarter pipeline
+  const { selectedStart, selectedEnd, selectedQuarterPipeline } = useMemo(() => {
+    const startMonth = (selectedQtr - 1) * 3;
+    const start = `${selectedYear}-${String(startMonth + 1).padStart(2, '0')}-01`;
+    const end = `${selectedYear}-${String(startMonth + 3).padStart(2, '0')}-01`;
+    const adjustedEnd = new Date(end);
+    adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+    const adjustedEndStr = adjustedEnd.toISOString().split('T')[0];
+    return { selectedStart: start, selectedEnd: adjustedEndStr, selectedQuarterPipeline: getPipelineMetrics(start, adjustedEndStr) };
+  }, [selectedYear, selectedQtr, getPipelineMetrics]);
+
+  // Target achieved calculations
+  const selectedTargetAchieved = useMemo(() => {
+    return orders
+      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= selectedStart && r.rfq_date <= selectedEnd))
+      .reduce((s, o) => s + o.order_value, 0);
+  }, [orders, rfqs, selectedStart, selectedEnd]);
+
+  const targetAchieved = useMemo(() => {
+    return orders
+      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= quarterStart && r.rfq_date <= today))
+      .reduce((s, o) => s + o.order_value, 0);
+  }, [orders, rfqs, quarterStart, today]);
+
+  // Overall KPIs
+  const totalClients = useMemo(() => clients.length, [clients]);
+  const totalOrders = useMemo(() => orders.length, [orders]);
+  const installationOrders = useMemo(() => orders.filter(o => o.status === 'in_transit' || o.status === 'procurement').length, [orders]);
+  const activeProspects = useMemo(() => prospects.filter(p => !p.converted_client_id).length, [prospects]);
+  const totalRevenue = useMemo(() => orders.reduce((s, o) => s + o.order_value, 0), [orders]);
+
+  const topRFQClients = useMemo(() => {
+    const rfqCountByClient: Record<string, number> = {};
+    rfqs.forEach(r => { rfqCountByClient[r.client_id] = (rfqCountByClient[r.client_id] || 0) + 1; });
+    return Object.entries(rfqCountByClient)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([clientId, count]) => ({ name: getClientName(clientId), count }));
+  }, [rfqs, getClientName]);
+
+  // Fetch current quarter target
   const fetchTarget = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -103,21 +164,30 @@ export default function DashboardPage() {
         .eq('year', currentYear)
         .eq('quarter', currentQuarter)
         .maybeSingle();
-      if (error) {
-        console.error('Error fetching current quarter target:', error);
-        setQuarterlyTarget(0);
-      } else if (data) {
-        setQuarterlyTarget(Number(data.target_value));
-      } else {
-        setQuarterlyTarget(0);
-      }
-    } catch (err) {
-      console.error('Unexpected error fetching current quarter target:', err);
-      setQuarterlyTarget(0);
-    }
+      if (error) { setQuarterlyTarget(0); }
+      else if (data) { setQuarterlyTarget(Number(data.target_value)); }
+      else { setQuarterlyTarget(0); }
+    } catch { setQuarterlyTarget(0); }
   }, [currentYear, currentQuarter]);
 
   useEffect(() => { fetchTarget(); }, [fetchTarget]);
+
+  // Fetch selected quarter target
+  const fetchSelectedTarget = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quarterly_targets')
+        .select('target_value')
+        .eq('year', selectedYear)
+        .eq('quarter', selectedQtr)
+        .maybeSingle();
+      if (error) { setSelectedQuarterTarget(0); }
+      else if (data) { setSelectedQuarterTarget(Number(data.target_value)); }
+      else { setSelectedQuarterTarget(0); }
+    } catch { setSelectedQuarterTarget(0); }
+  }, [selectedYear, selectedQtr]);
+
+  useEffect(() => { fetchSelectedTarget(); }, [fetchSelectedTarget]);
 
   const saveTarget = async () => {
     const val = Number(targetInput) || 0;
@@ -139,96 +209,12 @@ export default function DashboardPage() {
     setEditingSelectedTarget(false);
   };
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // EARLY RETURNS — safe now, all hooks are above
+  // ══════════════════════════════════════════════════════════════════════════
+
+  if (!isAdmin && !isSales) return <Navigate to="/" replace />;
   if (loading) return <DashboardSkeleton />;
-
-  // ── Helper: compute pipeline metrics for a date range ──
-  const getPipelineMetrics = (startDate: string, endDate: string) => {
-    const rangeRfqs = rfqs.filter(r => r.rfq_date >= startDate && r.rfq_date <= endDate);
-    const received = rangeRfqs.length;
-    const quoteReceived = rangeRfqs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id)).length;
-    const quotedToClient = rangeRfqs.filter(r => r.status === 'quoted' || r.status === 'converted').length;
-    const poReceived = rangeRfqs.filter(r => r.status === 'converted').length;
-    return { received, quoteReceived, quotedToClient, poReceived };
-  };
-
-  // Last 10 days range
-  const tenDaysAgo = new Date();
-  tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-  const tenDaysStart = tenDaysAgo.toISOString().split('T')[0];
-  const last10Rfqs = rfqs.filter(r => r.rfq_date >= tenDaysStart && r.rfq_date <= today);
-  const last10Metrics = {
-    received: last10Rfqs.length,
-    floated: last10Rfqs.filter(r => supplierInquiries.some(si => si.rfq_id === r.id)).length,
-    notFloated: last10Rfqs.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted' && r.status !== 'lost').length,
-    responded: last10Rfqs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id)).length,
-  };
-
-  // Monthly range (memoized)
-  const { monthStart, monthEnd, monthlyPipeline } = useMemo(() => {
-    const start = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
-    return {
-      monthStart: start,
-      monthEnd: today,
-      monthlyPipeline: getPipelineMetrics(start, today)
-    };
-  }, [currentYear, currentMonth, today]);
-
-  // Quarterly range (memoized)
-  const { quarterStart, quarterlyPipeline } = useMemo(() => {
-    const startMonth = (currentQuarter - 1) * 3;
-    const start = `${currentYear}-${String(startMonth + 1).padStart(2, '0')}-01`;
-    return {
-      quarterStart: start,
-      quarterlyPipeline: getPipelineMetrics(start, today)
-    };
-  }, [currentQuarter, currentYear, today]);
-
-  // Selected quarter range (memoized to prevent infinite loops)
-  const { selectedStart, selectedEnd, selectedQuarterPipeline } = useMemo(() => {
-    const [yStr, qStr] = selectedQuarter.split('-Q');
-    const y = parseInt(yStr);
-    const q = parseInt(qStr);
-    const startMonth = (q - 1) * 3;
-    const start = `${y}-${String(startMonth + 1).padStart(2, '0')}-01`;
-    const end = `${y}-${String(startMonth + 3).padStart(2, '0')}-01`;
-    const adjustedEnd = new Date(end);
-    adjustedEnd.setDate(adjustedEnd.getDate() - 1);
-    const adjustedEndStr = adjustedEnd.toISOString().split('T')[0];
-    return {
-      selectedStart: start,
-      selectedEnd: adjustedEndStr,
-      selectedQuarterPipeline: getPipelineMetrics(start, adjustedEndStr)
-    };
-  }, [selectedQuarter]);
-
-  // Target achieved for selected quarter (memoized to ensure recalc on orders/rfqs change)
-  const selectedTargetAchieved = useMemo(() => {
-    return orders
-      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= selectedStart && r.rfq_date <= selectedEnd))
-      .reduce((s, o) => s + o.order_value, 0);
-  }, [orders, rfqs, selectedStart, selectedEnd]);
-
-  // Target achieved = order values from converted RFQs this quarter (memoized to ensure recalc)
-  const targetAchieved = useMemo(() => {
-    return orders
-      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= quarterStart && r.rfq_date <= today))
-      .reduce((s, o) => s + o.order_value, 0);
-  }, [orders, rfqs, quarterStart, today]);
-
-  // Overall KPIs
-  const totalClients = clients.length;
-  const totalOrders = orders.length;
-  const installationOrders = orders.filter(o => o.status === 'in_transit' || o.status === 'procurement').length;
-  const activeProspects = prospects.filter(p => !p.converted_client_id).length;
-  const totalRevenue = orders.reduce((s, o) => s + o.order_value, 0);
-
-  // Top clients by RFQ count
-  const rfqCountByClient: Record<string, number> = {};
-  rfqs.forEach(r => { rfqCountByClient[r.client_id] = (rfqCountByClient[r.client_id] || 0) + 1; });
-  const topRFQClients = Object.entries(rfqCountByClient)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([clientId, count]) => ({ name: getClientName(clientId), count }));
 
   const todayKpis = [
     { label: 'RFQs Received', value: last10Metrics.received, icon: FileText, color: 'text-primary' },
