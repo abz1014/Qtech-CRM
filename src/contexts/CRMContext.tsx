@@ -55,6 +55,7 @@ interface CRMContextType {
   updateRFQLineItem: (id: string, updates: Partial<Pick<RFQLineItem, 'product_type' | 'quantity' | 'specification'>>) => Promise<void>;
   deleteRFQLineItem: (id: string) => Promise<void>;
   updateInquiryStatus: (inquiryId: string, status: SupplierInquiryStatus) => Promise<void>;
+  updateSupplierInquiry: (inquiryId: string, updates: Partial<Omit<SupplierInquiry, 'id'>>) => Promise<void>;
   getRFQMetrics: (dateStr: string) => { receivedToday: number; notFloated: number; floated: number; responded: number };
   getRFQMetricsByDateRange: (startDate: string, endDate: string) => { total: number; notFloated: number; floated: number; responded: number };
   updateClient: (clientId: string, updates: Partial<Omit<Client, 'id'>>) => Promise<void>;
@@ -519,12 +520,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addOrder = useCallback(async (o: Omit<Order, 'id'>): Promise<Order> => {
+    // Validate client_id exists
+    if (o.client_id && !clients.find(c => c.id === o.client_id)) {
+      throw new Error(`Client with ID ${o.client_id} does not exist`);
+    }
     const { data, error } = await supabase.from('orders').insert(o).select().single();
     if (error || !data) throw new Error('Failed to create order');
     const order = data as Order;
     setOrders(prev => [order, ...prev]);
     return order;
-  }, []);
+  }, [clients]);
 
   const addOrderEngineer = useCallback(async (oe: Omit<OrderEngineer, 'id'>) => {
     const { data } = await supabase.from('order_engineers').insert(oe).select().single();
@@ -746,6 +751,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (data) setSupplierInquiries(prev => prev.map(si => si.id === inquiryId ? data as SupplierInquiry : si));
   }, []);
 
+  const updateSupplierInquiry = useCallback(async (inquiryId: string, updates: Partial<Omit<SupplierInquiry, 'id'>>) => {
+    const { data } = await supabase
+      .from('supplier_inquiries')
+      .update(updates)
+      .eq('id', inquiryId)
+      .select()
+      .single();
+    if (data) setSupplierInquiries(prev => prev.map(si => si.id === inquiryId ? data as SupplierInquiry : si));
+  }, []);
+
   const getRFQMetrics = useCallback((dateStr: string) => {
     const rfqsToday = rfqs.filter(r => r.rfq_date === dateStr);
     const notFloated = rfqsToday.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id)).length;
@@ -816,19 +831,78 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deleteRFQ = useCallback(async (rfqId: string) => {
+    // Clean up orphaned follow-up actions for this RFQ
+    const rfqActions = followUpActions.filter(a => a.entity_id === rfqId && a.entity_type === 'rfq');
+    for (const action of rfqActions) {
+      await supabase.from('follow_up_actions').delete().eq('id', action.id);
+    }
+
     await supabase.from('rfqs').delete().eq('id', rfqId);
     setRFQs(prev => prev.filter(r => r.id !== rfqId));
-  }, []);
+    setFollowUpActions(prev => prev.filter(a => !(a.entity_id === rfqId && a.entity_type === 'rfq')));
+  }, [followUpActions]);
 
   const deleteOrder = useCallback(async (orderId: string) => {
+    // Clean up orphaned follow-up actions for this order
+    const orderActions = followUpActions.filter(a => a.entity_id === orderId && a.entity_type === 'order');
+    for (const action of orderActions) {
+      await supabase.from('follow_up_actions').delete().eq('id', action.id);
+    }
+
+    // If this order has a linked RFQ, reset the RFQ's converted status
+    const order = orders.find(o => o.id === orderId);
+    if (order?.rfq_id) {
+      await supabase
+        .from('rfqs')
+        .update({ status: 'quoted', converted_order_id: null })
+        .eq('id', order.rfq_id);
+      setRFQs(prev => prev.map(r => r.id === order.rfq_id ? { ...r, status: 'quoted' as RFQStatus, converted_order_id: null } : r));
+    }
+
     await supabase.from('orders').delete().eq('id', orderId);
     setOrders(prev => prev.filter(o => o.id !== orderId));
-  }, []);
+    setFollowUpActions(prev => prev.filter(a => !(a.entity_id === orderId && a.entity_type === 'order')));
+  }, [orders, followUpActions]);
 
   const deleteClient = useCallback(async (clientId: string) => {
+    // Get all RFQs and orders for this client
+    const clientRFQs = rfqs.filter(r => r.client_id === clientId);
+    const clientOrders = orders.filter(o => o.client_id === clientId);
+
+    // Delete all follow-up actions for this client's RFQs and orders
+    for (const rfq of clientRFQs) {
+      const rfqActions = followUpActions.filter(a => a.entity_id === rfq.id && a.entity_type === 'rfq');
+      for (const action of rfqActions) {
+        await supabase.from('follow_up_actions').delete().eq('id', action.id);
+      }
+    }
+    for (const order of clientOrders) {
+      const orderActions = followUpActions.filter(a => a.entity_id === order.id && a.entity_type === 'order');
+      for (const action of orderActions) {
+        await supabase.from('follow_up_actions').delete().eq('id', action.id);
+      }
+    }
+
+    // Delete all RFQs for this client (will cascade delete supplier interactions)
+    for (const rfq of clientRFQs) {
+      await supabase.from('rfqs').delete().eq('id', rfq.id);
+    }
+
+    // Delete all orders for this client
+    for (const order of clientOrders) {
+      await supabase.from('orders').delete().eq('id', order.id);
+    }
+
+    // Delete the client
     await supabase.from('clients').delete().eq('id', clientId);
     setClients(prev => prev.filter(c => c.id !== clientId));
-  }, []);
+    setRFQs(prev => prev.filter(r => r.client_id !== clientId));
+    setOrders(prev => prev.filter(o => o.client_id !== clientId));
+    setFollowUpActions(prev => prev.filter(a =>
+      !(clientRFQs.some(r => r.id === a.entity_id && a.entity_type === 'rfq') ||
+        clientOrders.some(o => o.id === a.entity_id && a.entity_type === 'order'))
+    ));
+  }, [rfqs, orders, followUpActions]);
 
   const deleteVendor = useCallback(async (vendorId: string) => {
     await supabase.from('vendors').delete().eq('id', vendorId);
@@ -1738,7 +1812,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       convertProspect, updateOrderStatus, updateCommissioningStatus,
       addRFQ, updateRFQStatus, updateRFQPriority, convertRFQToOrder,
       getNextOrderStatus,
-      addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus,
+      addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus, updateSupplierInquiry,
       getRFQMetrics, getRFQMetricsByDateRange,
       updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
       deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
