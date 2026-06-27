@@ -2,13 +2,14 @@ import { Navigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR } from '@/lib/format';
-import { Users, ShoppingCart, Wrench, Target, TrendingUp, ArrowRight, FileText, CheckCircle, BarChart3, Send, MessageSquare, AlertTriangle, Clock, Zap } from 'lucide-react';
-import { useMemo } from 'react';
+import { Users, ShoppingCart, Wrench, Target, TrendingUp, ArrowRight, FileText, CheckCircle, Send, MessageSquare, AlertTriangle, Clock, Zap, Edit2, X } from 'lucide-react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardSkeleton } from '@/components/ui/skeleton';
+import { supabase } from '@/lib/supabase';
 
 export default function DashboardPage() {
-  const { clients, orders, prospects, rfqs, followUpActions, getClientName, getVendorName, getRFQMetrics, getUserName, loading } = useCRM();
+  const { clients, orders, prospects, rfqs, supplierInquiries, supplierQuotes, followUpActions, getClientName, getVendorName, getRFQMetrics, getUserName, loading } = useCRM();
   const { user, isAdmin, isSales } = useAuth();
   const navigate = useNavigate();
 
@@ -17,8 +18,9 @@ export default function DashboardPage() {
   // ── All hooks MUST be before any early return ────────────────────────────
   const today = new Date().toISOString().split('T')[0];
 
-  // Team-wide pending actions — everyone sees everything
-  const myActions = followUpActions.filter(a => a.status === 'pending');
+  const myActions = followUpActions.filter(a =>
+    a.status === 'pending' && (!a.assigned_to || a.assigned_to === user?.id)
+  );
   const overdueActions  = myActions.filter(a => a.due_date < today);
   const todayActions    = myActions.filter(a => a.due_date === today);
 
@@ -35,41 +37,73 @@ export default function DashboardPage() {
     return Object.entries(typeCounts).map(([label, count]) => ({ label, count }));
   }, [myActions]);
 
+  // ── Quarterly target from Supabase ──
+  const [quarterlyTarget, setQuarterlyTarget] = useState<number>(0);
+  const [editingTarget, setEditingTarget] = useState(false);
+  const [targetInput, setTargetInput] = useState('');
+
+  const now = useMemo(() => new Date(), []);
+  const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  const fetchTarget = useCallback(async () => {
+    const { data } = await supabase
+      .from('quarterly_targets')
+      .select('target_value')
+      .eq('year', currentYear)
+      .eq('quarter', currentQuarter)
+      .single();
+    if (data) setQuarterlyTarget(Number(data.target_value));
+  }, [currentYear, currentQuarter]);
+
+  useEffect(() => { fetchTarget(); }, [fetchTarget]);
+
+  const saveTarget = async () => {
+    const val = Number(targetInput) || 0;
+    await supabase.from('quarterly_targets').upsert(
+      { year: currentYear, quarter: currentQuarter, target_value: val, updated_at: new Date().toISOString() },
+      { onConflict: 'year,quarter' }
+    );
+    setQuarterlyTarget(val);
+    setEditingTarget(false);
+  };
+
   if (loading) return <DashboardSkeleton />;
 
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
   const rfqMetrics = getRFQMetrics(today);
 
+  // ── Helper: compute pipeline metrics for a date range ──
+  const getPipelineMetrics = (startDate: string, endDate: string) => {
+    const rangeRfqs = rfqs.filter(r => r.rfq_date >= startDate && r.rfq_date <= endDate);
+    const received = rangeRfqs.length;
+    const quoteReceived = rangeRfqs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id)).length;
+    const quotedToClient = rangeRfqs.filter(r => r.status === 'quoted' || r.status === 'converted').length;
+    const poReceived = rangeRfqs.filter(r => r.status === 'converted').length;
+    return { received, quoteReceived, quotedToClient, poReceived };
+  };
+
+  // Monthly range
+  const monthStart = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+  const monthEnd = today;
+  const monthlyPipeline = getPipelineMetrics(monthStart, monthEnd);
+
+  // Quarterly range
+  const quarterStartMonth = (currentQuarter - 1) * 3;
+  const quarterStart = `${currentYear}-${String(quarterStartMonth + 1).padStart(2, '0')}-01`;
+  const quarterlyPipeline = getPipelineMetrics(quarterStart, today);
+
+  // Target achieved = order values from converted RFQs this quarter
+  const targetAchieved = orders
+    .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= quarterStart && r.rfq_date <= today))
+    .reduce((s, o) => s + o.order_value, 0);
+
+  // Overall KPIs
   const totalClients = clients.length;
   const totalOrders = orders.length;
   const installationOrders = orders.filter(o => o.status === 'in_transit' || o.status === 'procurement').length;
   const activeProspects = prospects.filter(p => !p.converted_client_id).length;
-
-  // Monthly revenue: confirmed + completed orders
-  const monthlyRevenue = orders
-    .filter(o => (o.status === 'payment_received' || o.status === 'delivered') && o.confirmed_date)
-    .filter(o => {
-      const d = new Date(o.confirmed_date!);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    })
-    .reduce((s, o) => s + o.order_value, 0);
-
-  const confirmedThisMonth = orders.filter(o => {
-    if (o.status !== 'po_received') return false;
-    if (!o.confirmed_date) return false;
-    const d = new Date(o.confirmed_date);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  }).length;
-
-  const rfqsThisMonth = rfqs.filter(r => {
-    const d = new Date(r.rfq_date);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  }).length;
-
   const totalRevenue = orders.reduce((s, o) => s + o.order_value, 0);
-  const totalProfit = orders.reduce((s, o) => s + (o.order_value - (o.cost_value || 0)), 0);
 
   // Top clients by RFQ count
   const rfqCountByClient: Record<string, number> = {};
@@ -79,24 +113,32 @@ export default function DashboardPage() {
     .slice(0, 5)
     .map(([clientId, count]) => ({ name: getClientName(clientId), count }));
 
-  const rfqKpis = [
+  const todayKpis = [
     { label: 'RFQs Received Today', value: rfqMetrics.receivedToday, icon: FileText, color: 'text-primary' },
-    { label: 'Not Floated', value: rfqMetrics.notFloated, icon: Target, color: 'text-warning' },
     { label: 'Floated to Suppliers', value: rfqMetrics.floated, icon: Send, color: 'text-info' },
+    { label: 'Not Floated', value: rfqMetrics.notFloated, icon: Target, color: 'text-warning' },
     { label: 'Got Responses', value: rfqMetrics.responded, icon: MessageSquare, color: 'text-success' },
   ];
 
-  const kpis = [
+  const monthlyKpis = [
+    { label: 'RFQs Received', value: monthlyPipeline.received, icon: FileText, color: 'text-primary' },
+    { label: 'Quote from Supplier', value: monthlyPipeline.quoteReceived, icon: MessageSquare, color: 'text-info' },
+    { label: 'Quoted to Client', value: monthlyPipeline.quotedToClient, icon: Send, color: 'text-warning' },
+    { label: 'PO Received', value: monthlyPipeline.poReceived, icon: CheckCircle, color: 'text-success' },
+  ];
+
+  const quarterlyKpis = [
+    { label: 'RFQs Received', value: quarterlyPipeline.received, icon: FileText, color: 'text-primary' },
+    { label: 'Quote from Supplier', value: quarterlyPipeline.quoteReceived, icon: MessageSquare, color: 'text-info' },
+    { label: 'Quoted to Client', value: quarterlyPipeline.quotedToClient, icon: Send, color: 'text-warning' },
+    { label: 'PO Received', value: quarterlyPipeline.poReceived, icon: CheckCircle, color: 'text-success' },
+  ];
+
+  const overallKpis = [
     { label: 'Total Clients', value: totalClients, icon: Users, color: 'text-primary' },
     { label: 'Total Orders', value: totalOrders, icon: ShoppingCart, color: 'text-info' },
     { label: 'In Procurement/Transit', value: installationOrders, icon: Wrench, color: 'text-warning' },
     { label: 'Active Prospects', value: activeProspects, icon: Target, color: 'text-hot' },
-  ];
-
-  const monthlyKpis = [
-    { label: 'Monthly Revenue', value: formatPKR(monthlyRevenue), icon: TrendingUp, color: 'text-primary' },
-    { label: 'POs Received This Month', value: confirmedThisMonth, icon: CheckCircle, color: 'text-info' },
-    { label: 'RFQs This Month', value: rfqsThisMonth, icon: FileText, color: 'text-warning' },
   ];
 
   const recentOrders = [...orders].reverse().slice(0, 5);
@@ -268,11 +310,11 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* RFQ Metrics */}
+      {/* ════ TODAY'S PIPELINE ════ */}
       <div>
-        <p className="section-title mb-3">Today's RFQ Pipeline</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {rfqKpis.map(kpi => (
+        <p className="section-title mb-3">Today's Pipeline</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {todayKpis.map(kpi => (
             <div key={kpi.label} className="kpi-card">
               <div className="flex items-start justify-between mb-4">
                 <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
@@ -286,11 +328,101 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Overall KPIs */}
+      {/* ════ MONTHLY RFQ PIPELINE ════ */}
+      <div>
+        <p className="section-title mb-3">Monthly RFQ Pipeline</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {monthlyKpis.map(kpi => (
+            <div key={`m-${kpi.label}`} className="kpi-card">
+              <div className="flex items-start justify-between mb-4">
+                <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg[kpi.color] || 'bg-muted text-muted-foreground'}`}>
+                  <kpi.icon className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-4xl font-extrabold text-foreground tracking-tight">{kpi.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ════ QUARTERLY RFQ PIPELINE ════ */}
+      <div>
+        <p className="section-title mb-3">Quarterly RFQ Pipeline (Q{currentQuarter} {currentYear})</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {quarterlyKpis.map(kpi => (
+            <div key={`q-${kpi.label}`} className="kpi-card">
+              <div className="flex items-start justify-between mb-4">
+                <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg[kpi.color] || 'bg-muted text-muted-foreground'}`}>
+                  <kpi.icon className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-4xl font-extrabold text-foreground tracking-tight">{kpi.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ════ TARGET ════ */}
+      <div>
+        <p className="section-title mb-3">Target (Q{currentQuarter} {currentYear})</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="kpi-card">
+            <div className="flex items-start justify-between mb-4">
+              <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">Quarter Target</p>
+              <div className="flex items-center gap-1.5">
+                {isAdmin && !editingTarget && (
+                  <button onClick={() => { setTargetInput(String(quarterlyTarget)); setEditingTarget(true); }}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Set Target">
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/15 text-primary">
+                  <Target className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+            {editingTarget ? (
+              <div className="flex items-center gap-2">
+                <input type="number" value={targetInput} onChange={e => setTargetInput(e.target.value)} placeholder="Enter target value"
+                  className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" autoFocus />
+                <button onClick={saveTarget} className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">Save</button>
+                <button onClick={() => setEditingTarget(false)} className="p-2 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              </div>
+            ) : (
+              <p className="text-4xl font-extrabold text-foreground tracking-tight">{formatPKR(quarterlyTarget)}</p>
+            )}
+          </div>
+          <div className="kpi-card">
+            <div className="flex items-start justify-between mb-4">
+              <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">Target Achieved</p>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${quarterlyTarget > 0 && targetAchieved >= quarterlyTarget ? 'bg-success/15 text-success' : 'bg-info/15 text-info'}`}>
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-4xl font-extrabold text-foreground tracking-tight">{formatPKR(targetAchieved)}</p>
+            {quarterlyTarget > 0 && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                  <span>{Math.min(100, Math.round((targetAchieved / quarterlyTarget) * 100))}% achieved</span>
+                  <span>{formatPKR(quarterlyTarget - targetAchieved > 0 ? quarterlyTarget - targetAchieved : 0)} remaining</span>
+                </div>
+                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${targetAchieved >= quarterlyTarget ? 'bg-success' : 'bg-primary'}`}
+                    style={{ width: `${Math.min(100, (targetAchieved / quarterlyTarget) * 100)}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ════ OVERALL ════ */}
       <div>
         <p className="section-title mb-3">Overall</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {kpis.map(kpi => (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {overallKpis.map(kpi => (
             <div key={kpi.label} className="kpi-card">
               <div className="flex items-start justify-between mb-4">
                 <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
@@ -299,24 +431,6 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-4xl font-extrabold text-foreground tracking-tight">{kpi.value}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Monthly KPIs */}
-      <div>
-        <p className="section-title mb-3">This Month</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {monthlyKpis.map(kpi => (
-            <div key={kpi.label} className="kpi-card">
-              <div className="flex items-start justify-between mb-4">
-                <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">{kpi.label}</p>
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg[kpi.color] || 'bg-muted text-muted-foreground'}`}>
-                  <kpi.icon className="w-4 h-4" />
-                </div>
-              </div>
-              <p className="text-3xl font-extrabold text-foreground tracking-tight">{kpi.value}</p>
             </div>
           ))}
         </div>
