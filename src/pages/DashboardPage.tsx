@@ -163,31 +163,50 @@ export default function DashboardPage() {
     responded: last10Rfqs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id)).length,
   };
 
-  // Monthly range
-  const monthStart = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
-  const monthEnd = today;
-  const monthlyPipeline = getPipelineMetrics(monthStart, monthEnd);
+  // Monthly range (memoized)
+  const { monthStart, monthEnd, monthlyPipeline } = useMemo(() => {
+    const start = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+    return {
+      monthStart: start,
+      monthEnd: today,
+      monthlyPipeline: getPipelineMetrics(start, today)
+    };
+  }, [currentYear, currentMonth, today]);
 
-  // Quarterly range
-  const quarterStartMonth = (currentQuarter - 1) * 3;
-  const quarterStart = `${currentYear}-${String(quarterStartMonth + 1).padStart(2, '0')}-01`;
-  const quarterlyPipeline = getPipelineMetrics(quarterStart, today);
+  // Quarterly range (memoized)
+  const { quarterStart, quarterlyPipeline } = useMemo(() => {
+    const startMonth = (currentQuarter - 1) * 3;
+    const start = `${currentYear}-${String(startMonth + 1).padStart(2, '0')}-01`;
+    return {
+      quarterStart: start,
+      quarterlyPipeline: getPipelineMetrics(start, today)
+    };
+  }, [currentQuarter, currentYear, today]);
 
-  // Selected quarter range
-  const [selectedYear, selectedQtr] = selectedQuarter.split('-Q').map((v, i) => i === 0 ? parseInt(v) : parseInt(v));
-  const selectedStartMonth = (selectedQtr - 1) * 3;
-  const selectedStart = `${selectedYear}-${String(selectedStartMonth + 1).padStart(2, '0')}-01`;
-  const selectedEnd = `${selectedYear}-${String(selectedStartMonth + 3).padStart(2, '0')}-01`;
-  const adjustedSelectedEnd = new Date(selectedEnd);
-  adjustedSelectedEnd.setDate(adjustedSelectedEnd.getDate() - 1);
-  const selectedQuarterPipeline = getPipelineMetrics(selectedStart, adjustedSelectedEnd.toISOString().split('T')[0]);
+  // Selected quarter range (memoized to prevent infinite loops)
+  const { selectedStart, selectedEnd, selectedQuarterPipeline } = useMemo(() => {
+    const [yStr, qStr] = selectedQuarter.split('-Q');
+    const y = parseInt(yStr);
+    const q = parseInt(qStr);
+    const startMonth = (q - 1) * 3;
+    const start = `${y}-${String(startMonth + 1).padStart(2, '0')}-01`;
+    const end = `${y}-${String(startMonth + 3).padStart(2, '0')}-01`;
+    const adjustedEnd = new Date(end);
+    adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+    const adjustedEndStr = adjustedEnd.toISOString().split('T')[0];
+    return {
+      selectedStart: start,
+      selectedEnd: adjustedEndStr,
+      selectedQuarterPipeline: getPipelineMetrics(start, adjustedEndStr)
+    };
+  }, [selectedQuarter]);
 
   // Target achieved for selected quarter (memoized to ensure recalc on orders/rfqs change)
   const selectedTargetAchieved = useMemo(() => {
     return orders
-      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= selectedStart && r.rfq_date <= adjustedSelectedEnd.toISOString().split('T')[0]))
+      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= selectedStart && r.rfq_date <= selectedEnd))
       .reduce((s, o) => s + o.order_value, 0);
-  }, [orders, rfqs, selectedStart, adjustedSelectedEnd]);
+  }, [orders, rfqs, selectedStart, selectedEnd]);
 
   // Target achieved = order values from converted RFQs this quarter (memoized to ensure recalc)
   const targetAchieved = useMemo(() => {
