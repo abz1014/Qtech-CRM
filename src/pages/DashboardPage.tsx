@@ -53,17 +53,28 @@ export default function DashboardPage() {
 
   // Fetch target for selected quarter
   const fetchSelectedTarget = useCallback(async () => {
-    const [yStr, qStr] = selectedQuarter.split('-Q');
-    const y = parseInt(yStr);
-    const q = parseInt(qStr);
-    const { data } = await supabase
-      .from('quarterly_targets')
-      .select('target_value')
-      .eq('year', y)
-      .eq('quarter', q)
-      .single();
-    if (data) setSelectedQuarterTarget(Number(data.target_value));
-    else setSelectedQuarterTarget(0);
+    try {
+      const [yStr, qStr] = selectedQuarter.split('-Q');
+      const y = parseInt(yStr);
+      const q = parseInt(qStr);
+      const { data, error } = await supabase
+        .from('quarterly_targets')
+        .select('target_value')
+        .eq('year', y)
+        .eq('quarter', q)
+        .maybeSingle();
+      if (error) {
+        console.error('Error fetching quarterly target:', error);
+        setSelectedQuarterTarget(0);
+      } else if (data) {
+        setSelectedQuarterTarget(Number(data.target_value));
+      } else {
+        setSelectedQuarterTarget(0);
+      }
+    } catch (err) {
+      console.error('Unexpected error fetching quarterly target:', err);
+      setSelectedQuarterTarget(0);
+    }
   }, [selectedQuarter]);
 
   useEffect(() => { fetchSelectedTarget(); }, [fetchSelectedTarget]);
@@ -85,13 +96,25 @@ export default function DashboardPage() {
   const currentMonth = now.getMonth();
 
   const fetchTarget = useCallback(async () => {
-    const { data } = await supabase
-      .from('quarterly_targets')
-      .select('target_value')
-      .eq('year', currentYear)
-      .eq('quarter', currentQuarter)
-      .single();
-    if (data) setQuarterlyTarget(Number(data.target_value));
+    try {
+      const { data, error } = await supabase
+        .from('quarterly_targets')
+        .select('target_value')
+        .eq('year', currentYear)
+        .eq('quarter', currentQuarter)
+        .maybeSingle();
+      if (error) {
+        console.error('Error fetching current quarter target:', error);
+        setQuarterlyTarget(0);
+      } else if (data) {
+        setQuarterlyTarget(Number(data.target_value));
+      } else {
+        setQuarterlyTarget(0);
+      }
+    } catch (err) {
+      console.error('Unexpected error fetching current quarter target:', err);
+      setQuarterlyTarget(0);
+    }
   }, [currentYear, currentQuarter]);
 
   useEffect(() => { fetchTarget(); }, [fetchTarget]);
