@@ -184,23 +184,6 @@ export default function DashboardPage() {
     { label: 'Active Prospects', value: activeProspects, icon: Target, color: 'text-hot' },
   ];
 
-  const recentOrders = [...orders].reverse().slice(0, 5);
-
-  const statusColors: Record<string, string> = {
-    po_received: 'bg-info/15 text-info',
-    procurement: 'bg-warning/15 text-warning',
-    in_transit: 'bg-primary/15 text-primary',
-    delivered: 'bg-success/15 text-success',
-    payment_received: 'bg-emerald-500/15 text-emerald-600',
-  };
-  const statusLabels: Record<string, string> = {
-    po_received: 'PO Received',
-    procurement: 'Procurement',
-    in_transit: 'In Transit',
-    delivered: 'Delivered',
-    payment_received: 'Payment Received',
-  };
-
   // Icon background colours per kpi
   const iconBg: Record<string, string> = {
     'text-primary': 'bg-primary/15 text-primary',
@@ -538,54 +521,6 @@ export default function DashboardPage() {
         </div>
       </div>
       )}
-
-      <div className="glass-card">
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground">Recent Orders</h2>
-          <button onClick={() => navigate('/orders')} className="text-sm text-primary flex items-center gap-1 hover:underline">
-            View All <ArrowRight className="w-3 h-3" />
-          </button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">Client</th>
-                <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">Vendor</th>
-                <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">Product</th>
-                <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">Value</th>
-                <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentOrders.map(order => (
-                <tr
-                  key={order.id}
-                  className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/orders/${order.id}`)}
-                >
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="avatar-xs bg-primary/15 text-primary">
-                        {getClientName(order.client_id).slice(0,2).toUpperCase()}
-                      </div>
-                      <span className="text-sm font-medium text-foreground">{getClientName(order.client_id)}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-sm text-muted-foreground">{getVendorName(order.vendor_id)}</td>
-                  <td className="px-5 py-3 text-sm text-foreground">{order.product_type}</td>
-                  <td className="px-5 py-3 text-sm text-foreground">{formatPKR(order.order_value)}</td>
-                  <td className="px-5 py-3">
-                    <span className={`status-badge ${statusColors[order.status] || 'bg-muted text-muted-foreground'}`}>
-                      {statusLabels[order.status] || order.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
     </div>
   );
