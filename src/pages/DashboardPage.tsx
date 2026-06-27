@@ -42,9 +42,26 @@ export default function DashboardPage() {
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetInput, setTargetInput] = useState('');
 
+  // ── Selected quarter for comparison ──
   const now = useMemo(() => new Date(), []);
   const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
   const currentYear = now.getFullYear();
+  const [selectedQuarter, setSelectedQuarter] = useState(`${currentYear}-Q${currentQuarter === 1 ? 4 : currentQuarter - 1}`);
+
+  // Generate list of available quarters (last 8 quarters)
+  const availableQuarters = useMemo(() => {
+    const quarters: { value: string; label: string }[] = [];
+    let q = currentQuarter === 1 ? 4 : currentQuarter - 1;
+    let y = currentQuarter === 1 ? currentYear - 1 : currentYear;
+
+    for (let i = 0; i < 8; i++) {
+      quarters.push({ value: `${y}-Q${q}`, label: `Q${q} ${y}` });
+      q = q === 1 ? 4 : q - 1;
+      if (q === 4) y--;
+    }
+    return quarters;
+  }, [currentQuarter, currentYear]);
+
   const currentMonth = now.getMonth();
 
   const fetchTarget = useCallback(async () => {
@@ -103,15 +120,14 @@ export default function DashboardPage() {
   const quarterStart = `${currentYear}-${String(quarterStartMonth + 1).padStart(2, '0')}-01`;
   const quarterlyPipeline = getPipelineMetrics(quarterStart, today);
 
-  // Last quarter range
-  const lastQuarter = currentQuarter === 1 ? 4 : currentQuarter - 1;
-  const lastQuarterYear = currentQuarter === 1 ? currentYear - 1 : currentYear;
-  const lastQuarterStartMonth = (lastQuarter - 1) * 3;
-  const lastQuarterStart = `${lastQuarterYear}-${String(lastQuarterStartMonth + 1).padStart(2, '0')}-01`;
-  const lastQuarterEnd = `${lastQuarterYear}-${String(lastQuarterStartMonth + 3).padStart(2, '0')}-01`;
-  const adjustedLastQuarterEnd = new Date(lastQuarterEnd);
-  adjustedLastQuarterEnd.setDate(adjustedLastQuarterEnd.getDate() - 1);
-  const lastQuarterPipeline = getPipelineMetrics(lastQuarterStart, adjustedLastQuarterEnd.toISOString().split('T')[0]);
+  // Selected quarter range
+  const [selectedYear, selectedQtr] = selectedQuarter.split('-Q').map((v, i) => i === 0 ? parseInt(v) : parseInt(v));
+  const selectedStartMonth = (selectedQtr - 1) * 3;
+  const selectedStart = `${selectedYear}-${String(selectedStartMonth + 1).padStart(2, '0')}-01`;
+  const selectedEnd = `${selectedYear}-${String(selectedStartMonth + 3).padStart(2, '0')}-01`;
+  const adjustedSelectedEnd = new Date(selectedEnd);
+  adjustedSelectedEnd.setDate(adjustedSelectedEnd.getDate() - 1);
+  const selectedQuarterPipeline = getPipelineMetrics(selectedStart, adjustedSelectedEnd.toISOString().split('T')[0]);
 
   // Target achieved = order values from converted RFQs this quarter
   const targetAchieved = orders
@@ -155,10 +171,10 @@ export default function DashboardPage() {
   ];
 
   const lastQuarterKpis = [
-    { label: 'RFQs Received', value: lastQuarterPipeline.received, icon: FileText, color: 'text-primary' },
-    { label: 'Quote from Supplier', value: lastQuarterPipeline.quoteReceived, icon: MessageSquare, color: 'text-info' },
-    { label: 'Quoted to Client', value: lastQuarterPipeline.quotedToClient, icon: Send, color: 'text-warning' },
-    { label: 'PO Received', value: lastQuarterPipeline.poReceived, icon: CheckCircle, color: 'text-success' },
+    { label: 'RFQs Received', value: selectedQuarterPipeline.received, icon: FileText, color: 'text-primary' },
+    { label: 'Quote from Supplier', value: selectedQuarterPipeline.quoteReceived, icon: MessageSquare, color: 'text-info' },
+    { label: 'Quoted to Client', value: selectedQuarterPipeline.quotedToClient, icon: Send, color: 'text-warning' },
+    { label: 'PO Received', value: selectedQuarterPipeline.poReceived, icon: CheckCircle, color: 'text-success' },
   ];
 
   const overallKpis = [
@@ -393,7 +409,18 @@ export default function DashboardPage() {
 
       {/* ════ LAST QUARTER RESULTS ════ */}
       <div>
-        <p className="section-title mb-3">Last Quarter Results (Q{lastQuarter} {lastQuarterYear})</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="section-title">Previous Quarter Performance</p>
+          <select
+            value={selectedQuarter}
+            onChange={(e) => setSelectedQuarter(e.target.value)}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-muted text-foreground border border-border hover:bg-muted/80 transition-colors cursor-pointer"
+          >
+            {availableQuarters.map(q => (
+              <option key={q.value} value={q.value}>{q.label}</option>
+            ))}
+          </select>
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {lastQuarterKpis.map(kpi => (
             <div key={`lq-${kpi.label}`} className="kpi-card opacity-80">
