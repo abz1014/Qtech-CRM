@@ -159,15 +159,19 @@ export default function DashboardPage() {
   adjustedSelectedEnd.setDate(adjustedSelectedEnd.getDate() - 1);
   const selectedQuarterPipeline = getPipelineMetrics(selectedStart, adjustedSelectedEnd.toISOString().split('T')[0]);
 
-  // Target achieved for selected quarter
-  const selectedTargetAchieved = orders
-    .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= selectedStart && r.rfq_date <= adjustedSelectedEnd.toISOString().split('T')[0]))
-    .reduce((s, o) => s + o.order_value, 0);
+  // Target achieved for selected quarter (memoized to ensure recalc on orders/rfqs change)
+  const selectedTargetAchieved = useMemo(() => {
+    return orders
+      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= selectedStart && r.rfq_date <= adjustedSelectedEnd.toISOString().split('T')[0]))
+      .reduce((s, o) => s + o.order_value, 0);
+  }, [orders, rfqs, selectedStart, adjustedSelectedEnd]);
 
-  // Target achieved = order values from converted RFQs this quarter
-  const targetAchieved = orders
-    .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= quarterStart && r.rfq_date <= today))
-    .reduce((s, o) => s + o.order_value, 0);
+  // Target achieved = order values from converted RFQs this quarter (memoized to ensure recalc)
+  const targetAchieved = useMemo(() => {
+    return orders
+      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= quarterStart && r.rfq_date <= today))
+      .reduce((s, o) => s + o.order_value, 0);
+  }, [orders, rfqs, quarterStart, today]);
 
   // Overall KPIs
   const totalClients = clients.length;
