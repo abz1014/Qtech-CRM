@@ -126,24 +126,37 @@ export default function DashboardPage() {
     return { selectedStart: start, selectedEnd: adjustedEndStr, selectedQuarterPipeline: getPipelineMetrics(start, adjustedEndStr) };
   }, [selectedYear, selectedQtr, getPipelineMetrics]);
 
-  // Target achieved = all orders by PO date in the quarter
+  // Get the best available date for an order
+  const getOrderDate = useCallback((o: any): string | null => {
+    if (o.customer_po_date) return o.customer_po_date;
+    if (o.confirmed_date) return o.confirmed_date;
+    if (o.delivery_date) return o.delivery_date;
+    // Fallback: use linked RFQ date
+    if (o.rfq_id) {
+      const rfq = rfqs.find(r => r.id === o.rfq_id);
+      if (rfq) return rfq.rfq_date;
+    }
+    return null;
+  }, [rfqs]);
+
+  // Target achieved = all orders by best available date in the quarter
   const selectedTargetAchieved = useMemo(() => {
     return orders
       .filter(o => {
-        const poDate = o.customer_po_date || o.confirmed_date;
-        return poDate && poDate >= selectedStart && poDate <= selectedEnd;
+        const d = getOrderDate(o);
+        return d && d >= selectedStart && d <= selectedEnd;
       })
       .reduce((s, o) => s + o.order_value, 0);
-  }, [orders, selectedStart, selectedEnd]);
+  }, [orders, selectedStart, selectedEnd, getOrderDate]);
 
   const targetAchieved = useMemo(() => {
     return orders
       .filter(o => {
-        const poDate = o.customer_po_date || o.confirmed_date;
-        return poDate && poDate >= quarterStart && poDate <= today;
+        const d = getOrderDate(o);
+        return d && d >= quarterStart && d <= today;
       })
       .reduce((s, o) => s + o.order_value, 0);
-  }, [orders, quarterStart, today]);
+  }, [orders, quarterStart, today, getOrderDate]);
 
   // Overall KPIs
   const totalClients = useMemo(() => clients.length, [clients]);
