@@ -47,6 +47,24 @@ export default function DashboardPage() {
   const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
   const currentYear = now.getFullYear();
   const [selectedQuarter, setSelectedQuarter] = useState(`${currentYear}-Q${currentQuarter === 1 ? 4 : currentQuarter - 1}`);
+  const [selectedQuarterTarget, setSelectedQuarterTarget] = useState<number>(0);
+
+  // Fetch target for selected quarter
+  const fetchSelectedTarget = useCallback(async () => {
+    const [yStr, qStr] = selectedQuarter.split('-Q');
+    const y = parseInt(yStr);
+    const q = parseInt(qStr);
+    const { data } = await supabase
+      .from('quarterly_targets')
+      .select('target_value')
+      .eq('year', y)
+      .eq('quarter', q)
+      .single();
+    if (data) setSelectedQuarterTarget(Number(data.target_value));
+    else setSelectedQuarterTarget(0);
+  }, [selectedQuarter]);
+
+  useEffect(() => { fetchSelectedTarget(); }, [fetchSelectedTarget]);
 
   // Generate list of available quarters (last 8 quarters)
   const availableQuarters = useMemo(() => {
@@ -128,6 +146,11 @@ export default function DashboardPage() {
   const adjustedSelectedEnd = new Date(selectedEnd);
   adjustedSelectedEnd.setDate(adjustedSelectedEnd.getDate() - 1);
   const selectedQuarterPipeline = getPipelineMetrics(selectedStart, adjustedSelectedEnd.toISOString().split('T')[0]);
+
+  // Target achieved for selected quarter
+  const selectedTargetAchieved = orders
+    .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.rfq_date >= selectedStart && r.rfq_date <= adjustedSelectedEnd.toISOString().split('T')[0]))
+    .reduce((s, o) => s + o.order_value, 0);
 
   // Target achieved = order values from converted RFQs this quarter
   const targetAchieved = orders
@@ -416,6 +439,43 @@ export default function DashboardPage() {
               <p className="text-4xl font-extrabold text-foreground tracking-tight">{kpi.value}</p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* ════ PREVIOUS QUARTER TARGET ════ */}
+      <div>
+        <p className="section-title mb-3">Previous Quarter Target (Q{selectedQtr} {selectedYear})</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="kpi-card opacity-80">
+            <div className="flex items-start justify-between mb-4">
+              <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">Quarter Target</p>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/15 text-primary">
+                <Target className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-4xl font-extrabold text-foreground tracking-tight">{formatPKR(selectedQuarterTarget)}</p>
+          </div>
+          <div className="kpi-card opacity-80">
+            <div className="flex items-start justify-between mb-4">
+              <p className="text-xs font-semibold text-muted-foreground leading-snug pr-2">Target Achieved</p>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${selectedQuarterTarget > 0 && selectedTargetAchieved >= selectedQuarterTarget ? 'bg-success/15 text-success' : 'bg-info/15 text-info'}`}>
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-4xl font-extrabold text-foreground tracking-tight">{formatPKR(selectedTargetAchieved)}</p>
+            {selectedQuarterTarget > 0 && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                  <span>{Math.min(100, Math.round((selectedTargetAchieved / selectedQuarterTarget) * 100))}% achieved</span>
+                  <span>{formatPKR(selectedQuarterTarget - selectedTargetAchieved > 0 ? selectedQuarterTarget - selectedTargetAchieved : 0)} remaining</span>
+                </div>
+                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${selectedTargetAchieved >= selectedQuarterTarget ? 'bg-success' : 'bg-primary'}`}
+                    style={{ width: `${Math.min(100, (selectedTargetAchieved / selectedQuarterTarget) * 100)}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
