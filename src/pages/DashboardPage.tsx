@@ -126,18 +126,24 @@ export default function DashboardPage() {
     return { selectedStart: start, selectedEnd: adjustedEndStr, selectedQuarterPipeline: getPipelineMetrics(start, adjustedEndStr) };
   }, [selectedYear, selectedQtr, getPipelineMetrics]);
 
-  // Target achieved calculations — only count orders from converted RFQs (actual POs)
+  // Target achieved = all orders by PO date in the quarter
   const selectedTargetAchieved = useMemo(() => {
     return orders
-      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.status === 'converted' && r.rfq_date >= selectedStart && r.rfq_date <= selectedEnd))
+      .filter(o => {
+        const poDate = o.customer_po_date || o.confirmed_date;
+        return poDate && poDate >= selectedStart && poDate <= selectedEnd;
+      })
       .reduce((s, o) => s + o.order_value, 0);
-  }, [orders, rfqs, selectedStart, selectedEnd]);
+  }, [orders, selectedStart, selectedEnd]);
 
   const targetAchieved = useMemo(() => {
     return orders
-      .filter(o => o.rfq_id && rfqs.some(r => r.id === o.rfq_id && r.status === 'converted' && r.rfq_date >= quarterStart && r.rfq_date <= today))
+      .filter(o => {
+        const poDate = o.customer_po_date || o.confirmed_date;
+        return poDate && poDate >= quarterStart && poDate <= today;
+      })
       .reduce((s, o) => s + o.order_value, 0);
-  }, [orders, rfqs, quarterStart, today]);
+  }, [orders, quarterStart, today]);
 
   // Overall KPIs
   const totalClients = useMemo(() => clients.length, [clients]);
