@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
-import { FileText, Send, MessageSquare, CheckCircle, TrendingDown, Clock } from 'lucide-react';
+import { FileText, Send, MessageSquare, CheckCircle, TrendingDown, Clock, Download } from 'lucide-react';
 import { businessToday } from '@/lib/dates';
 import { lossReasonLabel } from '@/lib/lossReasons';
+import { generateCSV, downloadCSV } from '@/lib/csvExport';
 
 type Preset = 'this_month' | 'this_quarter' | 'this_year' | 'all_time';
 
@@ -121,6 +122,33 @@ export default function SalesIntelligencePage() {
     { label: 'Won', value: funnel.won, icon: CheckCircle, color: 'bg-success/15 text-success' },
   ];
 
+  const handleExport = () => {
+    const periodLabel = PRESETS.find(p => p.key === preset)?.label ?? preset;
+    const rows: any[][] = [];
+    rows.push([`Period: ${periodLabel}`, `${range.from} to ${range.to}`]);
+    rows.push([]);
+    rows.push(['CONVERSION FUNNEL']);
+    rows.push(['RFQs Received', funnel.received]);
+    rows.push(['Floated', funnel.floated]);
+    rows.push(['Quoted to Client', funnel.quoted]);
+    rows.push(['Won', funnel.won]);
+    rows.push(['Lost', funnel.lost]);
+    rows.push(['Overall Conversion %', funnel.conversionRate ?? '—']);
+    rows.push(['Win Rate of Decided %', funnel.winOfDecided ?? '—']);
+    rows.push(['Avg RFQ to Floated (days)', responseTimes.avgToFloat ?? '—']);
+    rows.push(['Avg RFQ to Quoted (days)', responseTimes.avgToQuote ?? '—']);
+    rows.push([]);
+    rows.push(['WHY WE LOSE', 'Count', 'Share %']);
+    lossBreakdown.rows.forEach(r => rows.push([lossReasonLabel(r.reason), r.count, lossBreakdown.total ? Math.round((r.count / lossBreakdown.total) * 100) : 0]));
+    rows.push([]);
+    rows.push(['TEAM PERFORMANCE']);
+    rows.push(['Salesperson', 'Received', 'Quoted', 'Won', 'Lost', 'Conversion %', 'Avg Days to Quote']);
+    bySalesperson.forEach(s => rows.push([s.name, s.received, s.quoted, s.won, s.lost, s.conversion, s.avgResp ?? '—']));
+
+    const csv = generateCSV([`Q-Tech Sales Intelligence (generated ${businessToday()})`], rows);
+    downloadCSV(csv, `Sales_Intelligence_${preset}_${businessToday()}.csv`);
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -128,13 +156,17 @@ export default function SalesIntelligencePage() {
           <h1 className="text-2xl font-bold text-foreground">Sales Intelligence</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Conversion, response speed, losses, and team performance</p>
         </div>
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap items-center">
           {PRESETS.map(p => (
             <button key={p.key} onClick={() => setPreset(p.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${preset === p.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
               {p.label}
             </button>
           ))}
+          <button onClick={handleExport}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-foreground hover:bg-muted/80 transition-colors border border-border">
+            <Download className="w-3.5 h-3.5" /> Export CSV
+          </button>
         </div>
       </div>
 
