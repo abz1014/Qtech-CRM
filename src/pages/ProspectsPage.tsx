@@ -10,6 +10,7 @@ import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-reac
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { ProspectStatus } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePersistedNumber } from '@/hooks/useURLState';
 import { TableSkeleton } from '@/components/ui/skeleton';
 
 const statusColors: Record<ProspectStatus, string> = {
@@ -25,7 +26,7 @@ export default function ProspectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistedNumber('prospects_page', 1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [form, setForm] = useState({
     company_name: '', contact_person: '', phone: '', email: '',
@@ -35,10 +36,16 @@ export default function ProspectsPage() {
   const debouncedSearch = useDebounce(search);
 
   const active = useMemo(() => prospects.filter(p => !p.converted_client_id), [prospects]);
-  const filtered = useMemo(() => active.filter(p =>
-    p.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-    p.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase())
-  ), [active, debouncedSearch]);
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    return active.filter(p =>
+      p.company_name.toLowerCase().includes(q) ||
+      p.contact_person.toLowerCase().includes(q) ||
+      p.lead_source.toLowerCase().includes(q) ||
+      p.phone.toLowerCase().includes(q) ||
+      p.email.toLowerCase().includes(q)
+    );
+  }, [active, debouncedSearch]);
 
   if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Contact', 'Status', 'Follow Up', 'Assigned To']} />;
 
@@ -104,7 +111,7 @@ export default function ProspectsPage() {
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search prospects..."
+        <input value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Search by company, contact, source, phone, email..."
           className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
       </div>
 

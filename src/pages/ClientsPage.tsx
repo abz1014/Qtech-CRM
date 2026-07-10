@@ -11,6 +11,7 @@ import { Plus, X, Search, ChevronDown, ChevronUp, Trash2, Download } from 'lucid
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { RFQStatus } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePersistedNumber } from '@/hooks/useURLState';
 import { TableSkeleton } from '@/components/ui/skeleton';
 
 const rfqStatusColors: Record<RFQStatus, string> = {
@@ -29,7 +30,7 @@ export default function ClientsPage() {
   const [search, setSearch] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistedNumber('clients_page', 1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [form, setForm] = useState({
     company_name: '', industry: '', contact_person: '', phone: '', email: '', address: '',
@@ -37,10 +38,16 @@ export default function ClientsPage() {
 
   const debouncedSearch = useDebounce(search);
 
-  const filtered = useMemo(() => clients.filter(c =>
-    c.company_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-    c.contact_person.toLowerCase().includes(debouncedSearch.toLowerCase())
-  ), [clients, debouncedSearch]);
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    return clients.filter(c =>
+      c.company_name.toLowerCase().includes(q) ||
+      c.contact_person.toLowerCase().includes(q) ||
+      c.industry.toLowerCase().includes(q) ||
+      c.phone.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q)
+    );
+  }, [clients, debouncedSearch]);
 
   if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Industry', 'Contact Person', 'Phone', 'RFQs']} />;
 
@@ -115,7 +122,7 @@ export default function ClientsPage() {
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search clients..."
+        <input value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Search by company, contact, industry, phone, email..."
           className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
       </div>
 

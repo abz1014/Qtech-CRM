@@ -8,6 +8,7 @@ import { Plus, X, Search, Trash2, Download, Pencil } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useDebounce } from '@/hooks/useDebounce';
+import { usePersistedNumber } from '@/hooks/useURLState';
 import { TableSkeleton } from '@/components/ui/skeleton';
 
 export default function VendorsPage() {
@@ -17,7 +18,7 @@ export default function VendorsPage() {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistedNumber('vendors_page', 1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [editVendor, setEditVendor] = useState<{ id: string; name: string; country: string; contact_person: string; phone: string; email: string; products_supplied: string } | null>(null);
   const [form, setForm] = useState({
@@ -26,10 +27,17 @@ export default function VendorsPage() {
 
   const debouncedSearch = useDebounce(search);
 
-  const filtered = useMemo(() => vendors.filter(v =>
-    v.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-    v.country.toLowerCase().includes(debouncedSearch.toLowerCase())
-  ), [vendors, debouncedSearch]);
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    return vendors.filter(v =>
+      v.name.toLowerCase().includes(q) ||
+      v.country.toLowerCase().includes(q) ||
+      v.contact_person.toLowerCase().includes(q) ||
+      v.products_supplied.toLowerCase().includes(q) ||
+      v.phone.toLowerCase().includes(q) ||
+      v.email.toLowerCase().includes(q)
+    );
+  }, [vendors, debouncedSearch]);
 
   if (loading) return <TableSkeleton cols={4} rows={8} headers={['Vendor', 'Country', 'Contact', 'Products']} />;
 
@@ -116,7 +124,7 @@ export default function VendorsPage() {
 
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vendors..."
+        <input value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Search by name, country, contact, products..."
           className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
       </div>
 
