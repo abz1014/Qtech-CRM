@@ -82,7 +82,7 @@ The canonical physical process (the foundation of the system). Each step notes *
 | 3 | Supplier Inquiries Sent | `supplier_inquiries` (one per vendor); status flag; **draft stored, sent manually** |
 | 4 | Supplier Quotations Received | `supplier_quotes` (many per RFQ): price, currency, lead time, MOQ, validity |
 | 5 | Internal Comparison | Supplier comparison view + value score (§12) |
-| 6 | **Management Approval** | Approval gate on the chosen quote before it goes to the customer (§18) |
+| 6 | **Management Approval** | Informal / real-world step. **The system does not enforce it** — decided out-of-system (small admin+sales team). No approval gate. |
 | 7 | Customer Quotation | Tracked as **data**: quoted price, quote-sent date, expiry date; RFQ status `quoted`. **No PDF generated** |
 | 8 | Customer Negotiation | Notes / revised quoted price on the RFQ |
 | 9 | Customer Purchase Order | Tracked as **data**: customer PO number + PO date on the order. **No document held** |
@@ -303,7 +303,7 @@ All automation is event-driven (triggered by user actions in-app); **no schedule
 ## 18. Business Rules
 
 - **Quote & PO are data, not documents.** The system stores quoted price, quote-sent date, quote expiry, customer PO number, and PO date. It does **not** generate or store the actual files; those are found externally by their reference numbers.
-- **Management Approval gate:** the winning supplier quote requires management approval before the customer quotation stage. **[OPEN]** exact approver mechanics (a status + approver stamp vs. a lightweight approve button) to be finalized in Sprint 3.
+- **Management Approval is informal — NOT a system feature.** Decided (2026-07-10): with a small admin+sales team, approval happens as a real-world conversation, not an enforced gate. The system does not block or stamp it. Do not build an approval workflow.
 - **One order = one supplier = one product type.** Multiple suppliers or products for one RFQ are modeled as multiple orders under that RFQ.
 - **An RFQ may spawn multiple orders.** Deleting one order must not corrupt the RFQ if sibling orders remain (already enforced).
 - **Order status is forward-only** through the defined lifecycle.
@@ -470,19 +470,18 @@ Twelve sprints, each independently deployable, none merged. **Sprint 7 (Finance)
 - **Out of scope:** supplier comparison UI (Sprint 3); documents.
 - **Complexity:** M. **Business value:** daily time saved on the busiest screen.
 
-## Sprint 3 — Supplier Comparison & Approval
-- **Objective:** make supplier selection evidence-based and add the management-approval gate.
-- **Business problem:** the comparison logic exists but its UI was removed; selection is by memory; there's no approval checkpoint before quoting the customer.
-- **User stories:** as a salesperson, I compare supplier quotes side-by-side and see a value score; as management, I approve the chosen quote before it goes to the customer.
-- **Functional requirements:** side-by-side quote comparison (price, currency, lead time, MOQ, validity, value score); select winner; **management approval** step on the selected quote before RFQ→`quoted`.
-- **UI changes:** comparison view on RFQ detail; approve control (admin).
-- **Backend changes:** surface existing scoring; approval state.
-- **Database changes:** approval fields on the quote/RFQ **[OPEN: exact shape finalized here]**.
-- **Acceptance criteria:** quotes comparable at a glance; a quote can't be sent to customer without approval.
-- **Regression risks:** reintroducing removed component cleanly.
-- **Test cases:** compare 3 quotes; approve gate blocks/permits correctly.
-- **Out of scope:** supplier PO documents.
-- **Complexity:** M. **Business value:** better buying decisions + control.
+## Sprint 3 — Supplier Comparison ✅ DONE (2026-07-10)
+- **Objective:** make supplier selection evidence-based.
+- **Business problem:** the comparison logic existed but its UI was removed; selection was by memory.
+- **User story:** as a salesperson, I compare supplier quotes side-by-side, see a value score, and lock in the winning supplier.
+- **Delivered:** quotes table on RFQ detail now shows a **Value Score** column (price 50% / lead 30% / MOQ 20%), badges the **★ Best Value** / lowest-price / **✓ Winner** quote, and a one-click **Select** (admin/sales) marks the winning supplier via the existing `is_selected` field.
+- **UI changes:** enhanced quotes comparison table on RFQ detail.
+- **Backend changes:** surfaced existing `calculateValueScore`; no new logic.
+- **Database changes:** none (`is_selected` already existed).
+- **Acceptance criteria:** ✅ quotes comparable at a glance with score + winner selection.
+- **Management approval:** **removed from scope** — decided informal/out-of-system (see §18).
+- **Out of scope:** supplier PO documents; approval workflow.
+- **Complexity:** M (delivered). **Business value:** better buying decisions.
 
 ## Sprint 4 — Customer Intelligence
 - **Objective:** make each customer legible on their detail page.
@@ -608,7 +607,7 @@ Twelve sprints, each independently deployable, none merged. **Sprint 7 (Finance)
 | Ref | Open question | Resolve in |
 |-----|---------------|-----------|
 | §14 | Rebuilt finance data model (lean, justified) | Sprint 7 (parked) |
-| §18 / Sprint 3 | Management-approval mechanics (status + stamp vs. approve button; who approves) | Sprint 3 |
+| §18 / Sprint 3 | Management-approval mechanics | ✅ RESOLVED (2026-07-10): informal, not a system feature |
 | §15 | Whether reference-number search needs any server-side support at scale | Sprint 9 |
 | §19 | Whether granular permissions (beyond 3 roles) are ever needed | Future only |
 
