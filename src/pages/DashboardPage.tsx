@@ -129,7 +129,8 @@ export default function DashboardPage() {
       last10Metrics: {
         received: last10Rfqs.length,
         floated: last10Rfqs.filter(r => inquiredRfqIds.has(r.id)).length,
-        notFloated: last10Rfqs.filter(r => !inquiredRfqIds.has(r.id) && r.status !== 'converted' && r.status !== 'lost').length,
+        // True complement of floated: floated + notFloated === received
+        notFloated: last10Rfqs.filter(r => !inquiredRfqIds.has(r.id)).length,
         responded: last10Rfqs.filter(r => quotedRfqIds.has(r.id)).length,
       }
     };

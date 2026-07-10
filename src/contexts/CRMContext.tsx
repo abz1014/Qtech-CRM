@@ -952,31 +952,52 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // ============================================
 
   const getNextInvoiceNumber = useCallback(async (): Promise<string> => {
-    const monthPrefix = businessToday().split('-').slice(0, 2).join('');
-    const invoicesThisMonth = invoices.filter(inv =>
-      inv.invoice_number.startsWith(`INV-${monthPrefix}`)
-    );
-    const seq = invoicesThisMonth.length + 1;
+    // Derive the sequence from the DATABASE, not local state — two users
+    // creating invoices concurrently used to get the same number, and
+    // deleting an invoice caused number reuse.
+    const monthPrefix = businessToday().slice(0, 7).replace('-', '');
+    const { data } = await supabase
+      .from('invoices')
+      .select('invoice_number')
+      .like('invoice_number', `INV-${monthPrefix}%`)
+      .order('invoice_number', { ascending: false })
+      .limit(1);
+    let seq = 1;
+    if (data && data.length > 0) {
+      const m = data[0].invoice_number.match(/-(\d+)$/);
+      if (m) seq = parseInt(m[1]) + 1;
+    }
     const date = businessToday().replace(/-/g, '');
     return `INV-${date}-${String(seq).padStart(3, '0')}`;
-  }, [invoices]);
+  }, []);
 
   const addInvoice = useCallback(async (inv: CreateInvoiceInput, createdBy: string): Promise<Invoice> => {
-    const { data, error } = await supabase
-      .from('invoices')
-      .insert({
-        ...inv,
-        created_by: createdBy,
-        updated_by: null,
-        updated_at: null,
-      })
-      .select()
-      .single();
-    if (error || !data) throw new Error('Failed to create invoice');
-    const invoice = data as Invoice;
-    setInvoices(prev => [invoice, ...prev]);
-    return invoice;
-  }, []);
+    // Retry once on a UNIQUE(invoice_number) collision (concurrent creates)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const { data, error } = await supabase
+        .from('invoices')
+        .insert({
+          ...inv,
+          created_by: createdBy,
+          updated_by: null,
+          updated_at: null,
+        })
+        .select()
+        .single();
+      if (!error && data) {
+        const invoice = data as Invoice;
+        setInvoices(prev => addUnique(prev, invoice, 'invoice_id', true));
+        return invoice;
+      }
+      if (error?.code === '23505' && attempt === 0) {
+        // Duplicate invoice number — regenerate and retry
+        inv = { ...inv, invoice_number: await getNextInvoiceNumber() };
+        continue;
+      }
+      throw new Error(`Failed to create invoice: ${error?.message ?? 'unknown error'}`);
+    }
+    throw new Error('Failed to create invoice after retry');
+  }, [getNextInvoiceNumber]);
 
   const updateInvoice = useCallback(async (invoiceId: string, updates: UpdateInvoiceInput) => {
     const { data } = await supabase
@@ -1039,23 +1060,22 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (paymentError || !paymentData) throw new Error('Failed to record payment');
 
     const paymentRecord = paymentData as PaymentRecord;
-    setPaymentRecords(prev => [paymentRecord, ...prev]);
+    setPaymentRecords(prev => addUnique(prev, paymentRecord, 'payment_id', true));
 
-    // Update invoice amount_paid
-    const totalPaid = paymentRecords
-      .filter(p => p.invoice_id === payment.invoice_id)
-      .reduce((sum, p) => sum + p.amount, payment.amount);
+    // Recompute amount_paid from the DATABASE (not local state) — local state
+    // was race-prone across concurrent users and could double-count when the
+    // realtime echo landed first.
+    const { data: allPayments } = await supabase
+      .from('payment_records')
+      .select('amount')
+      .eq('invoice_id', payment.invoice_id);
+    const totalPaid = (allPayments ?? []).reduce((sum, p) => sum + p.amount, 0);
 
-    let newStatus: 'Pending' | 'Paid' | 'Overdue' | 'Partial' = 'Pending';
+    // Compare in paisa to avoid float-equality misses
     const invoice = invoices.find(inv => inv.invoice_id === payment.invoice_id);
-    if (invoice) {
-      if (totalPaid >= invoice.invoice_amount) {
-        newStatus = 'Paid';
-      } else if (totalPaid > 0) {
-        newStatus = 'Partial';
-      } else if (new Date(invoice.due_date) < new Date()) {
-        newStatus = 'Overdue';
-      }
+    let newStatus: 'Pending' | 'Paid' | 'Overdue' | 'Partial' = 'Partial';
+    if (invoice && Math.round(totalPaid * 100) >= Math.round(invoice.invoice_amount * 100)) {
+      newStatus = 'Paid';
     }
 
     await updateInvoice(payment.invoice_id, {
@@ -1065,7 +1085,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     });
 
     return paymentRecord;
-  }, [invoices, paymentRecords, updateInvoice]);
+  }, [invoices, updateInvoice]);
 
   const getDashboardMetrics = useCallback((): DashboardMetrics => {
     const todayStr = businessToday();
@@ -1137,7 +1157,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const projectInvoices = invoices.filter(inv => inv.rfq_id === rfqId);
     const projectExpenses = expenses.filter(exp => exp.rfq_id === rfqId);
     const totalRevenue = projectInvoices.reduce((sum, inv) => sum + inv.invoice_amount, 0);
-    const totalExpenses = projectExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+    // Include order-level procurement costs (cost_value) for orders born from
+    // this RFQ — previously ignored, which overstated project margins.
+    const orderCosts = orders
+      .filter(o => o.rfq_id === rfqId)
+      .reduce((sum, o) => sum + (o.cost_value || 0), 0);
+    const totalExpenses = projectExpenses.reduce((sum, exp) => sum + exp.amount, 0) + orderCosts;
     const profit = totalRevenue - totalExpenses;
     const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
@@ -1151,7 +1176,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       invoice_count: projectInvoices.length,
       expense_count: projectExpenses.length,
     };
-  }, [rfqs, invoices, expenses]);
+  }, [rfqs, invoices, expenses, orders]);
 
   const getCashflowStatement = useCallback((months: number): CashflowMonth[] => {
     // True cashflow: inflow = actual payments received (payment_records, by
@@ -1268,9 +1293,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (!payable) throw new Error('Payable not found');
 
     const newAmountPaid = payable.amount_paid + payment.amount;
-    if (newAmountPaid > payable.amount) throw new Error('Payment amount exceeds payable amount');
+    // Compare in paisa — float === on decimal amounts could strand a fully
+    // paid payable at 'Partial' forever.
+    const paidCents = Math.round(newAmountPaid * 100);
+    const totalCents = Math.round(payable.amount * 100);
+    if (paidCents > totalCents) throw new Error('Payment amount exceeds payable amount');
 
-    const paymentStatus = newAmountPaid === payable.amount ? 'Paid' : 'Partial';
+    const paymentStatus = paidCents >= totalCents ? 'Paid' : 'Partial';
 
     const { error } = await supabase
       .from('payables')
@@ -1283,6 +1312,18 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       .eq('payable_id', payment.payable_id);
 
     if (error) throw new Error('Failed to record payment');
+
+    // Persist AP payment history (best-effort — table added in the
+    // 20260710_data_integrity_fks migration; ignore if it doesn't exist yet)
+    await supabase.from('payable_payments').insert({
+      payable_id: payment.payable_id,
+      amount: payment.amount,
+      payment_date: payment.payment_date,
+      payment_method: payment.payment_method ?? '',
+      reference_number: (payment as any).reference_number ?? '',
+      notes: (payment as any).notes ?? '',
+      recorded_by: recordedBy,
+    });
 
     setPayables(prev =>
       prev.map(p =>
@@ -1624,11 +1665,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       // Find the action to check for recurrence
       const action = followUpActions.find(fa => fa.id === followUpId);
 
+      const completedAt = new Date().toISOString();
       const updates: Record<string, any> = {
         status: 'completed',
-        completed_at: new Date().toISOString(),
+        completed_at: completedAt,
       };
-      if (outcomeNote) updates.description = outcomeNote;
+      // APPEND the outcome — overwriting destroyed the original description
+      if (outcomeNote) {
+        updates.description = action?.description
+          ? `${action.description}\n\nOutcome: ${outcomeNote}`
+          : `Outcome: ${outcomeNote}`;
+      }
 
       const { error } = await supabase
         .from('follow_up_actions')
@@ -1639,15 +1686,19 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
       setFollowUpActions(prev => prev.map(fa =>
         fa.id === followUpId
-          ? { ...fa, status: 'completed', completed_at: new Date().toISOString() }
+          ? { ...fa, ...updates }
           : fa
       ));
 
-      // Handle recurring: auto-create next action if recurrence is set
+      // Handle recurring: auto-create next action if recurrence is set.
+      // Prefer the recurrence_days column; fall back to the legacy
+      // __recur:N__ tag embedded in older actions' descriptions.
       if (action) {
-        // Check description for __recur:N__ pattern
         const recurMatch = action.description?.match(/__recur:(\d+)__/);
-        const recurDays = recurMatch ? parseInt(recurMatch[1]) : null;
+        const recurDays: number | null =
+          (action.recurrence_days && Number(action.recurrence_days) > 0)
+            ? Number(action.recurrence_days)
+            : (recurMatch ? parseInt(recurMatch[1]) : null);
 
         if (recurDays) {
           const nextDueStr = businessDaysFromNow(recurDays);
@@ -1657,13 +1708,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
             entity_type: action.entity_type,
             entity_id: action.entity_id,
             title: action.title,
-            description: action.description, // preserve recur tag
+            description: action.description, // original description, not the outcome
             due_date: nextDueStr,
             priority: action.priority,
             assigned_to: action.assigned_to,
             status: 'pending',
+            recurrence_days: recurDays,
           }]).select().then(({ data }) => {
-            if (data?.[0]) setFollowUpActions(prev => [data[0], ...prev]);
+            if (data?.[0]) setFollowUpActions(prev => addUnique(prev, data[0], 'id', true));
           });
         }
       }
@@ -1681,7 +1733,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         .eq('id', followUpId);
       if (error) throw error;
       setFollowUpActions(prev => prev.map(fa =>
-        fa.id === followUpId ? { ...fa, due_date: newDueDate } : fa
+        fa.id === followUpId ? { ...fa, due_date: newDueDate, status: 'pending' } : fa
       ));
     } catch (err) {
       console.error('Error snoozing follow-up:', err);

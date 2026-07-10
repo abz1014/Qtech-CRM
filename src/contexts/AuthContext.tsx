@@ -19,7 +19,9 @@ const AuthContext = createContext<AuthContextType | null>(null);
 // The DB is still refreshed in the background to pick up any role changes.
 
 const CACHE_KEY = 'qtcrm_profile';
-const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
+// 1 hour (was 12h) — a demoted/revoked user kept their old role in the UI
+// for up to half a day. Role is also revalidated on window focus below.
+const CACHE_TTL = 60 * 60 * 1000;
 
 function readCache(userId: string): User | null {
   try {
@@ -150,9 +152,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }, 8000);
 
+    // Revalidate the role whenever the tab regains focus — catches
+    // demotions/revocations without waiting for the cache TTL.
+    const onFocus = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted || !session?.user) return;
+      const fresh = await fetchFromDB(session.user.id);
+      if (!mounted || !fresh) return;
+      setUser(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(fresh)) return prev;
+        writeCache(fresh);
+        return fresh;
+      });
+    };
+    window.addEventListener('focus', onFocus);
+
     return () => {
       mounted = false;
       clearTimeout(safety);
+      window.removeEventListener('focus', onFocus);
       subscription.unsubscribe();
     };
   }, []);

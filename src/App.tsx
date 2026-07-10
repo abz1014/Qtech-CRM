@@ -1,9 +1,8 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Loader } from "lucide-react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CRMProvider } from "@/contexts/CRMContext";
@@ -63,11 +62,18 @@ function ProtectedRoutes() {
   return <AppLayout />;
 }
 
+// ─── Role guard — mirrors the sidebar's roles config. Hiding a nav link is
+// cosmetic; this stops a user typing e.g. /team into the URL bar directly. ───
+function RequireRole({ roles, children }: { roles: string[]; children: ReactNode }) {
+  const { user } = useAuth();
+  if (!user || !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
       <Sonner />
       <AuthProvider>
         <CRMProvider>
@@ -89,9 +95,9 @@ const App = () => (
                   <Route path="/orders/:id"       element={<OrderDetailPage />} />
                   <Route path="/vendors"          element={<VendorsPage />} />
                   <Route path="/vendors/:id"      element={<VendorDetailPage />} />
-                  <Route path="/team"             element={<TeamPage />} />
-                  <Route path="/finance"          element={<FinancePage />} />
-                  <Route path="/my-jobs"          element={<MyJobsPage />} />
+                  <Route path="/team"             element={<RequireRole roles={['admin']}><TeamPage /></RequireRole>} />
+                  <Route path="/finance"          element={<RequireRole roles={['admin']}><FinancePage /></RequireRole>} />
+                  <Route path="/my-jobs"          element={<RequireRole roles={['engineer', 'admin']}><MyJobsPage /></RequireRole>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

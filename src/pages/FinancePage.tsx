@@ -84,14 +84,16 @@ export default function FinancePage() {
 
   const todayStr = businessToday();
 
-  // ── Filter orders by confirmed_date within range ────────────────────────────
+  // ── Filter orders by PO date within range ───────────────────────────────────
   const filteredOrders = useMemo(() =>
     orders.filter(o => {
       const d = (o as any).customer_po_date || o.confirmed_date;
-      if (!d) return false;
+      // Dateless legacy orders: include them in "All Time" so total revenue
+      // is complete; they can't be placed in any narrower period.
+      if (!d) return preset === 'all_time';
       return d >= range.from && d <= range.to;
     }),
-  [orders, range]);
+  [orders, range, preset]);
 
   // ── KPIs from filtered orders ───────────────────────────────────────────────
   const revenue = filteredOrders.reduce((s, o) => s + (o.order_value || 0), 0);
@@ -232,7 +234,7 @@ export default function FinancePage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="kpi-card">
           <div className="flex items-start justify-between mb-4">
-            <p className="text-xs font-semibold text-muted-foreground">Revenue</p>
+            <p className="text-xs font-semibold text-muted-foreground">Booked Order Value</p>
             <div className="w-9 h-9 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
             </div>
@@ -337,9 +339,9 @@ export default function FinancePage() {
                 </div>
                 <div className="h-2 rounded-full overflow-hidden bg-muted flex gap-0.5">
                   <div className="bg-warning/60 rounded-l-full transition-all duration-500"
-                    style={{ width: `${(m.cost / maxRevenue) * 100}%` }} />
+                    style={{ width: `${Math.min(100, (m.cost / maxRevenue) * 100)}%` }} />
                   <div className={cn('rounded-r-full transition-all duration-500', m.profit >= 0 ? 'bg-success/70' : 'bg-destructive/70')}
-                    style={{ width: `${(Math.abs(m.profit) / maxRevenue) * 100}%` }} />
+                    style={{ width: `${Math.min(100, (Math.abs(m.profit) / maxRevenue) * 100)}%` }} />
                 </div>
               </div>
             ))}
