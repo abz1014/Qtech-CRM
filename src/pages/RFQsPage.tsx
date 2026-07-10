@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { businessToday, toBusinessDate } from '@/lib/dates';
 import { useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
@@ -198,7 +199,7 @@ export default function RFQsPage() {
       setShowForm(false);
       setForm({ rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '', quote_deadline: '' });
     } catch (error) {
-      alert('Failed to add RFQ: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Failed to add RFQ: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -206,9 +207,9 @@ export default function RFQsPage() {
     try {
       await deleteRFQ(rfqId);
       setShowDeleteConfirm(null);
-      alert('RFQ deleted successfully');
+      toast.success('RFQ deleted successfully');
     } catch (error) {
-      alert('Error deleting RFQ: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Error deleting RFQ: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 

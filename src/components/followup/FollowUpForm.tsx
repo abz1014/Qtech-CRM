@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { toBusinessDate } from '@/lib/dates';
 import { useState, useEffect } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
@@ -107,7 +108,7 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim() || !form.due_date) {
-      alert('Please fill in Title and Due Date');
+      toast.error('Please fill in Title and Due Date');
       return;
     }
 
@@ -130,7 +131,7 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
       });
       onClose();
     } catch (error) {
-      alert('Error creating action: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Error creating action: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setIsSubmitting(false);
     }

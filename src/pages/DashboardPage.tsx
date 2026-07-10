@@ -88,15 +88,38 @@ export default function DashboardPage() {
     return { selectedYear: parseInt(yStr), selectedQtr: parseInt(qStr) };
   }, [selectedQuarter]);
 
+  // Set of RFQ ids that have at least one supplier quote — O(n+m) lookups
+  const quotedRfqIds = useMemo(() => new Set(supplierQuotes.map(sq => sq.rfq_id)), [supplierQuotes]);
+  const inquiredRfqIds = useMemo(() => new Set(supplierInquiries.map(si => si.rfq_id)), [supplierInquiries]);
+
   // Pipeline metrics helper (stable via useCallback)
   const getPipelineMetrics = useCallback((startDate: string, endDate: string) => {
     const rangeRfqs = rfqs.filter(r => r.rfq_date >= startDate && r.rfq_date <= endDate);
     const received = rangeRfqs.length;
-    const quoteReceived = rangeRfqs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id)).length;
-    const quotedToClient = rangeRfqs.filter(r => r.status === 'quoted' || r.status === 'converted').length;
-    const poReceived = rangeRfqs.filter(r => r.status === 'converted').length;
+    const quoteReceived = rangeRfqs.filter(r => quotedRfqIds.has(r.id)).length;
+
+    // Quoted to client — by the date the quote was actually SENT, so history
+    // never mutates retroactively and quoted-then-lost RFQs still count.
+    // Legacy RFQs quoted before quote_sent_date existed fall back to
+    // status-based counting attributed to their rfq_date.
+    const quotedToClient = rfqs.filter(r => {
+      const sent = (r as any).quote_sent_date;
+      if (sent) return sent >= startDate && sent <= endDate;
+      return (r.status === 'quoted' || r.status === 'converted') &&
+        r.rfq_date >= startDate && r.rfq_date <= endDate;
+    }).length;
+
+    // PO received — count ORDERS by their PO date, consistent with Target
+    // Achieved and the Orders page (previously counted converted RFQs by
+    // rfq_date, so the same quarter's PO count and achieved value described
+    // different order sets).
+    const poReceived = orders.filter(o => {
+      const d = (o as any).customer_po_date || o.confirmed_date;
+      return d && d >= startDate && d <= endDate;
+    }).length;
+
     return { received, quoteReceived, quotedToClient, poReceived };
-  }, [rfqs, supplierQuotes]);
+  }, [rfqs, orders, quotedRfqIds]);
 
   // Last 10 days metrics (today-9 .. today inclusive = exactly 10 days, business TZ)
   const { last10Metrics } = useMemo(() => {
@@ -105,12 +128,12 @@ export default function DashboardPage() {
     return {
       last10Metrics: {
         received: last10Rfqs.length,
-        floated: last10Rfqs.filter(r => supplierInquiries.some(si => si.rfq_id === r.id)).length,
-        notFloated: last10Rfqs.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted' && r.status !== 'lost').length,
-        responded: last10Rfqs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id)).length,
+        floated: last10Rfqs.filter(r => inquiredRfqIds.has(r.id)).length,
+        notFloated: last10Rfqs.filter(r => !inquiredRfqIds.has(r.id) && r.status !== 'converted' && r.status !== 'lost').length,
+        responded: last10Rfqs.filter(r => quotedRfqIds.has(r.id)).length,
       }
     };
-  }, [rfqs, supplierInquiries, supplierQuotes, today]);
+  }, [rfqs, inquiredRfqIds, quotedRfqIds, today]);
 
   // Monthly pipeline
   const { monthStart, monthlyPipeline } = useMemo(() => {

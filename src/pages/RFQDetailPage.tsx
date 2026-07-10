@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { businessToday } from '@/lib/dates';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -162,7 +163,7 @@ export default function RFQDetailPage() {
       setShowInquiryForm(false);
     } catch (error) {
       console.error('Failed to add inquiry:', error);
-      alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
 
     }
   };
@@ -246,29 +247,29 @@ export default function RFQDetailPage() {
       } as any);
       setShowEditRFQ(false);
     } catch (error) {
-      alert('Failed to update RFQ: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Failed to update RFQ: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
   const handleConvertToOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rfq || !convertForm.sales_person_id) {
-      alert('Please assign a sales person');
+      toast.error('Please assign a sales person');
       return;
     }
     if (!convertForm.client_id) {
-      alert('Please select a client for this order');
+      toast.error('Please select a client for this order');
       return;
     }
     if (!convertForm.customer_po_number.trim()) {
-      alert('Customer PO Number is required');
+      toast.error('Customer PO Number is required');
       return;
     }
 
     // Validate each line item has a vendor selected
     const itemEntries = Object.entries(itemVendors);
     if (lineItems.length > 0 && itemEntries.length === 0) {
-      alert('Please assign a supplier to at least one product');
+      toast.error('Please assign a supplier to at least one product');
       return;
     }
 
@@ -321,7 +322,7 @@ export default function RFQDetailPage() {
       setItemVendors({});
     } catch (error) {
       console.error('Failed to convert RFQ to order:', error);
-      alert('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setIsConverting(false);
     }

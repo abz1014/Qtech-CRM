@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { Plus, Trash2, DollarSign, Edit2, Search } from 'lucide-react';
 import { useCRM } from '@/contexts/CRMContext';
@@ -52,7 +53,7 @@ export function InvoicesTab() {
       const maxPage = Math.max(1, Math.ceil(newTotal / itemsPerPage));
       if (currentPage > maxPage) setCurrentPage(maxPage);
     } catch (err) {
-      alert('Failed to delete invoice');
+      toast.error('Failed to delete invoice');
     }
   };
 

@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { businessToday } from '@/lib/dates';
 import { useState, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -61,9 +62,9 @@ export default function ClientsPage() {
     try {
       await deleteClient(clientId);
       setShowDeleteConfirm(null);
-      alert('Client deleted successfully');
+      toast.success('Client deleted successfully');
     } catch (error) {
-      alert('Error deleting client: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Error deleting client: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 

@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { businessToday } from '@/lib/dates';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -48,9 +49,9 @@ export default function VendorsPage() {
     try {
       await deleteVendor(vendorId);
       setShowDeleteConfirm(null);
-      alert('Vendor deleted successfully');
+      toast.success('Vendor deleted successfully');
     } catch (error) {
-      alert('Error deleting vendor: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Error deleting vendor: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -68,7 +69,7 @@ export default function VendorsPage() {
       });
       setEditVendor(null);
     } catch (error) {
-      alert('Failed to update vendor: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Failed to update vendor: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 

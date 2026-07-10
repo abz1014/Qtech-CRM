@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,7 +45,7 @@ export function SequenceModal({ entityType, entityId, entityLabel, onClose, onAp
       setApplied(true);
       setTimeout(onApplied, 1200);
     } catch {
-      alert('Failed to apply sequence');
+      toast.error('Failed to apply sequence');
     } finally {
       setApplying(false);
     }

@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { DollarSign, Trash2 } from 'lucide-react';
@@ -69,7 +70,7 @@ export function PayablesTab() {
       try {
         await deletePayable(payableId);
       } catch (error) {
-        alert('Failed to delete payable');
+        toast.error('Failed to delete payable');
       }
     }
   };

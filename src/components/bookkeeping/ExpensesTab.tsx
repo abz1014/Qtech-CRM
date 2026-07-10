@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useState, useMemo } from 'react';
 import { Plus, Trash2, Search } from 'lucide-react';
 import { useCRM } from '@/contexts/CRMContext';
@@ -48,7 +49,7 @@ export function ExpensesTab() {
       const maxPage = Math.max(1, Math.ceil(newTotal / itemsPerPage));
       if (currentPage > maxPage) setCurrentPage(maxPage);
     } catch {
-      alert('Failed to delete expense');
+      toast.error('Failed to delete expense');
     }
   };
 

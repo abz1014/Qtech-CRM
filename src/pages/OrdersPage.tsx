@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { businessToday, toBusinessDate } from '@/lib/dates';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -165,9 +166,9 @@ export default function OrdersPage() {
     try {
       await deleteOrder(orderId);
       setShowDeleteConfirm(null);
-      alert('Order deleted successfully');
+      toast.success('Order deleted successfully');
     } catch (error) {
-      alert('Error deleting order: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Error deleting order: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -181,7 +182,7 @@ export default function OrdersPage() {
       } as any);
       setEditPO(null);
     } catch (error) {
-      alert('Failed to update: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Failed to update: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 

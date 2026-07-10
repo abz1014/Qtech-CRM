@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
@@ -48,14 +49,18 @@ export function DailyRFQReportPage() {
       result = result.filter(r => r.rfq_date >= startDate && r.rfq_date <= endDate);
     }
 
-    // Status filter
+    // Status filter — definitions MUST match the section buckets below so the
+    // dropdown always yields exactly the rows shown in the matching section.
     if (filters.status !== 'all') {
+      const hasInquiry = (r: any) => supplierInquiries.some(si => si.rfq_id === r.id);
+      const hasQuote = (r: any) => supplierQuotes.some(sq => sq.rfq_id === r.id);
       if (filters.status === 'not_floated') {
-        result = result.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
+        result = result.filter(r => !hasInquiry(r) && r.status !== 'converted');
       } else if (filters.status === 'floated') {
-        result = result.filter(r => supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
+        // Floated & still awaiting a response — excludes responded RFQs
+        result = result.filter(r => hasInquiry(r) && !hasQuote(r) && r.status !== 'converted');
       } else if (filters.status === 'responded') {
-        result = result.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id));
+        result = result.filter(r => hasQuote(r) && r.status !== 'converted');
       } else if (filters.status === 'converted') {
         result = result.filter(r => r.status === 'converted');
       }
@@ -81,11 +86,15 @@ export function DailyRFQReportPage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rfqs, getClientName]);
 
-  // Calculate metrics
+  // Calculate metrics — the four buckets partition the total: an RFQ is in
+  // exactly one of notFloated / floated-awaiting / responded / converted.
   const metrics = useMemo(() => {
-    const notFloated = filteredRFQs.filter(r => !supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
-    const floated = filteredRFQs.filter(r => supplierInquiries.some(si => si.rfq_id === r.id) && r.status !== 'converted');
-    const responded = filteredRFQs.filter(r => supplierQuotes.some(sq => sq.rfq_id === r.id) && r.status !== 'converted');
+    const hasInquiry = (r: any) => supplierInquiries.some(si => si.rfq_id === r.id);
+    const hasQuote = (r: any) => supplierQuotes.some(sq => sq.rfq_id === r.id);
+    const notFloated = filteredRFQs.filter(r => !hasInquiry(r) && r.status !== 'converted');
+    // "Awaiting response" — floated but no quote received yet
+    const floated = filteredRFQs.filter(r => hasInquiry(r) && !hasQuote(r) && r.status !== 'converted');
+    const responded = filteredRFQs.filter(r => hasQuote(r) && r.status !== 'converted');
     const converted = filteredRFQs.filter(r => r.status === 'converted');
 
     const byDate = (a: any, b: any) => b.rfq_date.localeCompare(a.rfq_date);
@@ -135,9 +144,10 @@ export function DailyRFQReportPage() {
         rfq.notes || '',
       ]);
 
-      // Sanitize all cells to prevent formula injection
+      // Sanitize (formula injection) AND escape embedded quotes — an
+      // unescaped " inside a note used to corrupt every following column.
       const sanitizedRows = rows.map(row =>
-        row.map(cell => sanitizeCSVCell(cell))
+        row.map(cell => sanitizeCSVCell(cell).replace(/"/g, '""'))
       );
 
       const csv = [headers, ...sanitizedRows]
@@ -149,7 +159,7 @@ export function DailyRFQReportPage() {
       element.setAttribute('download', `rfq-report-${today}.csv`);
       element.click();
     } else if (format === 'pdf') {
-      alert('PDF export coming soon!');
+      toast.info('PDF export coming soon!');
     }
   };
 

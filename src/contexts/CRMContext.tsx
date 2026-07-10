@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Client, Prospect, Vendor, Order, OrderEngineer, RFQ, User,
   OrderStatus, CommissioningStatus, RFQStatus, RFQPriority,
@@ -158,6 +159,7 @@ interface CRMContextType {
 const CRMContext = createContext<CRMContextType | null>(null);
 
 export function CRMProvider({ children }: { children: React.ReactNode }) {
+  const { user: authUser, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -178,6 +180,10 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [payables, setPayables] = useState<Payable[]>([]);
 
   useEffect(() => {
+    // Don't load anything until a user is logged in; financial tables load
+    // only for admins (sales/engineer sessions never receive that data).
+    if (!authUser) return;
+    const emptyResult = Promise.resolve({ data: null as any });
     const load = async () => {
       const [
         { data: usersData },
@@ -206,11 +212,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         supabase.from('supplier_inquiries').select('*').order('sent_at', { ascending: false }),
         supabase.from('supplier_quotes').select('*').order('received_at', { ascending: false }),
         supabase.from('rfq_line_items').select('*'),
-        supabase.from('follow_up_actions').select('*').eq('status', 'pending').order('due_date', { ascending: true }),
-        supabase.from('invoices').select('*').order('issued_date', { ascending: false }).then(res => res).catch(() => ({ data: null })),
-        supabase.from('expenses').select('*').order('date', { ascending: false }).then(res => res).catch(() => ({ data: null })),
-        supabase.from('payment_records').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })),
-        supabase.from('payables').select('*').order('due_date', { ascending: false }).then(res => res).catch(() => ({ data: null })),
+        // Load ALL actions (not just pending) — completed ones feed
+        // getPatternInsights; every UI consumer filters status itself.
+        supabase.from('follow_up_actions').select('*').order('due_date', { ascending: true }),
+        isAdmin ? supabase.from('invoices').select('*').order('issued_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('expenses').select('*').order('date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('payment_records').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('payables').select('*').order('due_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as User[]);
       setClients((clientsData ?? []) as Client[]);
@@ -382,6 +390,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         }
       );
 
+      // Financial tables: subscribe only for admins (matching the load gate)
+      if (isAdmin) {
+
       // Subscribe to invoices changes
       channel.on(
         'postgres_changes',
@@ -442,6 +453,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         }
       );
 
+      } // end isAdmin financial subscriptions
+
       // Subscribe to the channel
       await channel.subscribe();
       return channel;
@@ -456,7 +469,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         if (channel) supabase.removeChannel(channel);
       }).catch(() => { /* load failed; nothing to clean up */ });
     };
-  }, []);
+  }, [authUser?.id, isAdmin]);
 
   // O(1) Map lookups — rebuilt only when the source array changes
   const userMap   = useMemo(() => new Map(users.map(u   => [u.id, u.name])),              [users]);
@@ -484,6 +497,19 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     daysFromNow?: number;
   }) => {
     try {
+      // Dedup: skip if a pending action of the same type already exists for
+      // this entity — re-toggling a status or sending multiple inquiries used
+      // to spawn a duplicate action every time.
+      const { data: existing } = await supabase
+        .from('follow_up_actions')
+        .select('id')
+        .eq('entity_id', params.entity_id)
+        .eq('entity_type', params.entity_type)
+        .eq('action_type', params.action_type)
+        .eq('status', 'pending')
+        .limit(1);
+      if (existing && existing.length > 0) return;
+
       const due_date = businessDaysFromNow(params.daysFromNow ?? 2);
       const { data, error } = await supabase
         .from('follow_up_actions')
@@ -500,7 +526,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         }])
         .select()
         .single();
-      if (!error && data) setFollowUpActions(prev => [data, ...prev]);
+      if (!error && data) setFollowUpActions(prev => addUnique(prev, data, 'id', true));
     } catch {
       // Auto-triggers are best-effort — never block the main action
     }
@@ -1064,13 +1090,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const outstandingInvoices = invoices.filter(inv => inv.payment_status !== 'Paid');
     const outstandingAR = outstandingInvoices.reduce((sum, inv) => sum + (inv.invoice_amount - inv.amount_paid), 0);
 
-    // Overdue metrics
+    // Overdue metrics (an invoice due today is not overdue until tomorrow)
     const overdueInvoices = invoices.filter(inv => {
       if (inv.payment_status === 'Paid' || !inv.due_date) return false;
-      const d = new Date(inv.due_date);
-      return !isNaN(d.getTime()) && d < now;
+      return inv.due_date.slice(0, 10) < todayStr;
     });
     const overdueAmount = overdueInvoices.reduce((sum, inv) => sum + (inv.invoice_amount - inv.amount_paid), 0);
+
+    // AP metrics — real outstanding payables (was hardcoded 0)
+    const outstandingAP = payables
+      .filter(p => p.status !== 'Paid')
+      .reduce((sum, p) => sum + (p.amount - p.amount_paid), 0);
 
     return {
       mtd_revenue: mtdRevenue,
@@ -1080,11 +1110,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       ytd_expenses: ytdExpensesTotal,
       ytd_profit: ytdProfit,
       outstanding_ar: outstandingAR,
-      outstanding_ap: 0,
+      outstanding_ap: outstandingAP,
       overdue_invoices_count: overdueInvoices.length,
       overdue_invoices_amount: overdueAmount,
     };
-  }, [invoices, expenses]);
+  }, [invoices, expenses, payables]);
 
   const getMonthlySummary = useCallback((month: string): MonthlySummary => {
     const monthInvoices = invoices.filter(inv => inv.issued_date.startsWith(month));
@@ -1124,21 +1154,25 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, [rfqs, invoices, expenses]);
 
   const getCashflowStatement = useCallback((months: number): CashflowMonth[] => {
+    // True cashflow: inflow = actual payments received (payment_records, by
+    // payment_date — includes partial payments, booked in the month the cash
+    // arrived, not the invoice issue month); outflow = expenses by date.
     const result: CashflowMonth[] = [];
     let closingBalance = 0;
+    const [ty, tm] = businessToday().split('-').map(Number);
 
     for (let i = months - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setMonth(date.getMonth() - i);
-      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      // Pure calendar arithmetic — no Date/timezone conversion
+      const total = ty * 12 + (tm - 1) - i;
+      const month = `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
 
-      const monthInvoices = invoices.filter(inv =>
-        inv.issued_date.startsWith(month) && inv.payment_status === 'Paid'
-      );
-      const monthExpenses = expenses.filter(exp => exp.date.startsWith(month));
+      const inflow = paymentRecords
+        .filter(pr => pr.payment_date?.startsWith(month))
+        .reduce((sum, pr) => sum + pr.amount, 0);
+      const outflow = expenses
+        .filter(exp => exp.date.startsWith(month))
+        .reduce((sum, exp) => sum + exp.amount, 0);
 
-      const inflow = monthInvoices.reduce((sum, inv) => sum + inv.amount_paid, 0);
-      const outflow = monthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
       const openingBalance = result.length > 0 ? result[result.length - 1].closing_balance : 0;
       closingBalance = openingBalance + inflow - outflow;
 
@@ -1152,7 +1186,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }
 
     return result;
-  }, [invoices, expenses]);
+  }, [paymentRecords, expenses]);
 
   const getARAgingBuckets = useCallback((): ARAgingBucket[] => {
     const now = new Date();
@@ -1483,16 +1517,18 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const calculateValueScore = useCallback((unitPrice: number, leadTime: number, moq: number) => {
-    // Value score = weighted calculation
-    // Lower price = higher score (25% weight)
-    // Shorter lead time = higher score (25% weight)
-    // Lower MOQ = higher score (50% weight)
+    // Value score, weighted for a price-driven industrial business:
+    //   price 50% · lead time 30% · MOQ 20%
+    // Soft hyperbolic curves (100 / (1 + x/scale)) instead of linear clamps —
+    // the old formula scored 0 for ANY price ≥ Rs 500k, so at typical
+    // industrial prices every quote tied on price and MOQ (50%) decided the
+    // "recommended" badge, sometimes picking the most expensive quote.
+    // These curves never saturate, so cheaper/faster/smaller always wins.
+    const priceScore = 100 / (1 + unitPrice / 1_000_000); // Rs 1M → 50
+    const leadTimeScore = 100 / (1 + leadTime / 30);      // 30 days → 50
+    const moqScore = 100 / (1 + moq / 50);                // 50 units → 50
 
-    const priceScore = Math.max(0, 100 - (unitPrice / 500000) * 100);
-    const leadTimeScore = Math.max(0, 100 - (leadTime / 60) * 100);
-    const moqScore = Math.max(0, 100 - (moq / 100) * 100);
-
-    const score = (priceScore * 0.25) + (leadTimeScore * 0.25) + (moqScore * 0.50);
+    const score = (priceScore * 0.50) + (leadTimeScore * 0.30) + (moqScore * 0.20);
     return parseFloat(score.toFixed(2));
   }, []);
 
@@ -1753,7 +1789,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         avgDays: Math.round(days.reduce((a, b) => a + b, 0) / days.length),
         label: LABELS[actionType] || actionType,
       }))
-      .filter(i => i.avgDays > 0)
+      .filter(i => i.avgDays >= 0) // same-day completions (0 days) are valid data
       .sort((a, b) => b.avgDays - a.avgDays);
   }, [followUpActions]);
 

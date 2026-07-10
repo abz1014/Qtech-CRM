@@ -50,8 +50,9 @@ export function AppLayout() {
         <header className="flex-shrink-0 flex items-center justify-between px-6 py-3.5"
           style={{
             borderBottom: '1px solid hsl(var(--border) / 0.6)',
-            background: 'linear-gradient(to right, hsl(var(--card) / 0.6), hsl(var(--card) / 0.3))',
-            backdropFilter: 'blur(12px)',
+            // Opaque gradient — NO backdrop-filter (it forces a full repaint of
+            // the scrolling content behind it every frame; caused site-wide jank)
+            background: 'linear-gradient(to right, hsl(var(--card)), hsl(var(--card) / 0.97))',
           }}>
           <div className="flex items-center gap-3">
             {/* Hamburger — mobile only */}

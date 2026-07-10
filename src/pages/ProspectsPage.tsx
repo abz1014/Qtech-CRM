@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { businessToday } from '@/lib/dates';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -57,9 +58,9 @@ export default function ProspectsPage() {
     try {
       await deleteProspect(prospectId);
       setShowDeleteConfirm(null);
-      alert('Prospect deleted successfully');
+      toast.success('Prospect deleted successfully');
     } catch (error) {
-      alert('Error deleting prospect: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Error deleting prospect: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
