@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
 import { useAuth } from '@/contexts/AuthContext';
@@ -531,6 +531,50 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       // Auto-triggers are best-effort — never block the main action
     }
   }, []);
+
+  // ── Stall detection (Sprint 11) ──────────────────────────────────────────
+  // With no scheduled job, we scan once per session after data loads and
+  // raise a follow-up for anything stuck too long. autoFollowUp dedups, so a
+  // stalled item gets exactly one pending action no matter how often we scan.
+  const stallScanned = useRef(false);
+  useEffect(() => {
+    if (loading || stallScanned.current || !authUser || authUser.role === 'engineer') return;
+    stallScanned.current = true;
+
+    const today = businessToday();
+    const daysSince = (d?: string | null): number | null =>
+      d ? Math.floor((new Date(today).getTime() - new Date(String(d).slice(0, 10)).getTime()) / 86400000) : null;
+    const inquired = new Set(supplierInquiries.map(i => i.rfq_id));
+    const quoted = new Set(supplierQuotes.map(q => q.rfq_id));
+
+    rfqs.forEach(r => {
+      if (r.status === 'converted' || r.status === 'lost') return;
+      // Floated but no supplier response after 7 days
+      if (inquired.has(r.id) && !quoted.has(r.id)) {
+        const age = daysSince(r.rfq_date);
+        if (age !== null && age > 7) {
+          autoFollowUp({ title: `Chase supplier response — ${r.company_name}`, action_type: 'supplier_response', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
+        }
+      }
+      // Quote sent to customer but no decision after 7 days
+      if (r.status === 'quoted') {
+        const age = daysSince((r as any).quote_sent_date ?? r.rfq_date);
+        if (age !== null && age > 7) {
+          autoFollowUp({ title: `Follow up on quote — ${r.company_name}`, action_type: 'rfq_followup', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
+        }
+      }
+    });
+
+    // Order stuck in an early stage more than 30 days since its PO
+    orders.forEach(o => {
+      if (o.status === 'po_received' || o.status === 'procurement' || o.status === 'in_transit') {
+        const age = daysSince((o as any).customer_po_date ?? o.confirmed_date);
+        if (age !== null && age > 30) {
+          autoFollowUp({ title: `Stalled order — check ${getClientName(o.client_id)}`, action_type: 'order_status', entity_type: 'order', entity_id: o.id, assigned_to: (o as any).sales_person_id ?? null, priority: 'medium', daysFromNow: 0 });
+        }
+      }
+    });
+  }, [loading, authUser, rfqs, orders, supplierInquiries, supplierQuotes, autoFollowUp, getClientName]);
 
   const addProspect = useCallback(async (p: Omit<Prospect, 'id' | 'converted_client_id'>) => {
     const { data } = await supabase.from('prospects').insert({ ...p, converted_client_id: null }).select().single();
