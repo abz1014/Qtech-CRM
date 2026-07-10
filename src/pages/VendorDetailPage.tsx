@@ -1,16 +1,67 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState } from 'react';
-import { ArrowLeft, Edit2, X } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ArrowLeft, Edit2, X, Send, Clock, Award, ShoppingCart } from 'lucide-react';
+import { formatPKR, formatDate } from '@/lib/format';
 
 export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { vendors, updateVendor } = useCRM();
+  const { vendors, supplierInquiries, supplierQuotes, orders, rfqs, updateVendor } = useCRM();
   const { isAdmin } = useAuth();
 
   const vendor = vendors.find(v => v.id === id);
+
+  // Supplier intelligence — from existing inquiries/quotes/orders
+  const vendorQuotes = useMemo(() => supplierQuotes.filter(q => q.vendor_id === id), [supplierQuotes, id]);
+  const intel = useMemo(() => {
+    const vendorInquiries = supplierInquiries.filter(i => i.vendor_id === id);
+    const vendorOrders = orders.filter(o => o.vendor_id === id);
+
+    // Response rate: quotes given vs inquiries sent
+    const responseRate = vendorInquiries.length > 0
+      ? Math.round((vendorQuotes.length / vendorInquiries.length) * 100) : null;
+
+    // Avg response time: received_at − matched inquiry sent_at (days)
+    const durations: number[] = [];
+    vendorQuotes.forEach(q => {
+      const inq = vendorInquiries.find(i => i.id === (q as any).inquiry_id)
+        ?? vendorInquiries.find(i => i.rfq_id === q.rfq_id);
+      if (inq?.sent_at && (q as any).received_at) {
+        const d = (new Date((q as any).received_at).getTime() - new Date(inq.sent_at).getTime()) / 86400000;
+        if (!isNaN(d) && d >= 0) durations.push(d);
+      }
+    });
+    const avgResponseDays = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null;
+
+    // Win rate: quotes selected as winner / total quotes
+    const won = vendorQuotes.filter(q => (q as any).is_selected).length;
+    const winRate = vendorQuotes.length > 0 ? Math.round((won / vendorQuotes.length) * 100) : null;
+
+    // Price competitiveness: on RFQs where this vendor competed against others,
+    // how often was their unit price the lowest
+    let competedRfqs = 0, cheapestWins = 0;
+    const byRfq = new Map<string, typeof supplierQuotes>();
+    supplierQuotes.forEach(q => { byRfq.set(q.rfq_id, [...(byRfq.get(q.rfq_id) ?? []), q]); });
+    vendorQuotes.forEach(q => {
+      const competitors = byRfq.get(q.rfq_id) ?? [];
+      if (competitors.length >= 2) {
+        competedRfqs++;
+        const minPrice = Math.min(...competitors.map(c => c.unit_price));
+        if (q.unit_price === minPrice) cheapestWins++;
+      }
+    });
+    const competitiveness = competedRfqs > 0 ? Math.round((cheapestWins / competedRfqs) * 100) : null;
+
+    return {
+      inquiriesSent: vendorInquiries.length,
+      quotesGiven: vendorQuotes.length,
+      responseRate, avgResponseDays, winRate, competitiveness,
+      ordersWon: vendorOrders.length,
+      ordersValue: vendorOrders.reduce((s, o) => s + (o.order_value || 0), 0),
+    };
+  }, [supplierInquiries, supplierQuotes, orders, vendorQuotes, id]);
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({
     name: vendor?.name || '',
@@ -94,6 +145,83 @@ export default function VendorDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Supplier Intelligence ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="kpi-card">
+          <div className="flex items-start justify-between mb-3">
+            <p className="text-xs font-semibold text-muted-foreground">Response Rate</p>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-info/15 text-info"><Send className="w-4 h-4" /></div>
+          </div>
+          <p className="text-2xl font-extrabold text-foreground tracking-tight">{intel.responseRate === null ? '—' : `${intel.responseRate}%`}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{intel.quotesGiven}/{intel.inquiriesSent} inquiries answered</p>
+        </div>
+        <div className="kpi-card">
+          <div className="flex items-start justify-between mb-3">
+            <p className="text-xs font-semibold text-muted-foreground">Avg Response Time</p>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-warning/15 text-warning"><Clock className="w-4 h-4" /></div>
+          </div>
+          <p className="text-2xl font-extrabold text-foreground tracking-tight">{intel.avgResponseDays === null ? '—' : `${intel.avgResponseDays}d`}</p>
+        </div>
+        <div className="kpi-card">
+          <div className="flex items-start justify-between mb-3">
+            <p className="text-xs font-semibold text-muted-foreground">Win Rate</p>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-success/15 text-success"><Award className="w-4 h-4" /></div>
+          </div>
+          <p className="text-2xl font-extrabold text-foreground tracking-tight">{intel.winRate === null ? '—' : `${intel.winRate}%`}</p>
+          {intel.competitiveness !== null && <p className="text-[10px] text-muted-foreground mt-0.5">cheapest {intel.competitiveness}% of the time</p>}
+        </div>
+        <div className="kpi-card">
+          <div className="flex items-start justify-between mb-3">
+            <p className="text-xs font-semibold text-muted-foreground">Orders Won</p>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/15 text-primary"><ShoppingCart className="w-4 h-4" /></div>
+          </div>
+          <p className="text-2xl font-extrabold text-foreground tracking-tight">{intel.ordersWon}</p>
+          {intel.ordersValue > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{formatPKR(intel.ordersValue)}</p>}
+        </div>
+      </div>
+
+      {/* ── Quote History ── */}
+      {vendorQuotes.length > 0 && (
+        <div className="glass-card p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Quote History ({vendorQuotes.length})</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-2 text-xs text-muted-foreground font-medium">RFQ</th>
+                  <th className="text-left py-2 text-xs text-muted-foreground font-medium">Received</th>
+                  <th className="text-left py-2 text-xs text-muted-foreground font-medium">Unit Price</th>
+                  <th className="text-left py-2 text-xs text-muted-foreground font-medium">Lead Time</th>
+                  <th className="text-left py-2 text-xs text-muted-foreground font-medium">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vendorQuotes.map(q => {
+                  const rfq = rfqs.find(r => r.id === q.rfq_id);
+                  return (
+                    <tr key={q.id} onClick={() => rfq && navigate(`/rfqs/${rfq.id}`)}
+                      className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
+                      <td className="py-2.5">
+                        <span className="text-xs font-mono font-semibold text-primary">{rfq?.rfq_number || '—'}</span>
+                        {rfq && <span className="text-xs text-muted-foreground ml-1.5">{rfq.company_name}</span>}
+                      </td>
+                      <td className="py-2.5 text-muted-foreground text-xs">{(q as any).received_at ? formatDate((q as any).received_at) : '—'}</td>
+                      <td className="py-2.5 font-semibold text-foreground">{formatPKR(q.unit_price)}</td>
+                      <td className="py-2.5 text-muted-foreground">{q.lead_time_days}d</td>
+                      <td className="py-2.5">
+                        {(q as any).is_selected
+                          ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">✓ WON</span>
+                          : <span className="text-[10px] text-muted-foreground">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEdit && (
