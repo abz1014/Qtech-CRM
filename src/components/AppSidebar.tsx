@@ -5,7 +5,7 @@ import { useCRM } from '@/contexts/CRMContext';
 import {
   LayoutDashboard, Users, Target, ShoppingCart,
   Factory, UserCog, Wrench, LogOut, Zap, FileText,
-  BarChart3, DollarSign, X, Bell, Sun, Moon, TrendingUp,
+  BarChart3, DollarSign, X, Bell, Sun, Moon, TrendingUp, Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { businessToday } from '@/lib/dates';
@@ -23,6 +23,7 @@ function useTheme() {
 
 const navItems = [
   { label: 'Dashboard',        path: '/dashboard',        icon: LayoutDashboard, roles: ['admin', 'sales'] },
+  { label: 'Operations',       path: '/operations',       icon: Activity,        roles: ['admin', 'sales'] },
   { label: 'Clients',          path: '/clients',          icon: Users,           roles: ['admin', 'sales'] },
   { label: 'Prospects',        path: '/prospects',        icon: Target,          roles: ['admin', 'sales'] },
   { label: 'RFQs',             path: '/rfqs',             icon: FileText,        roles: ['admin', 'sales'] },
@@ -37,7 +38,7 @@ const navItems = [
 ];
 
 const groups = [
-  { label: 'Main',   paths: ['/dashboard', '/clients', '/prospects'] },
+  { label: 'Main',   paths: ['/dashboard', '/operations', '/clients', '/prospects'] },
   { label: 'Sales',  paths: ['/rfqs', '/daily-rfq-report', '/sales-intelligence', '/orders', '/actions'] },
   { label: 'Manage', paths: ['/vendors', '/finance', '/team', '/my-jobs'] },
 ];
