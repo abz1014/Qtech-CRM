@@ -29,6 +29,7 @@ const RFQsPage             = lazy(() => import("@/pages/RFQsPage"));
 const RFQDetailPage        = lazy(() => import("@/pages/RFQDetailPage"));
 const DailyRFQReportPage   = lazy(() => import("@/pages/DailyRFQReportPage").then(m => ({ default: m.DailyRFQReportPage })));
 const FinancePage          = lazy(() => import("@/pages/FinancePage"));
+const SalesIntelligencePage = lazy(() => import("@/pages/SalesIntelligencePage"));
 const ActionsPage          = lazy(() => import("@/pages/ActionsPage"));
 const NotFound             = lazy(() => import("@/pages/NotFound"));
 
@@ -90,6 +91,7 @@ const App = () => (
                   <Route path="/rfqs"             element={<RFQsPage />} />
                   <Route path="/rfqs/:id"         element={<RFQDetailPage />} />
                   <Route path="/daily-rfq-report" element={<DailyRFQReportPage />} />
+                  <Route path="/sales-intelligence" element={<SalesIntelligencePage />} />
                   <Route path="/actions"          element={<ActionsPage />} />
                   <Route path="/orders"           element={<OrdersPage />} />
                   <Route path="/orders/:id"       element={<OrderDetailPage />} />
