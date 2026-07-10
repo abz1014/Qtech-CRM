@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { X } from 'lucide-react';
@@ -16,7 +17,7 @@ export function PaymentModal({ invoice, onClose, onSuccess }: PaymentModalProps)
   const { recordPayment } = useCRM();
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<CreatePaymentInput>({
     defaultValues: {
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: businessToday(),
       amount: invoice.invoice_amount - invoice.amount_paid,
     },
   });

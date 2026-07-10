@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useState } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useForm } from 'react-hook-form';
@@ -21,7 +22,7 @@ export function PayablePaymentModal({
   const { register, handleSubmit, formState: { errors }, watch } = useForm({
     defaultValues: {
       amount: payable.amount - payable.amount_paid,
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: businessToday(),
       payment_method: '',
     },
   });

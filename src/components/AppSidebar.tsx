@@ -8,6 +8,7 @@ import {
   BarChart3, DollarSign, X, Bell, Sun, Moon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { businessToday } from '@/lib/dates';
 
 function useTheme() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
@@ -47,7 +48,7 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
   const { theme, toggle } = useTheme();
   const { followUpActions } = useCRM();
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = businessToday();
   const urgentCount = useMemo(() => followUpActions.filter(a =>
     a.status === 'pending' &&
     a.due_date < today &&

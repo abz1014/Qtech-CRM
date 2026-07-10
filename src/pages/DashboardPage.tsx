@@ -7,6 +7,7 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardSkeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase';
+import { businessToday, businessDaysFromNow } from '@/lib/dates';
 
 export default function DashboardPage() {
   const { clients, orders, prospects, rfqs, supplierInquiries, supplierQuotes, followUpActions, getClientName, getVendorName, getUserName, loading } = useCRM();
@@ -17,11 +18,21 @@ export default function DashboardPage() {
   // ALL HOOKS MUST BE ABOVE EVERY EARLY RETURN — React rules of hooks
   // ══════════════════════════════════════════════════════════════════════════
 
-  const now = useMemo(() => new Date(), []);
-  const today = useMemo(() => now.toISOString().split('T')[0], [now]);
-  const currentQuarter = useMemo(() => Math.floor(now.getMonth() / 3) + 1, [now]);
-  const currentYear = useMemo(() => now.getFullYear(), [now]);
-  const currentMonth = useMemo(() => now.getMonth(), [now]);
+  // Business-timezone "today", refreshed every minute so a tab left open
+  // across midnight doesn't keep showing yesterday's data.
+  const [today, setToday] = useState(() => businessToday());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const t = businessToday();
+      setToday(prev => (prev === t ? prev : t));
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Derive year/quarter/month from the business date string (not UTC)
+  const currentYear = useMemo(() => parseInt(today.slice(0, 4)), [today]);
+  const currentMonth = useMemo(() => parseInt(today.slice(5, 7)) - 1, [today]);
+  const currentQuarter = useMemo(() => Math.floor(currentMonth / 3) + 1, [currentMonth]);
 
   // State
   const [quarterlyTarget, setQuarterlyTarget] = useState<number>(0);
@@ -30,8 +41,9 @@ export default function DashboardPage() {
   const [editingSelectedTarget, setEditingSelectedTarget] = useState(false);
   const [selectedTargetInput, setSelectedTargetInput] = useState('');
   const [selectedQuarter, setSelectedQuarter] = useState(() => {
-    const cq = Math.floor(new Date().getMonth() / 3) + 1;
-    const cy = new Date().getFullYear();
+    const t = businessToday();
+    const cy = parseInt(t.slice(0, 4));
+    const cq = Math.floor((parseInt(t.slice(5, 7)) - 1) / 3) + 1;
     return `${cq === 1 ? cy - 1 : cy}-Q${cq === 1 ? 4 : cq - 1}`;
   });
   const [selectedQuarterTarget, setSelectedQuarterTarget] = useState<number>(0);
@@ -86,11 +98,9 @@ export default function DashboardPage() {
     return { received, quoteReceived, quotedToClient, poReceived };
   }, [rfqs, supplierQuotes]);
 
-  // Last 10 days metrics
+  // Last 10 days metrics (today-9 .. today inclusive = exactly 10 days, business TZ)
   const { last10Metrics } = useMemo(() => {
-    const tenDaysAgo = new Date();
-    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-    const tenDaysStart = tenDaysAgo.toISOString().split('T')[0];
+    const tenDaysStart = businessDaysFromNow(-9);
     const last10Rfqs = rfqs.filter(r => r.rfq_date >= tenDaysStart && r.rfq_date <= today);
     return {
       last10Metrics: {
@@ -126,18 +136,13 @@ export default function DashboardPage() {
     return { selectedStart: start, selectedEnd: adjustedEndStr, selectedQuarterPipeline: getPipelineMetrics(start, adjustedEndStr) };
   }, [selectedYear, selectedQtr, getPipelineMetrics]);
 
-  // Get the best available date for an order
+  // Canonical PO date for an order. Deliberately NO fallback to delivery or
+  // RFQ dates — mixing date semantics made orders migrate between quarters
+  // as fields were filled in. Orders missing both dates must be backfilled
+  // in the database (see audit/MASTER_REFACTOR_PLAN.md P0.4).
   const getOrderDate = useCallback((o: any): string | null => {
-    if (o.customer_po_date) return o.customer_po_date;
-    if (o.confirmed_date) return o.confirmed_date;
-    if (o.delivery_date) return o.delivery_date;
-    // Fallback: use linked RFQ date
-    if (o.rfq_id) {
-      const rfq = rfqs.find(r => r.id === o.rfq_id);
-      if (rfq) return rfq.rfq_date;
-    }
-    return null;
-  }, [rfqs]);
+    return o.customer_po_date || o.confirmed_date || null;
+  }, []);
 
   // Target achieved = all orders by best available date in the quarter
   const selectedTargetAchieved = useMemo(() => {

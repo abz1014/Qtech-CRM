@@ -1,3 +1,4 @@
+import { toBusinessDate } from '@/lib/dates';
 import { useState, useEffect } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -58,7 +59,7 @@ const QUICK_DUE_DATES = [
 function addDays(days: number) {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().split('T')[0];
+  return toBusinessDate(d);
 }
 
 // Smart priority suggestion based on entity type

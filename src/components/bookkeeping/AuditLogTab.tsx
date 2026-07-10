@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useMemo, useState } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { Download } from 'lucide-react';
@@ -172,7 +173,7 @@ export function AuditLogTab() {
       entry.field_changed || '-',
     ]);
     const csv = generateCSV(headers, rows);
-    downloadCSV(csv, `Audit_Log_${new Date().toISOString().split('T')[0]}.csv`);
+    downloadCSV(csv, `Audit_Log_${businessToday()}.csv`);
   };
 
   return (

@@ -1,3 +1,4 @@
+import { toBusinessDate } from '@/lib/dates';
 import { useState } from 'react';
 import { AlarmClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -10,7 +11,7 @@ interface SnoozePopoverProps {
 function addDays(n: number) {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
+  return toBusinessDate(d);
 }
 
 const QUICK_OPTIONS = [

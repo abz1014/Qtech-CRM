@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { X } from 'lucide-react';
@@ -24,7 +25,7 @@ export function BudgetForm({ onClose, onSuccess, userId }: BudgetFormProps) {
   const { register, handleSubmit, formState: { errors }, watch } = useForm({
     defaultValues: {
       budget_type: 'Expense',
-      period: new Date().toISOString().split('T')[0].slice(0, 7) + '-01',
+      period: businessToday().slice(0, 7) + '-01',
       category: '',
       expected_amount: 0,
     },

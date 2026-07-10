@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
@@ -79,7 +80,7 @@ export default function ProspectsPage() {
       p.converted_client_id ? 'Yes' : 'No',
     ]);
     const csv = generateCSV(headers, rows);
-    const filename = `Prospects_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `Prospects_${businessToday()}.csv`;
     downloadCSV(csv, filename);
   };
 

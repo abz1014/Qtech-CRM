@@ -1,3 +1,4 @@
+import { businessToday, toBusinessDate } from '@/lib/dates';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePersistedNumber } from '@/hooks/useURLState';
@@ -113,7 +114,7 @@ export default function OrdersPage() {
       ];
     });
     const csv = generateCSV(headers, rows);
-    const filename = `Orders_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `Orders_${businessToday()}.csv`;
     downloadCSV(csv, filename);
   };
 
@@ -221,10 +222,10 @@ export default function OrdersPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {([
-            ['This Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day + 1); setFromDate(mon.toISOString().split('T')[0]); setToDate(new Date().toISOString().split('T')[0]); }],
-            ['Last Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day - 6); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); setFromDate(mon.toISOString().split('T')[0]); setToDate(sun.toISOString().split('T')[0]); }],
-            ['This Month', () => { const d = new Date(); setFromDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`); setToDate(d.toISOString().split('T')[0]); }],
-            ['Last Month', () => { const d = new Date(); d.setMonth(d.getMonth()-1); const start = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; const end = new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().split('T')[0]; setFromDate(start); setToDate(end); }],
+            ['This Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day + 1); setFromDate(toBusinessDate(mon)); setToDate(businessToday()); }],
+            ['Last Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day - 6); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); setFromDate(toBusinessDate(mon)); setToDate(toBusinessDate(sun)); }],
+            ['This Month', () => { const d = new Date(); setFromDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`); setToDate(businessToday()); }],
+            ['Last Month', () => { const d = new Date(); d.setMonth(d.getMonth()-1); const start = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; const end = toBusinessDate(new Date(d.getFullYear(), d.getMonth()+1, 0)); setFromDate(start); setToDate(end); }],
           ] as [string, () => void][]).map(([label, fn]) => (
             <button key={label} type="button" onClick={() => { fn(); setCurrentPage(1); }}
               className="px-3 py-1.5 text-xs font-medium bg-muted border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors">

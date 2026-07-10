@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useState, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
@@ -90,7 +91,7 @@ export default function ClientsPage() {
       ];
     });
     const csv = generateCSV(headers, rows);
-    const filename = `Clients_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `Clients_${businessToday()}.csv`;
     downloadCSV(csv, filename);
   };
 

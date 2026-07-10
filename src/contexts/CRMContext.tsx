@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
+import { businessToday, businessDaysFromNow } from '@/lib/dates';
 import {
   Client, Prospect, Vendor, Order, OrderEngineer, RFQ, User,
   OrderStatus, CommissioningStatus, RFQStatus, RFQPriority,
@@ -11,6 +12,14 @@ import {
   UpdatePayableInput, CreatePayablePaymentInput, DashboardMetrics,
   MonthlySummary, ProjectProfitability, CashflowMonth, ARAgingBucket,
 } from '@/types/bookkeeping';
+
+// Realtime INSERT events echo back our own optimistic inserts (Supabase
+// broadcasts postgres_changes to the originating client too). Only add the
+// row if it isn't already in state, otherwise every created row appears twice.
+function addUnique<T>(prev: T[], row: T, key: keyof T, prepend = false): T[] {
+  if (prev.some(x => x[key] === row[key])) return prev;
+  return prepend ? [row, ...prev] : [...prev, row];
+}
 
 const allowedTransitions: Record<OrderStatus, OrderStatus | null> = {
   po_received:      'procurement',
@@ -229,7 +238,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'clients' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setClients(prev => [...prev, payload.new as Client]);
+            setClients(prev => addUnique(prev, payload.new as Client, 'id'));
           } else if (payload.eventType === 'UPDATE') {
             setClients(prev => prev.map(c => c.id === payload.new.id ? payload.new as Client : c));
           } else if (payload.eventType === 'DELETE') {
@@ -244,7 +253,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'prospects' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setProspects(prev => [...prev, payload.new as Prospect]);
+            setProspects(prev => addUnique(prev, payload.new as Prospect, 'id'));
           } else if (payload.eventType === 'UPDATE') {
             setProspects(prev => prev.map(p => p.id === payload.new.id ? payload.new as Prospect : p));
           } else if (payload.eventType === 'DELETE') {
@@ -259,7 +268,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'vendors' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setVendors(prev => [...prev, payload.new as Vendor]);
+            setVendors(prev => addUnique(prev, payload.new as Vendor, 'id'));
           } else if (payload.eventType === 'UPDATE') {
             setVendors(prev => prev.map(v => v.id === payload.new.id ? payload.new as Vendor : v));
           } else if (payload.eventType === 'DELETE') {
@@ -274,7 +283,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'orders' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setOrders(prev => [payload.new as Order, ...prev]);
+            setOrders(prev => addUnique(prev, payload.new as Order, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
             setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new as Order : o));
           } else if (payload.eventType === 'DELETE') {
@@ -289,7 +298,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'order_engineers' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setOrderEngineers(prev => [...prev, payload.new as OrderEngineer]);
+            setOrderEngineers(prev => addUnique(prev, payload.new as OrderEngineer, 'id'));
           } else if (payload.eventType === 'UPDATE') {
             setOrderEngineers(prev => prev.map(oe => oe.id === payload.new.id ? payload.new as OrderEngineer : oe));
           } else if (payload.eventType === 'DELETE') {
@@ -304,7 +313,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'rfqs' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setRFQs(prev => [payload.new as RFQ, ...prev]);
+            setRFQs(prev => addUnique(prev, payload.new as RFQ, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
             setRFQs(prev => prev.map(r => r.id === payload.new.id ? payload.new as RFQ : r));
           } else if (payload.eventType === 'DELETE') {
@@ -319,7 +328,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'supplier_inquiries' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setSupplierInquiries(prev => [payload.new as SupplierInquiry, ...prev]);
+            setSupplierInquiries(prev => addUnique(prev, payload.new as SupplierInquiry, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
             setSupplierInquiries(prev => prev.map(si => si.id === payload.new.id ? payload.new as SupplierInquiry : si));
           } else if (payload.eventType === 'DELETE') {
@@ -334,7 +343,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'supplier_quotes' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setSupplierQuotes(prev => [payload.new as SupplierQuote, ...prev]);
+            setSupplierQuotes(prev => addUnique(prev, payload.new as SupplierQuote, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
             setSupplierQuotes(prev => prev.map(sq => sq.id === payload.new.id ? payload.new as SupplierQuote : sq));
           } else if (payload.eventType === 'DELETE') {
@@ -349,7 +358,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'rfq_line_items' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setRFQLineItems(prev => [...prev, payload.new as RFQLineItem]);
+            setRFQLineItems(prev => addUnique(prev, payload.new as RFQLineItem, 'id'));
           } else if (payload.eventType === 'UPDATE') {
             setRFQLineItems(prev => prev.map(li => li.id === payload.new.id ? payload.new as RFQLineItem : li));
           } else if (payload.eventType === 'DELETE') {
@@ -364,7 +373,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'follow_up_actions' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setFollowUpActions(prev => [payload.new, ...prev]);
+            setFollowUpActions(prev => addUnique(prev, payload.new, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
             setFollowUpActions(prev => prev.map(fa => fa.id === payload.new.id ? payload.new : fa));
           } else if (payload.eventType === 'DELETE') {
@@ -379,7 +388,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'invoices' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setInvoices(prev => [payload.new as Invoice, ...prev]);
+            setInvoices(prev => addUnique(prev, payload.new as Invoice, 'invoice_id', true));
           } else if (payload.eventType === 'UPDATE') {
             setInvoices(prev => prev.map(inv => inv.invoice_id === payload.new.invoice_id ? payload.new as Invoice : inv));
           } else if (payload.eventType === 'DELETE') {
@@ -394,7 +403,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'expenses' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setExpenses(prev => [payload.new as Expense, ...prev]);
+            setExpenses(prev => addUnique(prev, payload.new as Expense, 'expense_id', true));
           } else if (payload.eventType === 'UPDATE') {
             setExpenses(prev => prev.map(exp => exp.expense_id === payload.new.expense_id ? payload.new as Expense : exp));
           } else if (payload.eventType === 'DELETE') {
@@ -409,7 +418,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'payment_records' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setPaymentRecords(prev => [payload.new as PaymentRecord, ...prev]);
+            setPaymentRecords(prev => addUnique(prev, payload.new as PaymentRecord, 'payment_id', true));
           } else if (payload.eventType === 'UPDATE') {
             setPaymentRecords(prev => prev.map(pr => pr.payment_id === payload.new.payment_id ? payload.new as PaymentRecord : pr));
           } else if (payload.eventType === 'DELETE') {
@@ -424,7 +433,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'payables' },
         (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            setPayables(prev => [payload.new as Payable, ...prev]);
+            setPayables(prev => addUnique(prev, payload.new as Payable, 'payable_id', true));
           } else if (payload.eventType === 'UPDATE') {
             setPayables(prev => prev.map(p => p.payable_id === payload.new.payable_id ? payload.new as Payable : p));
           } else if (payload.eventType === 'DELETE') {
@@ -435,13 +444,18 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
       // Subscribe to the channel
       await channel.subscribe();
-
-      // Cleanup: unsubscribe when component unmounts
-      return () => {
-        supabase.removeChannel(channel);
-      };
+      return channel;
     };
-    load();
+
+    // Keep a handle to the channel so the effect cleanup can actually
+    // unsubscribe — returning the cleanup from inside the async load()
+    // does nothing and leaks a channel on every unmount/HMR.
+    const channelPromise = load();
+    return () => {
+      channelPromise.then(channel => {
+        if (channel) supabase.removeChannel(channel);
+      }).catch(() => { /* load failed; nothing to clean up */ });
+    };
   }, []);
 
   // O(1) Map lookups — rebuilt only when the source array changes
@@ -470,9 +484,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     daysFromNow?: number;
   }) => {
     try {
-      const due = new Date();
-      due.setDate(due.getDate() + (params.daysFromNow ?? 2));
-      const due_date = due.toISOString().split('T')[0];
+      const due_date = businessDaysFromNow(params.daysFromNow ?? 2);
       const { data, error } = await supabase
         .from('follow_up_actions')
         .insert([{
@@ -570,7 +582,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (!order) return;
     if (allowedTransitions[order.status] !== status) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = businessToday();
     const updates: Partial<Order> = { status };
 
     if (status === 'po_received') updates.confirmed_date = today;
@@ -579,9 +591,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (status === 'delivered') {
       updates.delivery_date = today;
       const paymentTerms = order.payment_terms_days ?? 30;
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + paymentTerms);
-      updates.payment_due_date = dueDate.toISOString().split('T')[0];
+      updates.payment_due_date = businessDaysFromNow(paymentTerms);
     }
 
     const { data } = await supabase.from('orders').update(updates).eq('id', orderId).select().single();
@@ -635,7 +645,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const rfq = rfqs.find(r => r.id === rfqId);
     const updates: Record<string, any> = { status };
     if (status === 'quoted' && rfq && !(rfq as any).quote_sent_date) {
-      updates.quote_sent_date = new Date().toISOString().split('T')[0];
+      updates.quote_sent_date = businessToday();
     }
     const { data } = await supabase.from('rfqs').update(updates).eq('id', rfqId).select().single();
     if (data) {
@@ -737,7 +747,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deleteRFQLineItem = useCallback(async (id: string) => {
-    await supabase.from('rfq_line_items').delete().eq('id', id);
+    const { error } = await supabase.from('rfq_line_items').delete().eq('id', id);
+    if (error) throw new Error(`Failed to delete line item: ${error.message}`);
     setRFQLineItems(prev => prev.filter(li => li.id !== id));
   }, []);
 
@@ -832,53 +843,64 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const deleteRFQ = useCallback(async (rfqId: string) => {
     // Delete all follow-up actions for this RFQ from database
-    await supabase.from('follow_up_actions').delete().eq('entity_id', rfqId).eq('entity_type', 'rfq');
+    const { error: faError } = await supabase.from('follow_up_actions').delete().eq('entity_id', rfqId).eq('entity_type', 'rfq');
+    if (faError) throw new Error(`Failed to delete RFQ follow-ups: ${faError.message}`);
 
-    await supabase.from('rfqs').delete().eq('id', rfqId);
+    const { error } = await supabase.from('rfqs').delete().eq('id', rfqId);
+    if (error) throw new Error(`Failed to delete RFQ: ${error.message}`);
+
     setRFQs(prev => prev.filter(r => r.id !== rfqId));
     setFollowUpActions(prev => prev.filter(a => !(a.entity_id === rfqId && a.entity_type === 'rfq')));
   }, []);
 
   const deleteOrder = useCallback(async (orderId: string) => {
     // Delete all follow-up actions for this order from database
-    await supabase.from('follow_up_actions').delete().eq('entity_id', orderId).eq('entity_type', 'order');
+    const { error: faError } = await supabase.from('follow_up_actions').delete().eq('entity_id', orderId).eq('entity_type', 'order');
+    if (faError) throw new Error(`Failed to delete order follow-ups: ${faError.message}`);
 
-    // Get the order from state to check for linked RFQ
-    setOrders(prev => {
-      const order = prev.find(o => o.id === orderId);
-      if (order?.rfq_id) {
-        supabase
+    // Delete the order FIRST, then reset the linked RFQ — so a failed delete
+    // never leaves an RFQ reset to 'quoted' while its order still exists.
+    const order = orders.find(o => o.id === orderId);
+    const { error } = await supabase.from('orders').delete().eq('id', orderId);
+    if (error) throw new Error(`Failed to delete order: ${error.message}`);
+
+    if (order?.rfq_id) {
+      // Only reset the RFQ if no sibling order still references it
+      const siblingExists = orders.some(o => o.rfq_id === order.rfq_id && o.id !== orderId);
+      if (!siblingExists) {
+        const { error: rfqError } = await supabase
           .from('rfqs')
           .update({ status: 'quoted', converted_order_id: null })
           .eq('id', order.rfq_id);
-        setRFQs(prev => prev.map(r => r.id === order.rfq_id ? { ...r, status: 'quoted' as RFQStatus, converted_order_id: null } : r));
+        if (rfqError) console.error('Failed to reset RFQ after order delete:', rfqError.message);
+        else setRFQs(prev => prev.map(r => r.id === order.rfq_id ? { ...r, status: 'quoted' as RFQStatus, converted_order_id: null } : r));
       }
-      return prev;
-    });
+    }
 
-    await supabase.from('orders').delete().eq('id', orderId);
     setOrders(prev => prev.filter(o => o.id !== orderId));
     setFollowUpActions(prev => prev.filter(a => !(a.entity_id === orderId && a.entity_type === 'order')));
-  }, []);
+  }, [orders]);
 
   const deleteClient = useCallback(async (clientId: string) => {
     // Get IDs before deleting
     const clientRFQIds = rfqs.filter(r => r.client_id === clientId).map(r => r.id);
     const clientOrderIds = orders.filter(o => o.client_id === clientId).map(o => o.id);
 
-    // Delete cascade: follow-up actions → RFQs, orders → client
-    for (const rfqId of clientRFQIds) {
-      await supabase.from('follow_up_actions').delete().eq('entity_id', rfqId);
-    }
-    for (const orderId of clientOrderIds) {
-      await supabase.from('follow_up_actions').delete().eq('entity_id', orderId);
+    // Delete cascade: follow-up actions → RFQs, orders → client (batched)
+    const relatedIds = [...clientRFQIds, ...clientOrderIds];
+    if (relatedIds.length > 0) {
+      const { error: faError } = await supabase.from('follow_up_actions').delete().in('entity_id', relatedIds);
+      if (faError) throw new Error(`Failed to delete client follow-ups: ${faError.message}`);
     }
 
-    await supabase.from('rfqs').delete().eq('client_id', clientId);
-    await supabase.from('orders').delete().eq('client_id', clientId);
-    await supabase.from('clients').delete().eq('id', clientId);
+    const { error: rfqError } = await supabase.from('rfqs').delete().eq('client_id', clientId);
+    if (rfqError) throw new Error(`Failed to delete client RFQs: ${rfqError.message}`);
+    const { error: orderError } = await supabase.from('orders').delete().eq('client_id', clientId);
+    if (orderError) throw new Error(`Failed to delete client orders: ${orderError.message}`);
+    const { error } = await supabase.from('clients').delete().eq('id', clientId);
+    if (error) throw new Error(`Failed to delete client: ${error.message}`);
 
-    // Update local state
+    // Update local state only after every DB delete succeeded
     setClients(prev => prev.filter(c => c.id !== clientId));
     setRFQs(prev => prev.filter(r => r.client_id !== clientId));
     setOrders(prev => prev.filter(o => o.client_id !== clientId));
@@ -888,12 +910,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, [rfqs, orders]);
 
   const deleteVendor = useCallback(async (vendorId: string) => {
-    await supabase.from('vendors').delete().eq('id', vendorId);
+    const { error } = await supabase.from('vendors').delete().eq('id', vendorId);
+    if (error) throw new Error(`Failed to delete vendor: ${error.message}`);
     setVendors(prev => prev.filter(v => v.id !== vendorId));
   }, []);
 
   const deleteProspect = useCallback(async (prospectId: string) => {
-    await supabase.from('prospects').delete().eq('id', prospectId);
+    const { error } = await supabase.from('prospects').delete().eq('id', prospectId);
+    if (error) throw new Error(`Failed to delete prospect: ${error.message}`);
     setProspects(prev => prev.filter(p => p.id !== prospectId));
   }, []);
 
@@ -902,12 +926,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // ============================================
 
   const getNextInvoiceNumber = useCallback(async (): Promise<string> => {
-    const today = new Date().toISOString().split('-').slice(0, 2).join('');
+    const monthPrefix = businessToday().split('-').slice(0, 2).join('');
     const invoicesThisMonth = invoices.filter(inv =>
-      inv.invoice_number.startsWith(`INV-${today}`)
+      inv.invoice_number.startsWith(`INV-${monthPrefix}`)
     );
     const seq = invoicesThisMonth.length + 1;
-    const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const date = businessToday().replace(/-/g, '');
     return `INV-${date}-${String(seq).padStart(3, '0')}`;
   }, [invoices]);
 
@@ -939,7 +963,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deleteInvoice = useCallback(async (invoiceId: string) => {
-    await supabase.from('invoices').delete().eq('invoice_id', invoiceId);
+    const { error } = await supabase.from('invoices').delete().eq('invoice_id', invoiceId);
+    if (error) throw new Error(`Failed to delete invoice: ${error.message}`);
     setInvoices(prev => prev.filter(inv => inv.invoice_id !== invoiceId));
   }, []);
 
@@ -971,7 +996,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deleteExpense = useCallback(async (expenseId: string) => {
-    await supabase.from('expenses').delete().eq('expense_id', expenseId);
+    const { error } = await supabase.from('expenses').delete().eq('expense_id', expenseId);
+    if (error) throw new Error(`Failed to delete expense: ${error.message}`);
     setExpenses(prev => prev.filter(exp => exp.expense_id !== expenseId));
   }, []);
 
@@ -1016,9 +1042,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, [invoices, paymentRecords, updateInvoice]);
 
   const getDashboardMetrics = useCallback((): DashboardMetrics => {
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const currentYear = now.getFullYear();
+    const todayStr = businessToday();
+    const currentMonth = todayStr.slice(0, 7);
+    const currentYear = parseInt(todayStr.slice(0, 4));
 
     // MTD metrics
     const mtdInvoices = invoices.filter(inv => inv.issued_date.startsWith(currentMonth));
@@ -1588,9 +1614,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         const recurDays = recurMatch ? parseInt(recurMatch[1]) : null;
 
         if (recurDays) {
-          const nextDue = new Date();
-          nextDue.setDate(nextDue.getDate() + recurDays);
-          const nextDueStr = nextDue.toISOString().split('T')[0];
+          const nextDueStr = businessDaysFromNow(recurDays);
 
           await supabase.from('follow_up_actions').insert([{
             action_type: action.action_type,
@@ -1665,17 +1689,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     entityId: string | null,
     assignedTo: string | null,
   ) => {
-    const today = new Date();
     const inserts = steps.map(step => {
-      const due = new Date(today);
-      due.setDate(due.getDate() + step.daysFromNow);
       return {
         action_type: step.action_type,
         entity_type: entityType,
         entity_id: entityId,
         title: step.title,
         description: step.notes || null,
-        due_date: due.toISOString().split('T')[0],
+        due_date: businessDaysFromNow(step.daysFromNow),
         priority: step.priority,
         assigned_to: assignedTo,
         status: 'pending',
@@ -1753,7 +1774,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const getOverdueFollowUps = useCallback(async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = businessToday();
       const { data, error } = await supabase
         .from('follow_up_actions')
         .select('*')
@@ -1786,33 +1807,63 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Memoize the context value — a fresh object literal here re-renders EVERY
+  // consumer in the app on EVERY render of the provider. All functions are
+  // useCallback-wrapped, so listing them as deps keeps this stable.
+  const contextValue = useMemo(() => ({
+    loading, users, clients, prospects, vendors, orders, orderEngineers, rfqs,
+    supplierInquiries, supplierQuotes, rfqLineItems,
+    getUserName, getClientName, getVendorName,
+    addClient, addProspect, addVendor, addOrder, addOrderEngineer,
+    convertProspect, updateOrderStatus, updateCommissioningStatus,
+    addRFQ, updateRFQStatus, updateRFQPriority, convertRFQToOrder,
+    getNextOrderStatus,
+    addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus, updateSupplierInquiry,
+    getRFQMetrics, getRFQMetricsByDateRange,
+    updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
+    deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
+    invoices, expenses, paymentRecords, payables,
+    addInvoice, updateInvoice, deleteInvoice,
+    addExpense, updateExpense, deleteExpense,
+    recordPayment,
+    addPayable, updatePayable, deletePayable, recordPayablePayment,
+    getDashboardMetrics, getMonthlySummary, getProjectProfitability,
+    getCashflowStatement, getARAgingBuckets, getAPAgingBuckets, getNextInvoiceNumber,
+    updateOrderCosts, getOrderWithProfitability, getOrdersWithProfitability, getProfitabilityMetrics,
+    getQuotesForRFQ, calculateValueScore, updateQuoteRecommendation, getRecommendedQuote,
+    followUpActions,
+    createFollowUp, getPendingFollowUps, getAllFollowUps, completeFollowUp, snoozeFollowUp,
+    deleteFollowUp, getOverdueFollowUps, getFollowUpsForEntity, getUserWorkload,
+    applySequence, getRecentActivity, getPatternInsights,
+  }), [
+    loading, users, clients, prospects, vendors, orders, orderEngineers, rfqs,
+    supplierInquiries, supplierQuotes, rfqLineItems,
+    getUserName, getClientName, getVendorName,
+    addClient, addProspect, addVendor, addOrder, addOrderEngineer,
+    convertProspect, updateOrderStatus, updateCommissioningStatus,
+    addRFQ, updateRFQStatus, updateRFQPriority, convertRFQToOrder,
+    getNextOrderStatus,
+    addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus, updateSupplierInquiry,
+    getRFQMetrics, getRFQMetricsByDateRange,
+    updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
+    deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
+    invoices, expenses, paymentRecords, payables,
+    addInvoice, updateInvoice, deleteInvoice,
+    addExpense, updateExpense, deleteExpense,
+    recordPayment,
+    addPayable, updatePayable, deletePayable, recordPayablePayment,
+    getDashboardMetrics, getMonthlySummary, getProjectProfitability,
+    getCashflowStatement, getARAgingBuckets, getAPAgingBuckets, getNextInvoiceNumber,
+    updateOrderCosts, getOrderWithProfitability, getOrdersWithProfitability, getProfitabilityMetrics,
+    getQuotesForRFQ, calculateValueScore, updateQuoteRecommendation, getRecommendedQuote,
+    followUpActions,
+    createFollowUp, getPendingFollowUps, getAllFollowUps, completeFollowUp, snoozeFollowUp,
+    deleteFollowUp, getOverdueFollowUps, getFollowUpsForEntity, getUserWorkload,
+    applySequence, getRecentActivity, getPatternInsights,
+  ]);
+
   return (
-    <CRMContext.Provider value={{
-      loading, users, clients, prospects, vendors, orders, orderEngineers, rfqs,
-      supplierInquiries, supplierQuotes, rfqLineItems,
-      getUserName, getClientName, getVendorName,
-      addClient, addProspect, addVendor, addOrder, addOrderEngineer,
-      convertProspect, updateOrderStatus, updateCommissioningStatus,
-      addRFQ, updateRFQStatus, updateRFQPriority, convertRFQToOrder,
-      getNextOrderStatus,
-      addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus, updateSupplierInquiry,
-      getRFQMetrics, getRFQMetricsByDateRange,
-      updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
-      deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
-      invoices, expenses, paymentRecords, payables,
-      addInvoice, updateInvoice, deleteInvoice,
-      addExpense, updateExpense, deleteExpense,
-      recordPayment,
-      addPayable, updatePayable, deletePayable, recordPayablePayment,
-      getDashboardMetrics, getMonthlySummary, getProjectProfitability,
-      getCashflowStatement, getARAgingBuckets, getAPAgingBuckets, getNextInvoiceNumber,
-      updateOrderCosts, getOrderWithProfitability, getOrdersWithProfitability, getProfitabilityMetrics,
-      getQuotesForRFQ, calculateValueScore, updateQuoteRecommendation, getRecommendedQuote,
-      followUpActions,
-      createFollowUp, getPendingFollowUps, getAllFollowUps, completeFollowUp, snoozeFollowUp,
-      deleteFollowUp, getOverdueFollowUps, getFollowUpsForEntity, getUserWorkload,
-      applySequence, getRecentActivity, getPatternInsights,
-    }}>
+    <CRMContext.Provider value={contextValue}>
       {children}
     </CRMContext.Provider>
   );

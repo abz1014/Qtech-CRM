@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { BarChart3, Calendar, Download, Filter, ChevronRight } from 'lucide-react';
 import { formatDate, formatPKR } from '@/lib/format';
+import { businessToday, businessDaysFromNow } from '@/lib/dates';
 
 interface FilterState {
   status: string;
@@ -14,7 +15,7 @@ interface FilterState {
 export function DailyRFQReportPage() {
   const navigate = useNavigate();
   const { rfqs, supplierInquiries, supplierQuotes, orders, getClientName, getUserName } = useCRM();
-  const today = new Date().toISOString().split('T')[0];
+  const today = businessToday();
 
   const [filters, setFilters] = useState<FilterState>({
     status: 'all',
@@ -23,9 +24,7 @@ export function DailyRFQReportPage() {
     dateRange: 'month'  // default to last 30 days — always shows data
   });
   // Default custom range to last 30 days so it's not blank when user switches to custom
-  const defaultFrom = new Date();
-  defaultFrom.setMonth(defaultFrom.getMonth() - 1);
-  const [startDate, setStartDate] = useState(defaultFrom.toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(businessDaysFromNow(-29));
   const [endDate, setEndDate] = useState(today);
 
   // Get filtered RFQs
@@ -36,13 +35,13 @@ export function DailyRFQReportPage() {
     if (filters.dateRange === 'today') {
       result = result.filter(r => r.rfq_date === today);
     } else if (filters.dateRange === 'week') {
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      result = result.filter(r => r.rfq_date >= weekAgo.toISOString().split('T')[0] && r.rfq_date <= today);
+      // today-6 .. today inclusive = exactly 7 days
+      const weekStart = businessDaysFromNow(-6);
+      result = result.filter(r => r.rfq_date >= weekStart && r.rfq_date <= today);
     } else if (filters.dateRange === 'month') {
-      const monthAgo = new Date();
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      result = result.filter(r => r.rfq_date >= monthAgo.toISOString().split('T')[0] && r.rfq_date <= today);
+      // today-29 .. today inclusive = exactly 30 days
+      const monthStart = businessDaysFromNow(-29);
+      result = result.filter(r => r.rfq_date >= monthStart && r.rfq_date <= today);
     } else if (filters.dateRange === 'all') {
       // no filter — show everything
     } else if (filters.dateRange === 'custom') {

@@ -5,24 +5,28 @@ import {
   Tooltip, Legend, ResponsiveContainer, Cell, PolarGrid, Radar, RadarChart
 } from 'recharts';
 import { TrendingUp, TrendingDown, Calendar } from 'lucide-react';
+import { businessToday } from '@/lib/dates';
 
 const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#06b6d4', '#14b8a6'];
 
 export function DashboardTab() {
   const { invoices, expenses, getDashboardMetrics, getMonthlySummary } = useCRM();
   const [periodType, setPeriodType] = useState<'current' | 'custom'>('current');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [customStartDate, setCustomStartDate] = useState(new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10));
-  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedMonth, setSelectedMonth] = useState(businessToday().slice(0, 7));
+  const [customStartDate, setCustomStartDate] = useState(businessToday().slice(0, 4) + '-01-01');
+  const [customEndDate, setCustomEndDate] = useState(businessToday());
 
   // Get metrics for selected period
   const selectedMetrics = useMemo(() => {
     if (periodType === 'current') {
       // Guard against empty selectedMonth (cleared by browser × button)
-      const safeMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+      const safeMonth = selectedMonth || businessToday().slice(0, 7);
       const [year, month] = safeMonth.split('-').map(Number);
       const monthStart = `${safeMonth}-01`;
-      const monthEnd = new Date(year, month, 0).toISOString().slice(0, 10);
+      // Read the calendar day directly — toISOString() shifts local dates to
+      // UTC and was silently excluding the last day of every month.
+      const lastDay = new Date(year, month, 0).getDate();
+      const monthEnd = `${safeMonth}-${String(lastDay).padStart(2, '0')}`;
 
       let revenue = 0;
       let totalExpenses = 0;
@@ -53,8 +57,8 @@ export function DashboardTab() {
       };
     } else {
       // Custom date range — guard against empty dates cleared by browser × button
-      const today = new Date().toISOString().slice(0, 10);
-      const safeStart = customStartDate || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
+      const today = businessToday();
+      const safeStart = customStartDate || today.slice(0, 4) + '-01-01';
       const safeEnd = customEndDate || today;
 
       let revenue = 0;
@@ -111,9 +115,9 @@ export function DashboardTab() {
   const expenseByCategory = useMemo(() => {
     const categoryMap = new Map<string, number>();
     expenses.forEach(exp => {
-      const safeSelectedMonth = selectedMonth || new Date().toISOString().slice(0, 7);
-      const safeCustomStart = customStartDate || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
-      const safeCustomEnd = customEndDate || new Date().toISOString().slice(0, 10);
+      const safeSelectedMonth = selectedMonth || businessToday().slice(0, 7);
+      const safeCustomStart = customStartDate || businessToday().slice(0, 4) + '-01-01';
+      const safeCustomEnd = customEndDate || businessToday();
       const isInRange = periodType === 'current'
         ? exp.date.startsWith(safeSelectedMonth)
         : exp.date >= safeCustomStart && exp.date <= safeCustomEnd;
@@ -199,7 +203,7 @@ export function DashboardTab() {
             <input
               type="month"
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value || new Date().toISOString().slice(0, 7))}
+              onChange={(e) => setSelectedMonth(e.target.value || businessToday().slice(0, 7))}
               className="px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>

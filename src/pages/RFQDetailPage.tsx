@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
@@ -77,7 +78,7 @@ export default function RFQDetailPage() {
     sales_person_id: user?.id || '',
     notes: '',
     customer_po_number: '',
-    customer_po_date: new Date().toISOString().split('T')[0],
+    customer_po_date: businessToday(),
     payment_terms_days: '30',
   });
   const [isConverting, setIsConverting] = useState(false);
@@ -311,7 +312,7 @@ export default function RFQDetailPage() {
         notes: fullNotes,
         status: 'po_received',
         sales_person_id: convertForm.sales_person_id,
-        confirmed_date: new Date().toISOString().split('T')[0],
+        confirmed_date: businessToday(),
         customer_po_number: convertForm.customer_po_number.trim(),
         customer_po_date: convertForm.customer_po_date,
         payment_terms_days: Number(convertForm.payment_terms_days) || 30,
@@ -381,7 +382,7 @@ export default function RFQDetailPage() {
 
       {/* RFQ Summary */}
       {(() => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = businessToday();
         const daysToDeadline = rfq.quote_deadline
           ? Math.round((new Date(rfq.quote_deadline).getTime() - new Date(today).getTime()) / 86400000)
           : null;

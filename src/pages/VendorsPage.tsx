@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
@@ -91,7 +92,7 @@ export default function VendorsPage() {
       ];
     });
     const csv = generateCSV(headers, rows);
-    const filename = `Vendors_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `Vendors_${businessToday()}.csv`;
     downloadCSV(csv, filename);
   };
 

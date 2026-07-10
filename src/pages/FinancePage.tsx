@@ -5,18 +5,21 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Clock, AlertCircle, CheckCircle, ArrowRight, Download, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { businessToday } from '@/lib/dates';
 
 // ── Date range helpers ────────────────────────────────────────────────────────
 
 type Preset = 'this_month' | 'last_3' | 'this_year' | 'last_year' | 'all_time' | 'custom';
 
 function getPresetRange(preset: Preset): { from: string; to: string } {
-  const now = new Date();
-  const today = now.toISOString().split('T')[0];
-  const y = now.getFullYear();
-  const m = now.getMonth();
+  const today = businessToday();
+  const y = parseInt(today.slice(0, 4));
+  const m = parseInt(today.slice(5, 7)) - 1;
 
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  // Read calendar parts directly — Date.toISOString() converts to UTC and
+  // shifts local dates back a day (e.g. month start became prev month's last day).
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   switch (preset) {
     case 'this_month':
@@ -79,8 +82,7 @@ export default function FinancePage() {
     return getPresetRange(preset);
   }, [preset, customFrom, customTo]);
 
-  const today    = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = businessToday();
 
   // ── Filter orders by confirmed_date within range ────────────────────────────
   const filteredOrders = useMemo(() =>
@@ -288,7 +290,7 @@ export default function FinancePage() {
           </div>
           <div className="space-y-2">
             {overduePayments.map(o => {
-              const daysOverdue = Math.floor((today.getTime() - new Date((o as any).payment_due_date).getTime()) / 86400000);
+              const daysOverdue = Math.floor((new Date(todayStr + 'T00:00:00Z').getTime() - new Date(String((o as any).payment_due_date).slice(0, 10) + 'T00:00:00Z').getTime()) / 86400000);
               return (
                 <div key={o.id}
                   className="flex items-center justify-between p-3 bg-destructive/5 border border-destructive/20 rounded-lg cursor-pointer hover:bg-destructive/10 transition-colors"

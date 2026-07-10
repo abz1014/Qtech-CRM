@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useMemo, useState } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { Download, ChevronDown, ChevronUp } from 'lucide-react';
@@ -36,7 +37,7 @@ export function ReportsTab() {
       m.total_revenue > 0 ? ((m.net_profit / m.total_revenue) * 100).toFixed(1) : '0',
     ]);
     const csv = generateCSV(headers, rows);
-    downloadCSV(csv, `P&L_Report_${new Date().toISOString().split('T')[0]}.csv`);
+    downloadCSV(csv, `P&L_Report_${businessToday()}.csv`);
   };
 
   const exportProjects = () => {
@@ -50,7 +51,7 @@ export function ReportsTab() {
       p.margin_percent.toFixed(1),
     ]);
     const csv = generateCSV(headers, rows);
-    downloadCSV(csv, `Project_Profitability_${new Date().toISOString().split('T')[0]}.csv`);
+    downloadCSV(csv, `Project_Profitability_${businessToday()}.csv`);
   };
 
   return (

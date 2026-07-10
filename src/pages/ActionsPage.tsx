@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { businessToday } from '@/lib/dates';
 import { FollowUpForm } from '@/components/followup/FollowUpForm';
 import { OutcomeModal, OutcomeResult } from '@/components/followup/OutcomeModal';
 import { SnoozePopover } from '@/components/followup/SnoozePopover';
@@ -34,43 +35,34 @@ const PRIORITY_STYLES: Record<string, string> = {
 };
 
 function getDaysOverdue(due_date: string): number {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due   = new Date(due_date); due.setHours(0, 0, 0, 0);
+  // Compare in the business timezone (same date source as the tab filters)
+  // so a card's "overdue" badge never disagrees with which tab it's in.
+  const today = new Date(businessToday() + 'T00:00:00Z');
+  const due   = new Date(due_date.slice(0, 10) + 'T00:00:00Z');
   return Math.floor((today.getTime() - due.getTime()) / 86400000);
 }
 
-/**
- * Urgency tiers (extended to flag 2-days-away as red):
- * -2 = 2 days away  → orange-red warning
- * -1 = 1 day away   → amber warning
- *  0 = due today    → yellow
- *  1 = overdue      → red
- *  2 = overdue 3+d  → bright red pulse
- */
-function getTier(due_date: string): -2 | -1 | 0 | 1 | 2 {
-  const days = getDaysOverdue(due_date);  // positive = overdue, negative = future
-  if (days >= 3) return 2;
-  if (days >= 1) return 1;
-  if (days === 0) return 0;
-  if (days === -1) return -1;  // tomorrow
-  if (days === -2) return -2;  // 2 days away
-  return -2;                   // anything further = treat same as upcoming for now
+/** Returns urgency tier: 0=upcoming, 1=due today, 2=overdue 1d, 3=overdue 3+d */
+function getTier(due_date: string): 0 | 1 | 2 | 3 {
+  const days = getDaysOverdue(due_date);
+  if (days >= 3) return 3;
+  if (days >= 1) return 2;
+  if (days === 0) return 1;
+  return 0;
 }
 
 const TIER_CARD: Record<number, string> = {
-  '-2': 'border-l-orange-500/70 bg-orange-500/5',
-  '-1': 'border-l-orange-600 bg-orange-600/8',
-   0:   'border-l-yellow-500',
-   1:   'border-l-red-500',
-   2:   'border-l-red-600 animate-pulse-border',
+  0: 'border-l-primary/30',
+  1: 'border-l-yellow-500',
+  2: 'border-l-red-500',
+  3: 'border-l-red-600 animate-pulse-border',
 };
 
 const TIER_BADGE: Record<number, { text: string; cls: string }> = {
-  '-2': { text: '2d left',   cls: 'bg-orange-500/15 text-orange-500 font-semibold' },
-  '-1': { text: '1d left',   cls: 'bg-orange-600/20 text-orange-600 font-bold' },
-   0:   { text: 'Due today', cls: 'bg-yellow-500/10 text-yellow-600' },
-   1:   { text: 'OVERDUE',   cls: 'bg-red-500/10 text-red-500 font-bold' },
-   2:   { text: 'URGENT',    cls: 'bg-red-600/20 text-red-600 font-bold ring-1 ring-red-600/40' },
+  0: { text: '',           cls: '' },
+  1: { text: 'Due today',  cls: 'bg-yellow-500/10 text-yellow-600' },
+  2: { text: 'OVERDUE',    cls: 'bg-red-500/10 text-red-500 font-bold' },
+  3: { text: 'URGENT',     cls: 'bg-red-600/20 text-red-600 font-bold ring-1 ring-red-600/40' },
 };
 
 function DueLabel({ due_date }: { due_date: string }) {
@@ -79,8 +71,8 @@ function DueLabel({ due_date }: { due_date: string }) {
   const badge = TIER_BADGE[tier];
 
   const text =
-    days < 0   ? `${-days}d left` :
-    days === 0 ? 'Due today' :
+    tier === 0 ? `${-days}d left` :
+    tier === 1 ? 'Due today' :
     `${days}d overdue`;
 
   return (
@@ -112,66 +104,50 @@ function ActionCard({ action, entityLabel, entityPath, assignedName, onCompleteC
   const navigate = useNavigate();
   const tier = getTier(action.due_date);
 
-  const entityIcon = action.entity_type === 'rfq' ? '📋' :
-                     action.entity_type === 'order' ? '📦' :
-                     action.entity_type === 'client' ? '🏢' :
-                     action.entity_type === 'prospect' ? '🎯' : '📌';
-
   return (
-    <div className={cn('glass-card border-l-4 transition-all relative overflow-hidden', TIER_CARD[tier])}>
-      {/* ── PROMINENT ENTITY BANNER (top of card) ── */}
-      {entityLabel && entityPath && (
-        <button
-          onClick={(e) => { e.stopPropagation(); navigate(entityPath); }}
-          className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-primary/10 hover:bg-primary/15 transition-colors border-b border-primary/20 text-left"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-base flex-shrink-0">{entityIcon}</span>
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-primary flex-shrink-0">
-              {ENTITY_TYPE_LABELS[action.entity_type] || action.entity_type}
-            </span>
-            <span className="text-sm font-bold text-foreground truncate">{entityLabel}</span>
-          </div>
-          <span className="text-xs font-semibold text-primary flex items-center gap-1 flex-shrink-0">
-            Open <ExternalLink className="w-3 h-3" />
-          </span>
-        </button>
-      )}
+    <div className={cn('glass-card p-4 border-l-4 transition-all relative', TIER_CARD[tier])}>
+      <div className="flex items-start gap-3">
+        {/* Priority badge */}
+        <div className={cn('mt-0.5 px-2 py-0.5 rounded text-xs font-semibold border flex-shrink-0 capitalize', PRIORITY_STYLES[action.priority])}>
+          {action.priority}
+        </div>
 
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          {/* Priority badge */}
-          <div className={cn('mt-0.5 px-2 py-0.5 rounded text-xs font-semibold border flex-shrink-0 capitalize', PRIORITY_STYLES[action.priority])}>
-            {action.priority}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 flex-wrap">
-              <div className="min-w-0">
-                <p className="font-semibold text-foreground">{action.title}</p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-xs text-muted-foreground">
-                    {ACTION_TYPE_LABELS[action.action_type] || action.action_type}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div className="min-w-0">
+              <p className="font-semibold text-foreground">{action.title}</p>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className="text-xs text-muted-foreground">
+                  {ACTION_TYPE_LABELS[action.action_type] || action.action_type}
+                </span>
+                {/* Entity reference — clickable link to the RFQ or Order */}
+                {entityLabel && entityPath && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate(entityPath); }}
+                    className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded hover:bg-primary/20 transition-colors"
+                  >
+                    → {ENTITY_TYPE_LABELS[action.entity_type] || action.entity_type}: {entityLabel}
+                  </button>
+                )}
+                {/* Assigned sales person */}
+                {assignedName && (
+                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded flex items-center gap-1">
+                    👤 {assignedName}
                   </span>
-                  {/* Assigned sales person */}
-                  {assignedName && (
-                    <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded flex items-center gap-1">
-                      👤 {assignedName}
-                    </span>
-                  )}
-                  {action.description === 'Auto-created by system' && (
-                    <span className="text-xs text-muted-foreground italic">· Auto-created</span>
-                  )}
-                  {action.description && action.description !== 'Auto-created by system' &&
-                    !action.description.startsWith('✅') &&
-                    !action.description.startsWith('📵') &&
-                    !action.description.startsWith('💬') && (
-                    <span className="text-xs text-muted-foreground">· {action.description}</span>
-                  )}
-                </div>
+                )}
+                {action.description === 'Auto-created by system' && (
+                  <span className="text-xs text-muted-foreground italic">· Auto-created</span>
+                )}
+                {action.description && action.description !== 'Auto-created by system' &&
+                  !action.description.startsWith('✅') &&
+                  !action.description.startsWith('📵') &&
+                  !action.description.startsWith('💬') && (
+                  <span className="text-xs text-muted-foreground">· {action.description}</span>
+                )}
               </div>
-              <DueLabel due_date={action.due_date} />
             </div>
+            <DueLabel due_date={action.due_date} />
+          </div>
 
           {/* Buttons */}
           <div className="flex gap-2 mt-3 flex-wrap">
@@ -210,7 +186,6 @@ function ActionCard({ action, entityLabel, entityPath, assignedName, onCompleteC
             </button>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );
@@ -623,16 +598,15 @@ export default function ActionsPage() {
   const [tab, setTab]         = useState<Tab>('today');
   const [allActions, setAllActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc'); // earliest due first by default
-  const [onlyMine, setOnlyMine] = useState(false);
-  const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState('');
 
-  // ALL pending team actions — everyone sees everything
+  // Derive myActions from live CRMContext state — same source as sidebar badge
+  // so counts are ALWAYS in sync. Filter: pending + (mine or unassigned)
   const myActions = useMemo(
-    () => followUpActions.filter(a => a.status === 'pending'),
-    [followUpActions]
+    () => followUpActions.filter(a =>
+      a.status === 'pending' &&
+      (!a.assigned_to || a.assigned_to === user?.id)
+    ),
+    [followUpActions, user?.id]
   );
   const [showForm, setShowForm]         = useState(false);
   const [showNextForm, setShowNextForm] = useState(false);
@@ -656,52 +630,30 @@ export default function ActionsPage() {
 
   useEffect(() => { load(); }, [user?.id]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = businessToday();
 
   const overdueIds = useMemo(
     () => new Set(myActions.filter(a => a.due_date < todayStr).map(a => a.id)),
     [myActions, todayStr]
   );
 
-  // Sort purely by due_date (user-controlled direction)
-  const sortByDate = (list: any[]) => [...list].sort((a, b) =>
-    sortDir === 'asc'
-      ? a.due_date.localeCompare(b.due_date)
-      : b.due_date.localeCompare(a.due_date)
-  );
+  // Sort actions: overdue first, then today, then upcoming — within each group sort by date
+  const sortActions = (list: any[]) => [...list].sort((a, b) => {
+    const ta = getTier(a.due_date), tb = getTier(b.due_date);
+    if (ta !== tb) return tb - ta; // higher tier (more urgent) first
+    return a.due_date < b.due_date ? -1 : 1;
+  });
 
   const filtered = useMemo(() => {
-    let list = onlyMine
-      ? myActions.filter(a => a.assigned_to === user?.id)
-      : myActions;
-
-    // Search filter: matches RFQ number, company name, order client, or action title
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter(a => {
-        // Try to find linked RFQ or order
-        if (a.entity_type === 'rfq') {
-          const rfq = rfqs.find(r => r.id === a.entity_id);
-          if (rfq) {
-            const haystack = `${rfq.rfq_number || ''} ${rfq.company_name || ''} ${getClientName(rfq.client_id)}`.toLowerCase();
-            if (haystack.includes(q)) return true;
-          }
-        }
-        if (a.entity_type === 'order') {
-          const order = orders.find(o => o.id === a.entity_id);
-          if (order) {
-            const linkedRfq = order.rfq_id ? rfqs.find(r => r.id === order.rfq_id) : null;
-            const haystack = `${linkedRfq?.rfq_number || ''} ${getClientName(order.client_id)} ${order.product_type || ''} ${order.customer_po_number || ''}`.toLowerCase();
-            if (haystack.includes(q)) return true;
-          }
-        }
-        // Also match action title as fallback
-        return (a.title || '').toLowerCase().includes(q);
-      });
+    let list: any[];
+    switch (tab) {
+      case 'overdue':   list = myActions.filter(a => a.due_date < todayStr); break;
+      case 'today':     list = myActions.filter(a => a.due_date === todayStr); break;
+      case 'upcoming':  list = myActions.filter(a => a.due_date > todayStr); break;
+      default:          list = myActions;
     }
-
-    return sortByDate(list);
-  }, [myActions, sortDir, onlyMine, user?.id, search, rfqs, orders, getClientName]);
+    return sortActions(list);
+  }, [myActions, tab, todayStr]);
 
   // Resolve a human-readable label + navigation path for an action's linked entity
   const resolveEntity = (action: any): { label: string; path: string } | null => {
@@ -717,81 +669,6 @@ export default function ActionsPage() {
       return { label: `${getClientName(order.client_id)} — ${order.product_type}`, path: `/orders/${order.id}` };
     }
     return null;
-  };
-
-  /**
-   * Get a single "group key" for an action — RFQ and its converted order
-   * share the SAME group so all actions for that deal collapse together.
-   */
-  const resolveGroupKey = (action: any): string => {
-    if (!action.entity_id || !action.entity_type) return 'unlinked';
-    if (action.entity_type === 'rfq') return `rfq:${action.entity_id}`;
-    if (action.entity_type === 'order') {
-      const order = orders.find(o => o.id === action.entity_id);
-      // If this order came from an RFQ, group under the RFQ key
-      if (order?.rfq_id) return `rfq:${order.rfq_id}`;
-      return `order:${action.entity_id}`;
-    }
-    return `${action.entity_type}:${action.entity_id}`;
-  };
-
-  /**
-   * Resolve a group's display info — name, path, type, icon.
-   * For 'rfq:<id>' groups, also show whether there's a linked order.
-   */
-  const resolveGroup = (key: string): { label: string; path: string; type: string; subtitle?: string } | null => {
-    if (key === 'unlinked') return { label: 'General Tasks', path: '', type: 'general' };
-    const [type, id] = key.split(':');
-    if (type === 'rfq') {
-      const rfq = rfqs.find(r => r.id === id);
-      if (!rfq) return null;
-      const linkedOrder = orders.find(o => o.rfq_id === id);
-      return {
-        label: rfq.rfq_number ? `${rfq.rfq_number} · ${rfq.company_name}` : rfq.company_name,
-        path: `/rfqs/${id}`,
-        type: 'rfq',
-        subtitle: linkedOrder ? `Order created · ${linkedOrder.product_type}` : undefined,
-      };
-    }
-    if (type === 'order') {
-      const order = orders.find(o => o.id === id);
-      if (!order) return null;
-      return {
-        label: `${getClientName(order.client_id)} — ${order.product_type}`,
-        path: `/orders/${id}`,
-        type: 'order',
-      };
-    }
-    return null;
-  };
-
-  // Build grouped data: { groupKey → { info, actions[] } }
-  const grouped = useMemo(() => {
-    const map = new Map<string, { info: any; actions: any[] }>();
-    filtered.forEach(action => {
-      const key = resolveGroupKey(action);
-      if (!map.has(key)) {
-        const info = resolveGroup(key);
-        if (!info) return;
-        map.set(key, { info, actions: [] });
-      }
-      map.get(key)!.actions.push(action);
-    });
-
-    // Sort groups by earliest due date among their actions (most urgent first if asc)
-    return [...map.entries()].sort((a, b) => {
-      const minA = a[1].actions.reduce((m, x) => x.due_date < m ? x.due_date : m, '9999');
-      const minB = b[1].actions.reduce((m, x) => x.due_date < m ? x.due_date : m, '9999');
-      return sortDir === 'asc' ? minA.localeCompare(minB) : minB.localeCompare(minA);
-    });
-  }, [filtered, sortDir, rfqs, orders]);
-
-  const toggleGroup = (key: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
   };
 
   const counts = {
@@ -887,7 +764,7 @@ export default function ActionsPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-muted-foreground text-sm">
-            {filtered.length === 0 ? 'All clear — nothing pending' :
+            {myActions.length === 0 ? 'All clear — nothing pending' :
              `${overdue.length > 0 ? `${overdue.length} overdue · ` : ''}${dueToday.length} today · ${upcoming.length} upcoming`}
           </p>
         </div>
@@ -913,81 +790,6 @@ export default function ActionsPage() {
         </div>
       </div>
 
-      {/* ── Search bar ── */}
-      {myActions.length > 0 && (
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by RFQ number, company, client, PO number, or action title..."
-            className="w-full pl-10 pr-10 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              title="Clear search"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── Filter + sort controls ── */}
-      {myActions.length > 0 && (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setOnlyMine(false)}
-              className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                !onlyMine ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80')}
-            >
-              All Team ({myActions.length})
-            </button>
-            <button
-              onClick={() => setOnlyMine(true)}
-              className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                onlyMine ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80')}
-            >
-              Mine ({myActions.filter(a => a.assigned_to === user?.id).length})
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* View toggle */}
-            <div className="flex items-center bg-muted rounded-lg p-0.5">
-              <button
-                onClick={() => setViewMode('grouped')}
-                className={cn('px-2.5 py-1 rounded-md text-xs font-semibold transition-colors',
-                  viewMode === 'grouped' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
-              >
-                Grouped
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={cn('px-2.5 py-1 rounded-md text-xs font-semibold transition-colors',
-                  viewMode === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
-              >
-                List
-              </button>
-            </div>
-
-            <button
-              onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
-              title="Sort by due date"
-            >
-              <Clock className="w-3.5 h-3.5" />
-              {sortDir === 'asc' ? <span className="font-bold">↑ Earliest</span> : <span className="font-bold">↓ Latest</span>}
-            </button>
-          </div>
-        </div>
-      )}
-
       {loading ? (
         <div className="glass-card p-8 text-center text-muted-foreground">Loading actions...</div>
       ) : tab === 'team' && isAdmin ? (
@@ -999,130 +801,20 @@ export default function ActionsPage() {
           onDelete={handleDelete}
           completing={completing}
         />
-      ) : filtered.length === 0 ? (
+      ) : myActions.length === 0 ? (
         <div className="glass-card p-16 text-center space-y-3">
-          {search.trim() ? (
-            <>
-              <p className="text-xl font-bold text-foreground">No matches found</p>
-              <p className="text-sm text-muted-foreground">No actions match "{search}". Try a different RFQ number, company name, or client.</p>
-              <button onClick={() => setSearch('')} className="mt-2 text-sm text-primary hover:underline">Clear search</button>
-            </>
-          ) : (
-            <>
-              <CheckCircle className="w-14 h-14 text-success mx-auto" />
-              <p className="text-xl font-bold text-foreground">All clear! 🎉</p>
-              <p className="text-sm text-muted-foreground">
-                {onlyMine ? 'You have no pending actions assigned to you.' : 'No pending actions. Create one or check back later.'}
-              </p>
-            </>
-          )}
-        </div>
-      ) : viewMode === 'list' ? (
-        <div className="space-y-3">
-          {filtered.map(action => {
-            const entity = resolveEntity(action);
-            const assignedUser = users.find((u: any) => u.id === action.assigned_to);
-            return (
-              <ActionCard
-                key={action.id}
-                action={action}
-                entityLabel={entity?.label}
-                entityPath={entity?.path}
-                assignedName={assignedUser?.name}
-                onCompleteClick={handleCompleteClick}
-                onSnooze={handleSnooze}
-                onDelete={handleDelete}
-                completing={completing}
-              />
-            );
-          })}
+          <CheckCircle className="w-14 h-14 text-success mx-auto" />
+          <p className="text-xl font-bold text-foreground">All clear! 🎉</p>
+          <p className="text-sm text-muted-foreground">No pending actions. Create one or check back later.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {grouped.map(([key, { info, actions }]) => {
-            // Auto-expand when searching so results are visible immediately
-            const isExpanded = expandedGroups.has(key) || !!search.trim();
-            const overdueCount = actions.filter(a => a.due_date < todayStr).length;
-            const dueTodayCount = actions.filter(a => a.due_date === todayStr).length;
-            const urgentBorder = overdueCount > 0 ? 'border-destructive/40'
-                                : dueTodayCount > 0 ? 'border-warning/40'
-                                : 'border-border/60';
-
-            const groupIcon = info.type === 'rfq' ? '📋'
-                             : info.type === 'order' ? '📦'
-                             : '📌';
-
-            return (
-              <div key={key} className={cn('rounded-xl border overflow-hidden bg-card/50', urgentBorder)}>
-                {/* Group header — clickable to expand/collapse */}
-                <div className="flex items-stretch border-b border-border/60 bg-primary/5">
-                  <button
-                    onClick={() => toggleGroup(key)}
-                    className="flex items-center gap-3 flex-1 px-4 py-3 hover:bg-primary/10 transition-colors text-left min-w-0"
-                  >
-                    <span className="text-base flex-shrink-0">{groupIcon}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-primary flex-shrink-0">
-                          {info.type === 'rfq' ? 'RFQ' : info.type === 'order' ? 'Order' : 'General'}
-                        </span>
-                        <span className="font-bold text-foreground truncate">{info.label}</span>
-                      </div>
-                      {info.subtitle && (
-                        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{info.subtitle}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {overdueCount > 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-destructive/15 text-destructive text-[10px] font-extrabold">
-                          {overdueCount} OVERDUE
-                        </span>
-                      )}
-                      {dueTodayCount > 0 && overdueCount === 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-warning/15 text-warning text-[10px] font-extrabold">
-                          {dueTodayCount} TODAY
-                        </span>
-                      )}
-                      <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">
-                        {actions.length}
-                      </span>
-                      {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                    </div>
-                  </button>
-                  {info.path && (
-                    <button
-                      onClick={() => navigate(info.path)}
-                      className="px-4 flex items-center gap-1.5 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors border-l border-border/60"
-                      title={`Open ${info.type}`}
-                    >
-                      Open <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Action list inside group */}
-                {isExpanded && (
-                  <div className="p-3 space-y-2 bg-background/40">
-                    {actions.map(action => {
-                      const assignedUser = users.find((u: any) => u.id === action.assigned_to);
-                      return (
-                        <ActionCard
-                          key={action.id}
-                          action={action}
-                          // No entity banner inside grouped view — it's already in the group header
-                          assignedName={assignedUser?.name}
-                          onCompleteClick={handleCompleteClick}
-                          onSnooze={handleSnooze}
-                          onDelete={handleDelete}
-                          completing={completing}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="space-y-8">
+          {renderSection(overdue, 'Overdue', 'destructive',
+            <AlertCircle className="w-4 h-4 text-destructive" />)}
+          {renderSection(dueToday, 'Due Today', 'warning',
+            <Clock className="w-4 h-4 text-warning" />)}
+          {renderSection(upcoming, 'Upcoming', 'muted-foreground',
+            <CheckCircle className="w-4 h-4 text-muted-foreground" />)}
         </div>
       )}
 

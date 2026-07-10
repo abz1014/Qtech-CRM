@@ -1,3 +1,4 @@
+import { businessToday } from '@/lib/dates';
 import { useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -22,7 +23,7 @@ export function BudgetVsActualTab() {
   const { expenses, getMonthlySummary } = useCRM();
   const [showForm, setShowForm] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(
-    new Date().toISOString().split('T')[0].slice(0, 7)
+    businessToday().slice(0, 7)
   );
 
   // Get current month expenses — guard against empty selectedMonth
