@@ -102,10 +102,10 @@ export default function FinancePage() {
   const margin  = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : '0';
   const orderCount = filteredOrders.length;
 
-  // ── Payment pipeline (not date-filtered — current outstanding regardless of when) ──
-  const pendingPayment = orders.filter(o =>
-    o.status === 'delivered' || o.status === 'in_transit' || o.status === 'procurement' || o.status === 'po_received'
-  );
+  // ── Receivables (not date-filtered — current outstanding regardless of when) ──
+  // "Payments Pending" = delivered but not yet paid. Orders still in
+  // procurement/transit are pipeline, not receivables, so excluded.
+  const pendingPayment = orders.filter(o => o.status === 'delivered');
   const overduePayments = orders.filter(o => {
     if (o.status === 'payment_received') return false;
     const due = (o as any).payment_due_date;
