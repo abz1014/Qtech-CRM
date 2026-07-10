@@ -25,7 +25,7 @@ export default function RFQDetailPage() {
     rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients, users,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateSupplierInquiry, updateInquiryStatus,
     getVendorName, updateRFQStatus, updateRFQ, getClientName, addVendor, convertRFQToOrder, getUserName,
-    getFollowUpsForEntity,
+    getFollowUpsForEntity, calculateValueScore,
   } = useCRM();
 
   const rfq = rfqs.find(r => r.id === id);
@@ -336,6 +336,27 @@ export default function RFQDetailPage() {
   const cheapestQuote = quotes.length > 0
     ? quotes.reduce((min, q) => q.unit_price < min.unit_price ? q : min)
     : null;
+
+  // Supplier comparison: value score per quote (price 50% / lead 30% / MOQ 20%),
+  // best-value quote, and the currently selected winner.
+  const quoteScores = quotes.map(q => ({ id: q.id, score: calculateValueScore(q.unit_price, q.lead_time_days, q.moq) }));
+  const scoreOf = (id: string) => quoteScores.find(s => s.id === id)?.score ?? 0;
+  const bestScore = quoteScores.length ? Math.max(...quoteScores.map(s => s.score)) : 0;
+  const bestScoreId = quoteScores.find(s => s.score === bestScore)?.id ?? null;
+  const selectedQuote = quotes.find(q => (q as any).is_selected) ?? null;
+
+  // Mark one quote as the chosen supplier; clears any previous selection.
+  const handleSelectWinner = async (quoteId: string) => {
+    try {
+      for (const q of quotes) {
+        if ((q as any).is_selected && q.id !== quoteId) await updateSupplierQuote(q.id, { is_selected: false } as any);
+      }
+      await updateSupplierQuote(quoteId, { is_selected: true } as any);
+      toast.success('Supplier selected as the winning quote');
+    } catch (err) {
+      toast.error('Failed to select supplier: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -679,25 +700,45 @@ export default function RFQDetailPage() {
                 <th className="text-left py-2 text-xs text-muted-foreground font-medium">Lead Time</th>
                 <th className="text-left py-2 text-xs text-muted-foreground font-medium">MOQ</th>
                 <th className="text-left py-2 text-xs text-muted-foreground font-medium">Valid (days)</th>
+                <th className="text-left py-2 text-xs text-muted-foreground font-medium">Value Score</th>
                 <th className="text-left py-2 text-xs text-muted-foreground font-medium">Notes</th>
                 <th className="text-left py-2 text-xs text-muted-foreground font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
-              {quotes.map(sq => (
-                <tr key={sq.id} className={`border-b border-border/50 ${cheapestQuote?.id === sq.id ? 'bg-success/5' : ''}`}>
+              {quotes.map(sq => {
+                const isWinner = (sq as any).is_selected;
+                const isBestValue = sq.id === bestScoreId && quotes.length > 1;
+                const rowClass = isWinner
+                  ? 'border-l-4 border-l-primary bg-primary/10'
+                  : isBestValue
+                    ? 'border-l-4 border-l-success bg-success/5'
+                    : cheapestQuote?.id === sq.id ? 'bg-success/5' : '';
+                return (
+                <tr key={sq.id} className={`border-b border-border/50 ${rowClass}`}>
                   <td className="py-2.5 font-medium">
-                    <div className="flex items-center gap-1.5">
-                      {cheapestQuote?.id === sq.id && (
-                        <CheckCircle className="w-3.5 h-3.5 text-success flex-shrink-0" />
-                      )}
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {getVendorName(sq.vendor_id)}
+                      {isWinner && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">✓ WINNER</span>
+                      )}
+                      {isBestValue && !isWinner && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-success/15 text-success">★ BEST VALUE</span>
+                      )}
+                      {cheapestQuote?.id === sq.id && !isWinner && !isBestValue && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">lowest price</span>
+                      )}
                     </div>
                   </td>
                   <td className="py-2.5 font-semibold text-foreground">{formatPKR(sq.unit_price)}</td>
                   <td className="py-2.5 text-muted-foreground">{sq.lead_time_days}d</td>
                   <td className="py-2.5 text-muted-foreground">{sq.moq}</td>
                   <td className="py-2.5 text-muted-foreground">{sq.validity_days}</td>
+                  <td className="py-2.5">
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${isBestValue ? 'bg-success/15 text-success' : 'text-foreground'}`}>
+                      {scoreOf(sq.id).toFixed(0)}
+                    </span>
+                  </td>
                   <td className="py-2.5 max-w-[200px]">
                     {sq.notes ? (
                       <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{sq.notes}</p>
@@ -705,6 +746,17 @@ export default function RFQDetailPage() {
                   </td>
                   <td className="py-2.5">
                     <div className="flex items-center gap-2">
+                      {(isAdmin || isSales) && rfq.status !== 'converted' && (
+                        <button
+                          onClick={() => handleSelectWinner(sq.id)}
+                          disabled={isWinner}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors border ${isWinner
+                            ? 'bg-primary/20 text-primary border-primary/30 cursor-default'
+                            : 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'}`}
+                        >
+                          {isWinner ? 'Selected' : 'Select'}
+                        </button>
+                      )}
                       {sq.notes && (
                         <button
                           onClick={() => setViewingText({ title: `${getVendorName(sq.vendor_id)} — Quote Notes`, content: sq.notes })}
@@ -728,7 +780,8 @@ export default function RFQDetailPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         ) : (
