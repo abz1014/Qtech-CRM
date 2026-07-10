@@ -190,7 +190,7 @@ export default function DashboardPage() {
   // Overall KPIs
   const totalClients = useMemo(() => clients.length, [clients]);
   const totalOrders = useMemo(() => orders.length, [orders]);
-  const installationOrders = useMemo(() => orders.filter(o => o.status === 'in_transit' || o.status === 'procurement').length, [orders]);
+  const inProcurementOrTransit = useMemo(() => orders.filter(o => o.status === 'in_transit' || o.status === 'procurement').length, [orders]);
   const activeProspects = useMemo(() => prospects.filter(p => !p.converted_client_id).length, [prospects]);
   const totalRevenue = useMemo(() => orders.reduce((s, o) => s + o.order_value, 0), [orders]);
 
@@ -198,9 +198,10 @@ export default function DashboardPage() {
     const rfqCountByClient: Record<string, number> = {};
     rfqs.forEach(r => { rfqCountByClient[r.client_id] = (rfqCountByClient[r.client_id] || 0) + 1; });
     return Object.entries(rfqCountByClient)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([clientId, count]) => ({ name: getClientName(clientId), count }));
+      .map(([clientId, count]) => ({ name: getClientName(clientId), count }))
+      .filter(c => c.name !== 'Unknown') // don't show orphaned/deleted clients
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
   }, [rfqs, getClientName]);
 
   // Fetch current quarter target
@@ -295,7 +296,7 @@ export default function DashboardPage() {
   const overallKpis = [
     { label: 'Total Clients', value: totalClients, icon: Users, color: 'text-primary' },
     { label: 'Total Orders', value: totalOrders, icon: ShoppingCart, color: 'text-info' },
-    { label: 'In Procurement/Transit', value: installationOrders, icon: Wrench, color: 'text-warning' },
+    { label: 'In Procurement/Transit', value: inProcurementOrTransit, icon: Wrench, color: 'text-warning' },
     { label: 'Active Prospects', value: activeProspects, icon: Target, color: 'text-hot' },
   ];
 
