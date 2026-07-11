@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
-import { Plus, X, Search, Trash2, Download, ArrowUp, ArrowDown, Pencil } from 'lucide-react';
+import { Plus, X, Search, Trash2, Download, ArrowUp, ArrowDown, Pencil, SlidersHorizontal } from 'lucide-react';
 import { formatDate } from '@/lib/format';
 import { OrderStatus, ProductType } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -47,6 +47,7 @@ export default function OrdersPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [showFilters, setShowFilters] = useState(false); // mobile: collapse filters
   const [editPO, setEditPO] = useState<{ id: string; customer_po_number: string; customer_po_date: string } | null>(null);
   const [form, setForm] = useState({
     client_id: '', vendor_id: '', product_type: 'DVR' as ProductType,
@@ -204,24 +205,31 @@ export default function OrdersPage() {
       </div>
 
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-4 items-end">
+        <div className="flex gap-2 items-center">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Search by PO#, client, product, vendor..."
               className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
+          {/* Mobile-only filter toggle */}
+          <button type="button" onClick={() => setShowFilters(s => !s)}
+            className={`sm:hidden flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${showFilters || fromDate || toDate ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-muted border-border text-muted-foreground'}`}>
+            <SlidersHorizontal className="w-4 h-4" /> Filters
+          </button>
+        </div>
+        <div className={`${showFilters ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row gap-4 sm:items-end`}>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">From Date</label>
             <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setCurrentPage(1); }}
-              className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              className="w-full sm:w-auto px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">To Date</label>
             <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setCurrentPage(1); }}
-              className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              className="w-full sm:w-auto px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className={`${showFilters ? 'flex' : 'hidden'} sm:flex flex-wrap gap-2`}>
           {([
             ['This Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day + 1); setFromDate(toBusinessDate(mon)); setToDate(businessToday()); }],
             ['Last Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day - 6); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); setFromDate(toBusinessDate(mon)); setToDate(toBusinessDate(sun)); }],
@@ -242,7 +250,34 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="glass-card overflow-x-auto">
+      {/* ── Mobile card list (phones) ── */}
+      <div className="sm:hidden space-y-2.5">
+        {paginatedOrders.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">No orders found.</p>
+        )}
+        {paginatedOrders.map(o => (
+          <div key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
+            className="glass-card p-4 cursor-pointer active:bg-muted/40 transition-colors">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
+                {(o as any).customer_po_number || 'No PO#'}
+              </span>
+              <span className={`status-badge ${statusColors[o.status] || 'bg-muted text-muted-foreground'}`}>{statusLabels[o.status] || o.status}</span>
+            </div>
+            <p className="text-sm font-semibold text-foreground truncate">{getClientName(o.client_id)}</p>
+            <p className="text-xs text-muted-foreground truncate mt-0.5">{o.product_type} · {getVendorName(o.vendor_id)}</p>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-sm font-bold text-foreground">{formatPKR(o.order_value)}</span>
+              <span className="text-xs text-muted-foreground">
+                {o.customer_po_date ? formatDate(o.customer_po_date) : o.confirmed_date ? formatDate(o.confirmed_date) : '—'}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Desktop table ── */}
+      <div className="hidden sm:block glass-card overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">

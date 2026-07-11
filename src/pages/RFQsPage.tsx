@@ -320,7 +320,49 @@ export default function RFQsPage() {
         </div>
       </div>
 
-      <div className="glass-card overflow-x-auto">
+      {/* ── Mobile card list (phones) ── */}
+      <div className="sm:hidden space-y-2.5">
+        {paginatedRFQs.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">No RFQs found.</p>
+        )}
+        {paginatedRFQs.map(rfq => {
+          const today = businessToday();
+          const daysToDeadline = rfq.quote_deadline
+            ? Math.round((new Date(rfq.quote_deadline).getTime() - new Date(today).getTime()) / 86400000)
+            : null;
+          const isExpiring = daysToDeadline !== null && daysToDeadline <= 2 && rfq.status !== 'converted' && rfq.status !== 'lost';
+          return (
+            <div key={rfq.id} onClick={() => navigate(`/rfqs/${rfq.id}`)}
+              className={`glass-card p-4 cursor-pointer active:bg-muted/40 transition-colors border-l-4 ${
+                rfq.status === 'converted' ? 'border-l-success' :
+                isExpiring ? (rfq.status === 'quoted' ? 'border-l-warning' : 'border-l-destructive') :
+                'border-l-transparent'}`}>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-1 rounded">{rfq.rfq_number || '—'}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`status-badge capitalize ${priorityColors[rfq.priority]}`}>{rfq.priority}</span>
+                  <span className={`status-badge capitalize ${rfqStatusColors[rfq.status]}`}>{rfq.status.replace('_', ' ')}</span>
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-foreground truncate">{rfq.company_name}</p>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-muted-foreground">{formatDate(rfq.rfq_date)}</span>
+                {rfq.quote_deadline && rfq.status !== 'converted' && rfq.status !== 'lost' && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    isExpiring ? (rfq.status === 'quoted' ? 'bg-warning/15 text-warning' : 'bg-destructive/15 text-destructive') : 'bg-muted text-muted-foreground'}`}>
+                    {daysToDeadline !== null && daysToDeadline < 0 ? 'DEADLINE EXPIRED'
+                      : daysToDeadline === 0 ? 'DUE TODAY'
+                      : `Deadline: ${formatDate(rfq.quote_deadline)}`}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Desktop table ── */}
+      <div className="hidden sm:block glass-card overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">
