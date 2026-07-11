@@ -250,18 +250,31 @@ All from existing data (`rfqs`, `supplier_*`, `orders`, `follow_up_actions`). Th
 
 ---
 
-## 14. Finance Specifications (PARKED — revisit last)
+## 14. Finance Specifications ✅ BUILT (2026-07-11) — lean, order-centric, ADMIN-ONLY
 
-**Decision on record:** the previous invoices/expenses/payables module was built, partly mock-backed, and removed. Finance for 2.0 is **deferred to the end** and will be **rebuilt lean from a clean design** — every field, screen, and number must be justified; nothing decorative or dead.
+**Design decisions (made with the product owner, 2026-07-11):**
+1. **Customer payments — partial payments tracked.** Clients sometimes pay in parts (advance + balance). Each payment received is recorded against its order (`order_payments`: amount, date, method, reference). Receivables show the true remaining balance; a delivered order **auto-advances to `payment_received`** when fully paid (paisa-safe comparison).
+2. **Supplier payments — tracked per order, including advances.** `supplier_payments` records every payment made to the supplier against an order's cost — making workflow step 11 ("Advance Payment to Supplier") real. Payables = cost value − paid to date, per order.
+3. **Expenses — order-linked + general.** REUSES the existing `expenses` table (no new schema): date, category, amount, description, optional order link. Customs/freight/clearing attach to orders; overheads stay general.
+4. **Invoices — one per order, data only.** Two fields on orders (`invoice_number`, `invoice_date`) — recorded in the PO-details modal, searchable on the Orders list, shown on receivables. **No invoices ledger, no PDFs** (per §18: documents are located externally by their reference numbers).
 
-**Intended scope when built** (subject to that clean-slate review):
-- Sales invoices, purchase invoices, expenses, payables, cash flow, profit & loss.
-- Single, unambiguous definition of "revenue."
-- Real data only — no sample/mock values, no fake audit log.
+**The Finance page (admin-only, `/finance`) shows:**
+- **KPIs** for the selected range: Booked Revenue (orders by PO date), Supplier Cost, Expenses, **Net Profit = revenue − cost − expenses** with margin.
+- **Receivables** — every order not fully paid: paid/total progress, balance due, DELIVERED and OVERDUE badges, one-click Record Payment.
+- **Payables** — every order whose supplier isn't fully paid: progress incl. ADVANCE PAID badge, one-click Record Payment.
+- **Expenses** — list for the range + Add Expense (category, amount, optional order link).
+- **Cash Flow by month** — In (customer payments) vs Out (supplier payments + expenses) **by the date money actually moved**, with net + running balance.
+- **P&L by month** — booked revenue/cost/expenses/net by PO date.
+- **CSV export** of the whole picture.
 
-**Until then:** live finance remains **order-based** (revenue = order value, cost = cost value, margin = the difference; receivables = delivered-unpaid; overdue = past due date). Formal bookkeeping stays in the company's accounting software.
+**Definitions (single vocabulary):**
+- *Booked revenue* = order value by customer PO date (accrual view, P&L).
+- *Cash in/out* = actual payment dates (cash view, Cash Flow). The two views are deliberately separate and labeled.
+- *Receivable* = delivered order's unpaid balance. *Payable* = order cost minus supplier payments.
 
-**[OPEN]** The exact rebuilt finance data model is intentionally undecided here and will be specified when this section is reactivated.
+**Schema:** `order_payments` + `supplier_payments` (admin-only RLS for read AND write, realtime-enabled, FK CASCADE to orders) + `orders.invoice_number/invoice_date` — migration `20260711_finance_rebuild.sql`. Financial data loads only for admin sessions (existing gate).
+
+**Explicitly NOT built (justified-only rule):** invoices ledger, budgets, audit log, purchase-invoice documents, multi-currency, tax handling — none had a justified daily use. Formal statutory bookkeeping stays in the company's accounting software.
 
 ---
 
@@ -531,10 +544,10 @@ Twelve sprints, each independently deployable, none merged. **Sprint 7 (Finance)
 - **Out of scope:** predictive analytics.
 - **Complexity:** M. **Business value:** highest-leverage management insight (no new data needed).
 
-## Sprint 7 — Finance (PARKED)
-- **Status:** deferred by decision; revisited **last**, designed lean from a clean slate with every field justified. See §14.
+## Sprint 7 — Finance ✅ DONE (2026-07-11)
+- **Delivered:** order-centric finance per §14 — partial customer payments, supplier payments incl. advances, expenses (reused table), invoice fields on orders, receivables/payables with record-payment, monthly cash flow + P&L, CSV export. Admin-only at DB level (RLS) and UI.
 - **Placeholder scope:** sales invoices, purchase invoices, expenses, payables, cash flow, P&L — real data only.
-- **Do not start** until reactivated by the product owner.
+
 
 ## Sprint 8 — Operations Dashboard
 - **Objective:** a single "state of the business now" screen of actionable worklists.
@@ -612,7 +625,7 @@ Twelve sprints, each independently deployable, none merged. **Sprint 7 (Finance)
 
 | Ref | Open question | Resolve in |
 |-----|---------------|-----------|
-| §14 | Rebuilt finance data model (lean, justified) | Sprint 7 (parked) |
+| §14 | Rebuilt finance data model | ✅ RESOLVED (2026-07-11): order-centric design, built |
 | §18 / Sprint 3 | Management-approval mechanics | ✅ RESOLVED (2026-07-10): informal, not a system feature |
 | §15 | Whether reference-number search needs any server-side support at scale | Sprint 9 |
 | §19 | Whether granular permissions (beyond 3 roles) are ever needed | Future only |

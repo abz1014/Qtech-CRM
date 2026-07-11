@@ -48,7 +48,7 @@ export default function OrdersPage() {
   const [toDate, setToDate] = useState('');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [showFilters, setShowFilters] = useState(false); // mobile: collapse filters
-  const [editPO, setEditPO] = useState<{ id: string; customer_po_number: string; customer_po_date: string } | null>(null);
+  const [editPO, setEditPO] = useState<{ id: string; customer_po_number: string; customer_po_date: string; invoice_number: string; invoice_date: string } | null>(null);
   const [form, setForm] = useState({
     client_id: '', vendor_id: '', product_type: 'DVR' as ProductType,
     order_value: '', cost_value: '', status: 'po_received' as OrderStatus, notes: '',
@@ -64,6 +64,7 @@ export default function OrdersPage() {
         getClientName(o.client_id).toLowerCase().includes(q) ||
         o.product_type.toLowerCase().includes(q) ||
         (o.customer_po_number?.toLowerCase().includes(q) ?? false) ||
+        (o.invoice_number?.toLowerCase().includes(q) ?? false) ||
         (o.notes?.toLowerCase().includes(q) ?? false) ||
         getVendorName(o.vendor_id).toLowerCase().includes(q);
       const orderDate = o.customer_po_date || o.confirmed_date || '';
@@ -183,6 +184,8 @@ export default function OrdersPage() {
       await updateOrder(editPO.id, {
         customer_po_number: editPO.customer_po_number.trim() || null,
         customer_po_date: editPO.customer_po_date || null,
+        invoice_number: editPO.invoice_number.trim() || null,
+        invoice_date: editPO.invoice_date || null,
       });
       setEditPO(null);
     } catch (error) {
@@ -211,7 +214,7 @@ export default function OrdersPage() {
         <div className="flex gap-2 items-center">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Search by PO#, client, product, vendor..."
+            <input value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Search by PO#, invoice#, client, product, vendor..."
               className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
           {/* Mobile-only filter toggle */}
@@ -330,7 +333,7 @@ export default function OrdersPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setEditPO({ id: o.id, customer_po_number: o.customer_po_number || '', customer_po_date: o.customer_po_date || '' });
+                          setEditPO({ id: o.id, customer_po_number: o.customer_po_number || '', customer_po_date: o.customer_po_date || '', invoice_number: o.invoice_number || '', invoice_date: o.invoice_date || '' });
                         }}
                         className="text-primary hover:text-primary/80 transition-colors"
                         title="Edit PO Details"
@@ -512,6 +515,18 @@ export default function OrdersPage() {
                 <label className="block text-sm font-medium text-foreground mb-1">PO Date</label>
                 <input type="date" value={editPO.customer_po_date}
                   onChange={e => setEditPO(prev => prev ? { ...prev, customer_po_date: e.target.value } : null)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Invoice Number <span className="text-muted-foreground font-normal">(one per order)</span></label>
+                <input type="text" placeholder="e.g. INV-2026-041" value={editPO.invoice_number}
+                  onChange={e => setEditPO(prev => prev ? { ...prev, invoice_number: e.target.value } : null)}
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Invoice Date</label>
+                <input type="date" value={editPO.invoice_date}
+                  onChange={e => setEditPO(prev => prev ? { ...prev, invoice_date: e.target.value } : null)}
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
               </div>
               <div className="flex gap-3 pt-2">

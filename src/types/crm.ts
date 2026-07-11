@@ -73,6 +73,37 @@ export interface Order {
   payment_terms_days: number;
   delivery_date: string | null;
   payment_due_date: string | null;
+  // Invoice tracking — one invoice per order, data only (no documents)
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+}
+
+// ── Finance (admin-only): money movements attached to orders ────────────────
+
+/** A payment received FROM the customer against an order (partial or full). */
+export interface OrderPayment {
+  id: string;
+  order_id: string;
+  amount: number;
+  payment_date: string;
+  payment_method: string;
+  reference: string;
+  notes: string;
+  recorded_by: string | null;
+  created_at?: string;
+}
+
+/** A payment made TO the supplier against an order (incl. advances). */
+export interface SupplierPayment {
+  id: string;
+  order_id: string;
+  amount: number;
+  payment_date: string;
+  payment_method: string;
+  reference: string;
+  notes: string;
+  recorded_by: string | null;
+  created_at?: string;
 }
 
 export interface OrderEngineer {

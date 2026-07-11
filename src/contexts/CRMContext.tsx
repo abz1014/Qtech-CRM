@@ -6,7 +6,7 @@ import {
   Client, Prospect, Vendor, Order, OrderEngineer, RFQ, User,
   OrderStatus, CommissioningStatus, RFQStatus, RFQPriority,
   SupplierInquiry, SupplierQuote, RFQLineItem, SupplierInquiryStatus,
-  FollowUpAction, RealtimePayload,
+  FollowUpAction, RealtimePayload, OrderPayment, SupplierPayment,
 } from '@/types/crm';
 import {
   Invoice, Expense, PaymentRecord, Payable, CreateInvoiceInput, UpdateInvoiceInput,
@@ -133,6 +133,14 @@ interface CRMContextType {
   // Live action state (pre-loaded, reactive)
   followUpActions: FollowUpAction[];
 
+  // Finance rebuild (admin-only)
+  orderPayments: OrderPayment[];
+  supplierPayments: SupplierPayment[];
+  addOrderPayment: (payment: Omit<OrderPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string) => Promise<OrderPayment>;
+  deleteOrderPayment: (paymentId: string) => Promise<void>;
+  addSupplierPayment: (payment: Omit<SupplierPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string) => Promise<SupplierPayment>;
+  deleteSupplierPayment: (paymentId: string) => Promise<void>;
+
   // Follow-Up Automation Methods
   createFollowUp: (followUp: {
     action_type: 'rfq_followup' | 'supplier_response' | 'overdue_invoice' | 'order_status';
@@ -179,6 +187,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
   const [payables, setPayables] = useState<Payable[]>([]);
+  const [orderPayments, setOrderPayments] = useState<OrderPayment[]>([]);
+  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
 
   useEffect(() => {
     // Don't load anything until a user is logged in; financial tables load
@@ -202,6 +212,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { data: expensesData },
         { data: paymentsData },
         { data: payablesData },
+        { data: orderPaymentsData },
+        { data: supplierPaymentsData },
       ] = await Promise.all([
         supabase.from('users').select('*').order('name'),
         supabase.from('clients').select('*').order('company_name'),
@@ -220,6 +232,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         isAdmin ? supabase.from('expenses').select('*').order('date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
         isAdmin ? supabase.from('payment_records').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
         isAdmin ? supabase.from('payables').select('*').order('due_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('order_payments').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('supplier_payments').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as User[]);
       setClients((clientsData ?? []) as Client[]);
@@ -236,6 +250,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setExpenses((expensesData ?? []) as Expense[]);
       setPaymentRecords((paymentsData ?? []) as PaymentRecord[]);
       setPayables((payablesData ?? []) as Payable[]);
+      setOrderPayments((orderPaymentsData ?? []) as OrderPayment[]);
+      setSupplierPayments((supplierPaymentsData ?? []) as SupplierPayment[]);
       setLoading(false);
 
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
@@ -450,6 +466,36 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
             setPayables(prev => prev.map(p => p.payable_id === payload.new.payable_id ? payload.new as Payable : p));
           } else if (payload.eventType === 'DELETE') {
             setPayables(prev => prev.filter(p => p.payable_id !== payload.old.payable_id));
+          }
+        }
+      );
+
+      // Subscribe to customer payments (finance rebuild)
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_payments' },
+        (payload: RealtimePayload) => {
+          if (payload.eventType === 'INSERT') {
+            setOrderPayments(prev => addUnique(prev, payload.new as OrderPayment, 'id', true));
+          } else if (payload.eventType === 'UPDATE') {
+            setOrderPayments(prev => prev.map(p => p.id === payload.new.id ? payload.new as OrderPayment : p));
+          } else if (payload.eventType === 'DELETE') {
+            setOrderPayments(prev => prev.filter(p => p.id !== payload.old.id));
+          }
+        }
+      );
+
+      // Subscribe to supplier payments (finance rebuild)
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'supplier_payments' },
+        (payload: RealtimePayload) => {
+          if (payload.eventType === 'INSERT') {
+            setSupplierPayments(prev => addUnique(prev, payload.new as SupplierPayment, 'id', true));
+          } else if (payload.eventType === 'UPDATE') {
+            setSupplierPayments(prev => prev.map(p => p.id === payload.new.id ? payload.new as SupplierPayment : p));
+          } else if (payload.eventType === 'DELETE') {
+            setSupplierPayments(prev => prev.filter(p => p.id !== payload.old.id));
           }
         }
       );
@@ -1293,6 +1339,57 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     return buckets;
   }, [invoices]);
 
+  // ===== FINANCE REBUILD (admin-only): payments attached to orders =====
+
+  /** Record a payment received FROM the customer. If it completes a delivered
+   *  order's full value, the order auto-advances to payment_received. */
+  const addOrderPayment = useCallback(async (payment: Omit<OrderPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string): Promise<OrderPayment> => {
+    const { data, error } = await supabase
+      .from('order_payments')
+      .insert({ ...payment, recorded_by: recordedBy })
+      .select()
+      .single();
+    if (error || !data) throw new Error(`Failed to record payment: ${error?.message ?? 'unknown error'}`);
+    const rec = data as OrderPayment;
+    setOrderPayments(prev => addUnique(prev, rec, 'id', true));
+
+    // Recompute total paid from the DB (race-safe) and auto-complete the order
+    const { data: all } = await supabase.from('order_payments').select('amount').eq('order_id', payment.order_id);
+    const totalPaid = (all ?? []).reduce((s, p) => s + p.amount, 0);
+    const order = orders.find(o => o.id === payment.order_id);
+    if (order && order.status === 'delivered' &&
+        Math.round(totalPaid * 100) >= Math.round(order.order_value * 100)) {
+      const { data: upd } = await supabase.from('orders').update({ status: 'payment_received' }).eq('id', order.id).select().single();
+      if (upd) setOrders(prev => prev.map(o => o.id === order.id ? upd as Order : o));
+    }
+    return rec;
+  }, [orders]);
+
+  const deleteOrderPayment = useCallback(async (paymentId: string) => {
+    const { error } = await supabase.from('order_payments').delete().eq('id', paymentId);
+    if (error) throw new Error(`Failed to delete payment: ${error.message}`);
+    setOrderPayments(prev => prev.filter(p => p.id !== paymentId));
+  }, []);
+
+  /** Record a payment made TO the supplier against an order (incl. advances). */
+  const addSupplierPayment = useCallback(async (payment: Omit<SupplierPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string): Promise<SupplierPayment> => {
+    const { data, error } = await supabase
+      .from('supplier_payments')
+      .insert({ ...payment, recorded_by: recordedBy })
+      .select()
+      .single();
+    if (error || !data) throw new Error(`Failed to record supplier payment: ${error?.message ?? 'unknown error'}`);
+    const rec = data as SupplierPayment;
+    setSupplierPayments(prev => addUnique(prev, rec, 'id', true));
+    return rec;
+  }, []);
+
+  const deleteSupplierPayment = useCallback(async (paymentId: string) => {
+    const { error } = await supabase.from('supplier_payments').delete().eq('id', paymentId);
+    if (error) throw new Error(`Failed to delete supplier payment: ${error.message}`);
+    setSupplierPayments(prev => prev.filter(p => p.id !== paymentId));
+  }, []);
+
   const addPayable = useCallback(async (payable: CreatePayableInput, createdBy: string): Promise<Payable> => {
     const { data, error } = await supabase
       .from('payables')
@@ -1956,6 +2053,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
     deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
     invoices, expenses, paymentRecords, payables,
+    orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
     recordPayment,
@@ -1981,6 +2079,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
     deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
     invoices, expenses, paymentRecords, payables,
+    orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
     recordPayment,
