@@ -103,7 +103,7 @@ export default function DashboardPage() {
     // Legacy RFQs quoted before quote_sent_date existed fall back to
     // status-based counting attributed to their rfq_date.
     const quotedToClient = rfqs.filter(r => {
-      const sent = (r as any).quote_sent_date;
+      const sent = r.quote_sent_date;
       if (sent) return sent >= startDate && sent <= endDate;
       return (r.status === 'quoted' || r.status === 'converted') &&
         r.rfq_date >= startDate && r.rfq_date <= endDate;
@@ -114,7 +114,7 @@ export default function DashboardPage() {
     // rfq_date, so the same quarter's PO count and achieved value described
     // different order sets).
     const poReceived = orders.filter(o => {
-      const d = (o as any).customer_po_date || o.confirmed_date;
+      const d = o.customer_po_date || o.confirmed_date;
       return d && d >= startDate && d <= endDate;
     }).length;
 
@@ -164,7 +164,7 @@ export default function DashboardPage() {
   // RFQ dates — mixing date semantics made orders migrate between quarters
   // as fields were filled in. Orders missing both dates must be backfilled
   // in the database (see audit/MASTER_REFACTOR_PLAN.md P0.4).
-  const getOrderDate = useCallback((o: any): string | null => {
+  const getOrderDate = useCallback((o: Order): string | null => {
     return o.customer_po_date || o.confirmed_date || null;
   }, []);
 

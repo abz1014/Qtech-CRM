@@ -5,6 +5,7 @@ import { useCRM } from '@/contexts/CRMContext';
 import { BarChart3, Calendar, Download, Filter, ChevronRight } from 'lucide-react';
 import { formatDate, formatPKR } from '@/lib/format';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
+import { RFQ } from '@/types/crm';
 
 interface FilterState {
   status: string;
@@ -52,8 +53,8 @@ export function DailyRFQReportPage() {
     // Status filter — definitions MUST match the section buckets below so the
     // dropdown always yields exactly the rows shown in the matching section.
     if (filters.status !== 'all') {
-      const hasInquiry = (r: any) => supplierInquiries.some(si => si.rfq_id === r.id);
-      const hasQuote = (r: any) => supplierQuotes.some(sq => sq.rfq_id === r.id);
+      const hasInquiry = (r: RFQ) => supplierInquiries.some(si => si.rfq_id === r.id);
+      const hasQuote = (r: RFQ) => supplierQuotes.some(sq => sq.rfq_id === r.id);
       if (filters.status === 'not_floated') {
         result = result.filter(r => !hasInquiry(r) && r.status !== 'converted');
       } else if (filters.status === 'floated') {
@@ -89,15 +90,15 @@ export function DailyRFQReportPage() {
   // Calculate metrics — the four buckets partition the total: an RFQ is in
   // exactly one of notFloated / floated-awaiting / responded / converted.
   const metrics = useMemo(() => {
-    const hasInquiry = (r: any) => supplierInquiries.some(si => si.rfq_id === r.id);
-    const hasQuote = (r: any) => supplierQuotes.some(sq => sq.rfq_id === r.id);
+    const hasInquiry = (r: RFQ) => supplierInquiries.some(si => si.rfq_id === r.id);
+    const hasQuote = (r: RFQ) => supplierQuotes.some(sq => sq.rfq_id === r.id);
     const notFloated = filteredRFQs.filter(r => !hasInquiry(r) && r.status !== 'converted');
     // "Awaiting response" — floated but no quote received yet
     const floated = filteredRFQs.filter(r => hasInquiry(r) && !hasQuote(r) && r.status !== 'converted');
     const responded = filteredRFQs.filter(r => hasQuote(r) && r.status !== 'converted');
     const converted = filteredRFQs.filter(r => r.status === 'converted');
 
-    const byDate = (a: any, b: any) => b.rfq_date.localeCompare(a.rfq_date);
+    const byDate = (a: RFQ, b: RFQ) => b.rfq_date.localeCompare(a.rfq_date);
     return {
       notFloated: notFloated.sort(byDate),
       floated: floated.sort(byDate),
@@ -107,10 +108,10 @@ export function DailyRFQReportPage() {
   }, [filteredRFQs, supplierInquiries, supplierQuotes]);
 
   // Sanitize cell values to prevent CSV formula injection
-  const sanitizeCSVCell = (cell: any): string => {
+  const sanitizeCSVCell = (cell: unknown): string => {
     const str = String(cell ?? '');
     // Escape cells that start with =, +, @, or - (formula injection risk)
-    if (str.match(/^[=+@\-]/)) {
+    if (str.match(/^[=+@-]/)) {
       return `'${str}`;
     }
     return str;
@@ -136,11 +137,11 @@ export function DailyRFQReportPage() {
         getUserName(rfq.assigned_to),
         supplierInquiries.filter(si => si.rfq_id === rfq.id).length,
         supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length,
-        (rfq as any).quoted_price ?? '',
-        (rfq as any).quote_sent_date ?? '',
-        (rfq as any).quote_expiry_date ?? '',
-        (rfq as any).loss_reason?.replace(/_/g, ' ') ?? '',
-        (rfq as any).loss_notes ?? '',
+        rfq.quoted_price ?? '',
+        rfq.quote_sent_date ?? '',
+        rfq.quote_expiry_date ?? '',
+        rfq.loss_reason?.replace(/_/g, ' ') ?? '',
+        rfq.loss_notes ?? '',
         rfq.notes || '',
       ]);
 
@@ -163,7 +164,7 @@ export function DailyRFQReportPage() {
     }
   };
 
-  const RFQTable = ({ rfqs, title, isConverted }: { rfqs: any[]; title: string; isConverted?: boolean }) => (
+  const RFQTable = ({ rfqs, title, isConverted }: { rfqs: RFQ[]; title: string; isConverted?: boolean }) => (
     <div className="glass-card p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-foreground">{title}</h3>
@@ -281,7 +282,7 @@ export function DailyRFQReportPage() {
             <label className="block text-sm font-medium text-foreground mb-2">Date Range</label>
             <select
               value={filters.dateRange}
-              onChange={(e) => setFilters(f => ({ ...f, dateRange: e.target.value as any }))}
+              onChange={(e) => setFilters(f => ({ ...f, dateRange: e.target.value as FilterState['dateRange'] }))}
               className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
               <option value="today">Today</option>

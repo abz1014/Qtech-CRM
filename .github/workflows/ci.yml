@@ -16,6 +16,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Lint
+        run: npx eslint . --max-warnings=50
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Unit tests

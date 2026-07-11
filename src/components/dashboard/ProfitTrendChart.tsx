@@ -54,7 +54,7 @@ export function ProfitTrendChart() {
               borderRadius: '8px'
             }}
             labelStyle={{ color: '#F3F4F6' }}
-            formatter={(value: any) => `Rs ${value.toLocaleString('en-PK')}`}
+            formatter={(value: number) => `Rs ${Number(value).toLocaleString('en-PK')}`}
           />
           <Legend />
           <Line

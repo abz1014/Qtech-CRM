@@ -8,6 +8,7 @@ import {
   ChevronLeft, ChevronRight, ExternalLink,
 } from 'lucide-react';
 import React from 'react';
+import { FollowUpAction, User } from '@/types/crm';
 import { cn } from '@/lib/utils';
 import { businessToday } from '@/lib/dates';
 import { FollowUpForm } from '@/components/followup/FollowUpForm';
@@ -89,7 +90,7 @@ function DueLabel({ due_date }: { due_date: string }) {
 // ─── Action Card ──────────────────────────────────────────────────────────────
 
 interface ActionCardProps {
-  action: any;
+  action: FollowUpAction;
   entityLabel?: string;
   entityPath?: string;
   assignedName?: string;
@@ -194,8 +195,8 @@ function ActionCard({ action, entityLabel, entityPath, assignedName, onCompleteC
 // ─── Team Overview Tab (admin only) ──────────────────────────────────────────
 
 interface TeamOverviewProps {
-  allActions: any[];
-  users: any[];
+  allActions: FollowUpAction[];
+  users: User[];
   onCompleteClick: (id: string, title: string) => void;
   onSnooze: (id: string, date: string) => void;
   onDelete: (id: string) => void;
@@ -206,7 +207,7 @@ function TeamOverview({ allActions, users, onCompleteClick, onSnooze, onDelete, 
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const byUser = useMemo(() => {
-    const map: Record<string, any[]> = {};
+    const map: Record<string, FollowUpAction[]> = {};
     allActions.forEach(a => {
       const uid = a.assigned_to || 'unassigned';
       if (!map[uid]) map[uid] = [];
@@ -330,8 +331,8 @@ function timeAgo(ts: string): string {
 }
 
 function ActivityFeed({ activity, users, patterns }: {
-  activity: any[];
-  users: any[];
+  activity: FollowUpAction[];
+  users: User[];
   patterns: { actionType: string; avgDays: number; label: string }[];
 }) {
   const getName = (uid: string) => users.find(u => u.id === uid)?.name?.split(' ')[0] || 'Someone';
@@ -415,9 +416,9 @@ function ActivityFeed({ activity, users, patterns }: {
 const GROUPS_PER_PAGE = 5;
 
 interface GroupedActionListProps {
-  actions: any[];
-  users: any[];
-  resolveEntity: (action: any) => { label: string; path: string } | null;
+  actions: FollowUpAction[];
+  users: User[];
+  resolveEntity: (action: FollowUpAction) => { label: string; path: string } | null;
   onCompleteClick: (id: string, title: string) => void;
   onSnooze: (id: string, date: string) => void;
   onDelete: (id: string) => void;
@@ -431,7 +432,7 @@ function GroupedActionList({ actions, users, resolveEntity, onCompleteClick, onS
 
   // Build groups keyed by entity_id (or 'unlinked' for actions with no entity)
   const groups = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; path: string | null; entityType: string | null; actions: any[] }>();
+    const map = new Map<string, { key: string; label: string; path: string | null; entityType: string | null; actions: FollowUpAction[] }>();
 
     actions.forEach(action => {
       const entity = resolveEntity(action);
@@ -466,7 +467,7 @@ function GroupedActionList({ actions, users, resolveEntity, onCompleteClick, onS
   const toggleCollapse = (key: string) => {
     setCollapsed(prev => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
@@ -529,7 +530,7 @@ function GroupedActionList({ actions, users, resolveEntity, onCompleteClick, onS
             {!isCollapsed && (
               <div className="px-4 pb-4 space-y-2 border-t border-border pt-3">
                 {group.actions.map(action => {
-                  const assignedUser = users.find((u: any) => u.id === action.assigned_to);
+                  const assignedUser = users.find((u) => u.id === action.assigned_to);
                   return (
                     <ActionCard
                       key={action.id}
@@ -596,7 +597,7 @@ export default function ActionsPage() {
 
   type Tab = 'all' | 'overdue' | 'today' | 'upcoming' | 'team' | 'activity';
   const [tab, setTab]         = useState<Tab>('today');
-  const [allActions, setAllActions] = useState<any[]>([]);
+  const [allActions, setAllActions] = useState<FollowUpAction[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Derive myActions from live CRMContext state — same source as sidebar badge
@@ -612,7 +613,7 @@ export default function ActionsPage() {
   const [showNextForm, setShowNextForm] = useState(false);
   const [completing, setCompleting]     = useState<string | null>(null);
   const [outcomeAction, setOutcomeAction] = useState<{ id: string; title: string } | null>(null);
-  const [activity, setActivity]         = useState<any[]>([]);
+  const [activity, setActivity]         = useState<FollowUpAction[]>([]);
 
   const patterns = useMemo(() => getPatternInsights(), [getPatternInsights]);
 
@@ -638,14 +639,14 @@ export default function ActionsPage() {
   );
 
   // Sort actions: overdue first, then today, then upcoming — within each group sort by date
-  const sortActions = (list: any[]) => [...list].sort((a, b) => {
+  const sortActions = (list: FollowUpAction[]) => [...list].sort((a, b) => {
     const ta = getTier(a.due_date), tb = getTier(b.due_date);
     if (ta !== tb) return tb - ta; // higher tier (more urgent) first
     return a.due_date < b.due_date ? -1 : 1;
   });
 
   const filtered = useMemo(() => {
-    let list: any[];
+    let list: FollowUpAction[];
     switch (tab) {
       case 'overdue':   list = myActions.filter(a => a.due_date < todayStr); break;
       case 'today':     list = myActions.filter(a => a.due_date === todayStr); break;
@@ -656,7 +657,7 @@ export default function ActionsPage() {
   }, [myActions, tab, todayStr]);
 
   // Resolve a human-readable label + navigation path for an action's linked entity
-  const resolveEntity = (action: any): { label: string; path: string } | null => {
+  const resolveEntity = (action: FollowUpAction): { label: string; path: string } | null => {
     if (!action.entity_id || !action.entity_type) return null;
     if (action.entity_type === 'rfq') {
       const rfq = rfqs.find(r => r.id === action.entity_id);
@@ -720,7 +721,7 @@ export default function ActionsPage() {
   const upcoming = myActions.filter(a => a.due_date > todayStr);
 
   const renderSection = (
-    actions: any[],
+    actions: FollowUpAction[],
     title: string,
     accent: string,       // tailwind colour token like 'destructive' | 'warning' | 'primary'
     icon: React.ReactNode,
@@ -739,7 +740,7 @@ export default function ActionsPage() {
         </div>
         {actions.map(action => {
           const entity = resolveEntity(action);
-          const assignedUser = users.find((u: any) => u.id === action.assigned_to);
+          const assignedUser = users.find((u) => u.id === action.assigned_to);
           return (
             <ActionCard
               key={action.id}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { FileText, Send, MessageSquare, ShoppingCart, AlertTriangle, ChevronRight } from 'lucide-react';
 import { businessToday } from '@/lib/dates';
+import { RFQ } from '@/types/crm';
 import { formatPKR } from '@/lib/format';
 
 const ORDER_STALE_DAYS = 30; // an order not delivered N days after its PO is "stale"
@@ -30,7 +31,7 @@ export default function OperationsPage() {
   const hasQuote = useMemo(() => new Set(supplierQuotes.map(q => q.rfq_id)), [supplierQuotes]);
 
   const lists = useMemo(() => {
-    const active = (r: any) => r.status !== 'converted' && r.status !== 'lost';
+    const active = (r: RFQ) => r.status !== 'converted' && r.status !== 'lost';
 
     // 1. Not floated — received but no supplier inquiry yet
     const notFloated = rfqs.filter(r => active(r) && !hasInquiry.has(r.id))
@@ -42,16 +43,16 @@ export default function OperationsPage() {
 
     // 3. Awaiting customer decision — quote sent to client, no order yet
     const awaitingCustomer = rfqs.filter(r => r.status === 'quoted')
-      .sort((a, b) => ((a as any).quote_sent_date || a.rfq_date).localeCompare((b as any).quote_sent_date || b.rfq_date));
+      .sort((a, b) => (a.quote_sent_date || a.rfq_date).localeCompare(b.quote_sent_date || b.rfq_date));
 
     // 4. Orders in progress — not delivered/paid; stale if older than threshold
     const ordersInProgress = orders.filter(o => o.status === 'po_received' || o.status === 'procurement' || o.status === 'in_transit')
-      .map(o => ({ o, age: daysSince((o as any).customer_po_date || o.confirmed_date, today) }))
+      .map(o => ({ o, age: daysSince(o.customer_po_date || o.confirmed_date, today) }))
       .sort((a, b) => (b.age ?? 0) - (a.age ?? 0));
 
     // 5. Overdue payments — past payment due date, not yet paid
-    const overduePayments = orders.filter(o => o.status !== 'payment_received' && (o as any).payment_due_date && String((o as any).payment_due_date).slice(0, 10) < today)
-      .sort((a, b) => String((a as any).payment_due_date).localeCompare(String((b as any).payment_due_date)));
+    const overduePayments = orders.filter(o => o.status !== 'payment_received' && o.payment_due_date && String(o.payment_due_date).slice(0, 10) < today)
+      .sort((a, b) => String(a.payment_due_date).localeCompare(String(b.payment_due_date)));
 
     return { notFloated, awaitingSupplier, awaitingCustomer, ordersInProgress, overduePayments };
   }, [rfqs, orders, hasInquiry, hasQuote, today]);
@@ -99,11 +100,11 @@ export default function OperationsPage() {
         <WorklistCard title="Awaiting Customer Decision" count={lists.awaitingCustomer.length} icon={MessageSquare} tone="primary"
           empty="No quotes pending a customer decision." >
           {lists.awaitingCustomer.map(r => {
-            const overdue = (r as any).quote_deadline && String((r as any).quote_deadline).slice(0, 10) < today;
+            const overdue = r.quote_deadline && String(r.quote_deadline).slice(0, 10) < today;
             return (
               <Row key={r.id} onClick={() => navigate(`/rfqs/${r.id}`)}
                 left={<><span className="text-xs font-mono font-semibold text-primary">{r.rfq_number || 'RFQ'}</span><span className="text-xs text-muted-foreground truncate">{r.company_name}</span>{overdue && <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-destructive/15 text-destructive">DEADLINE PASSED</span>}</>}
-                right={<AgeBadge days={daysSince((r as any).quote_sent_date, today)} staleAt={7} />} />
+                right={<AgeBadge days={daysSince(r.quote_sent_date, today)} staleAt={7} />} />
             );
           })}
         </WorklistCard>
@@ -125,7 +126,7 @@ export default function OperationsPage() {
             {lists.overduePayments.map(o => (
               <Row key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
                 left={<><span className="text-xs font-medium text-foreground truncate">{getClientName(o.client_id)}</span><span className="text-xs text-muted-foreground">{formatPKR(o.order_value)}</span></>}
-                right={<span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">{daysSince((o as any).payment_due_date, today)}d overdue</span>} />
+                right={<span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">{daysSince(o.payment_due_date, today)}d overdue</span>} />
             ))}
           </WorklistCard>
         </div>
@@ -143,7 +144,7 @@ const TONE: Record<string, string> = {
 };
 
 function WorklistCard({ title, count, icon: Icon, tone, empty, children }: {
-  title: string; count: number; icon: any; tone: string; empty: string; children: React.ReactNode;
+  title: string; count: number; icon: React.ComponentType<{ className?: string }>; tone: string; empty: string; children: React.ReactNode;
 }) {
   return (
     <div className="glass-card p-5">

@@ -94,7 +94,7 @@ export interface CreateExpenseInput {
   notes?: string;
 }
 
-export interface UpdateExpenseInput extends Partial<CreateExpenseInput> {}
+export type UpdateExpenseInput = Partial<CreateExpenseInput>;
 
 // ============================================
 // PAYMENT RECORD INTERFACE

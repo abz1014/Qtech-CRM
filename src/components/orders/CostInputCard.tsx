@@ -10,7 +10,7 @@ interface CostInputCardProps {
     logistics_cost: number;
     overhead_cost: number;
   };
-  onSave: (orderId: string, costs: any) => Promise<void>;
+  onSave: (orderId: string, costs: Record<string, number>) => Promise<void>;
   isLoading?: boolean;
 }
 

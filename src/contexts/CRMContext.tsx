@@ -6,6 +6,7 @@ import {
   Client, Prospect, Vendor, Order, OrderEngineer, RFQ, User,
   OrderStatus, CommissioningStatus, RFQStatus, RFQPriority,
   SupplierInquiry, SupplierQuote, RFQLineItem, SupplierInquiryStatus,
+  FollowUpAction, RealtimePayload,
 } from '@/types/crm';
 import {
   Invoice, Expense, PaymentRecord, Payable, CreateInvoiceInput, UpdateInvoiceInput,
@@ -56,7 +57,7 @@ interface CRMContextType {
   addRFQ: (rfq: Omit<RFQ, 'id' | 'converted_order_id'>) => Promise<void>;
   updateRFQStatus: (rfqId: string, status: RFQStatus) => Promise<void>;
   updateRFQPriority: (rfqId: string, priority: RFQPriority) => Promise<void>;
-  convertRFQToOrder: (rfqId: string, orderData: Omit<Order, 'id' | 'rfq_id' | 'confirmed_date'>) => Promise<void>;
+  convertRFQToOrder: (rfqId: string, orderData: Omit<Order, 'id' | 'rfq_id'>) => Promise<void>;
   getNextOrderStatus: (currentStatus: OrderStatus) => OrderStatus | null;
   addSupplierInquiry: (inquiry: Omit<SupplierInquiry, 'id'>) => Promise<void>;
   addSupplierQuote: (quote: Omit<SupplierQuote, 'id'>) => Promise<void>;
@@ -112,25 +113,25 @@ interface CRMContextType {
       logistics_cost?: number;
       overhead_cost?: number;
     }
-  ) => Promise<{ success: boolean; error?: any }>;
-  getOrderWithProfitability: (orderId: string) => Promise<any>;
-  getOrdersWithProfitability: () => Promise<any[]>;
+  ) => Promise<{ success: boolean; error?: unknown }>;
+  getOrderWithProfitability: (orderId: string) => Promise<Order | null>;
+  getOrdersWithProfitability: () => Promise<Order[]>;
   getProfitabilityMetrics: () => Promise<{
     totalProfit: number;
     avgMargin: number;
-    topProfitable: any[];
+    topProfitable: Order[];
     totalOrders: number;
     lowMarginOrders: number;
   }>;
 
   // Supplier Comparison Methods
-  getQuotesForRFQ: (rfqId: string) => Promise<any[]>;
+  getQuotesForRFQ: (rfqId: string) => Promise<SupplierQuote[]>;
   calculateValueScore: (unitPrice: number, leadTime: number, moq: number) => number;
   updateQuoteRecommendation: (quoteId: string, isRecommended: boolean) => Promise<void>;
-  getRecommendedQuote: (rfqId: string) => Promise<any | null>;
+  getRecommendedQuote: (rfqId: string) => Promise<SupplierQuote | null>;
 
   // Live action state (pre-loaded, reactive)
-  followUpActions: any[];
+  followUpActions: FollowUpAction[];
 
   // Follow-Up Automation Methods
   createFollowUp: (followUp: {
@@ -142,17 +143,17 @@ interface CRMContextType {
     due_date: string;
     priority: 'low' | 'medium' | 'high';
     assigned_to?: string;
-  }) => Promise<any>;
-  getPendingFollowUps: (userId?: string) => Promise<any[]>;
-  getAllFollowUps: () => Promise<any[]>;
+  }) => Promise<FollowUpAction | null>;
+  getPendingFollowUps: (userId?: string) => Promise<FollowUpAction[]>;
+  getAllFollowUps: () => Promise<FollowUpAction[]>;
   completeFollowUp: (followUpId: string, outcomeNote?: string) => Promise<void>;
   snoozeFollowUp: (followUpId: string, newDueDate: string) => Promise<void>;
   deleteFollowUp: (followUpId: string) => Promise<void>;
-  getOverdueFollowUps: () => Promise<any[]>;
-  getFollowUpsForEntity: (entityType: string, entityId: string) => Promise<any[]>;
+  getOverdueFollowUps: () => Promise<FollowUpAction[]>;
+  getFollowUpsForEntity: (entityType: string, entityId: string) => Promise<FollowUpAction[]>;
   getUserWorkload: (userId: string) => Promise<number>;
   applySequence: (steps: Array<{ title: string; action_type: string; daysFromNow: number; priority: 'low'|'medium'|'high'; notes?: string }>, entityType: string, entityId: string | null, assignedTo: string | null) => Promise<void>;
-  getRecentActivity: (limit?: number) => Promise<any[]>;
+  getRecentActivity: (limit?: number) => Promise<FollowUpAction[]>;
   getPatternInsights: () => { actionType: string; avgDays: number; label: string }[];
 }
 
@@ -171,7 +172,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [supplierInquiries, setSupplierInquiries] = useState<SupplierInquiry[]>([]);
   const [supplierQuotes, setSupplierQuotes] = useState<SupplierQuote[]>([]);
   const [rfqLineItems, setRFQLineItems] = useState<RFQLineItem[]>([]);
-  const [followUpActions, setFollowUpActions] = useState<any[]>([]);
+  const [followUpActions, setFollowUpActions] = useState<FollowUpAction[]>([]);
 
   // Bookkeeping state
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -183,7 +184,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     // Don't load anything until a user is logged in; financial tables load
     // only for admins (sales/engineer sessions never receive that data).
     if (!authUser) return;
-    const emptyResult = Promise.resolve({ data: null as any });
+    const emptyResult = Promise.resolve({ data: null });
     const load = async () => {
       const [
         { data: usersData },
@@ -230,7 +231,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setSupplierInquiries((inquiriesData ?? []) as SupplierInquiry[]);
       setSupplierQuotes((quotesData ?? []) as SupplierQuote[]);
       setRFQLineItems((lineItemsData ?? []) as RFQLineItem[]);
-      setFollowUpActions((actionsData ?? []) as any[]);
+      setFollowUpActions((actionsData ?? []) as FollowUpAction[]);
       setInvoices((invoicesData ?? []) as Invoice[]);
       setExpenses((expensesData ?? []) as Expense[]);
       setPaymentRecords((paymentsData ?? []) as PaymentRecord[]);
@@ -244,7 +245,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'clients' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setClients(prev => addUnique(prev, payload.new as Client, 'id'));
           } else if (payload.eventType === 'UPDATE') {
@@ -259,7 +260,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'prospects' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setProspects(prev => addUnique(prev, payload.new as Prospect, 'id'));
           } else if (payload.eventType === 'UPDATE') {
@@ -274,7 +275,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'vendors' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setVendors(prev => addUnique(prev, payload.new as Vendor, 'id'));
           } else if (payload.eventType === 'UPDATE') {
@@ -289,7 +290,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setOrders(prev => addUnique(prev, payload.new as Order, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
@@ -304,7 +305,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'order_engineers' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setOrderEngineers(prev => addUnique(prev, payload.new as OrderEngineer, 'id'));
           } else if (payload.eventType === 'UPDATE') {
@@ -319,7 +320,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'rfqs' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setRFQs(prev => addUnique(prev, payload.new as RFQ, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
@@ -334,7 +335,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'supplier_inquiries' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setSupplierInquiries(prev => addUnique(prev, payload.new as SupplierInquiry, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
@@ -349,7 +350,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'supplier_quotes' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setSupplierQuotes(prev => addUnique(prev, payload.new as SupplierQuote, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
@@ -364,7 +365,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'rfq_line_items' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setRFQLineItems(prev => addUnique(prev, payload.new as RFQLineItem, 'id'));
           } else if (payload.eventType === 'UPDATE') {
@@ -379,7 +380,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'follow_up_actions' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setFollowUpActions(prev => addUnique(prev, payload.new, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
@@ -397,7 +398,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'invoices' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setInvoices(prev => addUnique(prev, payload.new as Invoice, 'invoice_id', true));
           } else if (payload.eventType === 'UPDATE') {
@@ -412,7 +413,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'expenses' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setExpenses(prev => addUnique(prev, payload.new as Expense, 'expense_id', true));
           } else if (payload.eventType === 'UPDATE') {
@@ -427,7 +428,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'payment_records' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setPaymentRecords(prev => addUnique(prev, payload.new as PaymentRecord, 'payment_id', true));
           } else if (payload.eventType === 'UPDATE') {
@@ -442,7 +443,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'payables' },
-        (payload: any) => {
+        (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
             setPayables(prev => addUnique(prev, payload.new as Payable, 'payable_id', true));
           } else if (payload.eventType === 'UPDATE') {
@@ -558,7 +559,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       }
       // Quote sent to customer but no decision after 7 days
       if (r.status === 'quoted') {
-        const age = daysSince((r as any).quote_sent_date ?? r.rfq_date);
+        const age = daysSince(r.quote_sent_date ?? r.rfq_date);
         if (age !== null && age > 7) {
           autoFollowUp({ title: `Follow up on quote — ${r.company_name}`, action_type: 'rfq_followup', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
         }
@@ -568,9 +569,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     // Order stuck in an early stage more than 30 days since its PO
     orders.forEach(o => {
       if (o.status === 'po_received' || o.status === 'procurement' || o.status === 'in_transit') {
-        const age = daysSince((o as any).customer_po_date ?? o.confirmed_date);
+        const age = daysSince(o.customer_po_date ?? o.confirmed_date);
         if (age !== null && age > 30) {
-          autoFollowUp({ title: `Stalled order — check ${getClientName(o.client_id)}`, action_type: 'order_status', entity_type: 'order', entity_id: o.id, assigned_to: (o as any).sales_person_id ?? null, priority: 'medium', daysFromNow: 0 });
+          autoFollowUp({ title: `Stalled order — check ${getClientName(o.client_id)}`, action_type: 'order_status', entity_type: 'order', entity_id: o.id, assigned_to: o.sales_person_id ?? null, priority: 'medium', daysFromNow: 0 });
         }
       }
     });
@@ -713,8 +714,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const updateRFQStatus = useCallback(async (rfqId: string, status: RFQStatus) => {
     const rfq = rfqs.find(r => r.id === rfqId);
-    const updates: Record<string, any> = { status };
-    if (status === 'quoted' && rfq && !(rfq as any).quote_sent_date) {
+    const updates: Record<string, unknown> = { status };
+    if (status === 'quoted' && rfq && !rfq.quote_sent_date) {
       updates.quote_sent_date = businessToday();
     }
     const { data } = await supabase.from('rfqs').update(updates).eq('id', rfqId).select().single();
@@ -742,7 +743,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   const convertRFQToOrder = useCallback(async (
     rfqId: string,
-    orderData: Omit<Order, 'id' | 'rfq_id' | 'confirmed_date'>,
+    orderData: Omit<Order, 'id' | 'rfq_id'>,
   ) => {
     const { data: newOrder, error: orderError } = await supabase
       .from('orders')
@@ -1364,8 +1365,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       amount: payment.amount,
       payment_date: payment.payment_date,
       payment_method: payment.payment_method ?? '',
-      reference_number: (payment as any).reference_number ?? '',
-      notes: (payment as any).notes ?? '',
+      reference_number: payment.reference_number ?? '',
+      notes: payment.notes ?? '',
       recorded_by: recordedBy,
     });
 
@@ -1659,7 +1660,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   // ===== FOLLOW-UP AUTOMATION =====
 
-  const createFollowUp = useCallback(async (followUp: any) => {
+  const createFollowUp = useCallback(async (followUp: Partial<FollowUpAction> & { title: string; due_date: string }) => {
     try {
       // Ensure entity_id is omitted entirely when null/undefined
       // so the DB doesn't receive null for a possibly NOT NULL column
@@ -1710,7 +1711,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       const action = followUpActions.find(fa => fa.id === followUpId);
 
       const completedAt = new Date().toISOString();
-      const updates: Record<string, any> = {
+      const updates: Record<string, unknown> = {
         status: 'completed',
         completed_at: completedAt,
       };
@@ -1844,7 +1845,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Get recently completed actions for the activity feed
-  const getRecentActivity = useCallback(async (limit = 20): Promise<any[]> => {
+  const getRecentActivity = useCallback(async (limit = 20): Promise<FollowUpAction[]> => {
     try {
       const { data, error } = await supabase
         .from('follow_up_actions')

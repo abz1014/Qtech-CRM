@@ -107,11 +107,11 @@ export default function OrdersPage() {
         o.cost_value || 0,
         profit,
         margin,
-        (o as any).customer_po_number || '',
-        (o as any).customer_po_date || o.confirmed_date || '',
-        (o as any).payment_terms_days ?? '',
-        (o as any).delivery_date || '',
-        (o as any).payment_due_date || '',
+        o.customer_po_number || '',
+        o.customer_po_date || o.confirmed_date || '',
+        o.payment_terms_days ?? '',
+        o.delivery_date || '',
+        o.payment_due_date || '',
         o.notes || '',
       ];
     });
@@ -150,14 +150,17 @@ export default function OrdersPage() {
       product_type: form.product_type,
       order_value: Number(form.order_value),
       cost_value: Number(form.cost_value) || 0,
-      status: form.status,
+      status: form.status as OrderStatus,
       notes: form.notes,
       sales_person_id: user?.id ?? '',
       confirmed_date: null,
       rfq_id: null,
       customer_po_number: form.customer_po_number.trim() || null,
       customer_po_date: form.customer_po_date || null,
-    } as any);
+      payment_terms_days: 30,
+      delivery_date: null,
+      payment_due_date: null,
+    });
     setShowForm(false);
     setForm({ client_id: '', vendor_id: '', product_type: 'DVR', order_value: '', cost_value: '', status: 'po_received', notes: '', customer_po_number: '', customer_po_date: '' });
     setVendorQuery('');
@@ -180,7 +183,7 @@ export default function OrdersPage() {
       await updateOrder(editPO.id, {
         customer_po_number: editPO.customer_po_number.trim() || null,
         customer_po_date: editPO.customer_po_date || null,
-      } as any);
+      });
       setEditPO(null);
     } catch (error) {
       toast.error('Failed to update: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -260,7 +263,7 @@ export default function OrdersPage() {
             className="glass-card p-4 cursor-pointer active:bg-muted/40 transition-colors">
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-                {(o as any).customer_po_number || 'No PO#'}
+                {o.customer_po_number || 'No PO#'}
               </span>
               <span className={`status-badge ${statusColors[o.status] || 'bg-muted text-muted-foreground'}`}>{statusLabels[o.status] || o.status}</span>
             </div>
@@ -302,7 +305,7 @@ export default function OrdersPage() {
                   className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
                   <td className="px-5 py-3">
                     <span className="text-xs font-mono font-semibold text-primary bg-primary/10 px-2 py-1 rounded">
-                      {(o as any).customer_po_number || '—'}
+                      {o.customer_po_number || '—'}
                     </span>
                   </td>
                   <td className="px-5 py-3">
@@ -327,7 +330,7 @@ export default function OrdersPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setEditPO({ id: o.id, customer_po_number: (o as any).customer_po_number || '', customer_po_date: (o as any).customer_po_date || '' });
+                          setEditPO({ id: o.id, customer_po_number: o.customer_po_number || '', customer_po_date: o.customer_po_date || '' });
                         }}
                         className="text-primary hover:text-primary/80 transition-colors"
                         title="Edit PO Details"

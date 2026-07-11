@@ -87,7 +87,7 @@ export default function FinancePage() {
   // ── Filter orders by PO date within range ───────────────────────────────────
   const filteredOrders = useMemo(() =>
     orders.filter(o => {
-      const d = (o as any).customer_po_date || o.confirmed_date;
+      const d = o.customer_po_date || o.confirmed_date;
       // Dateless legacy orders: include them in "All Time" so total revenue
       // is complete; they can't be placed in any narrower period.
       if (!d) return preset === 'all_time';
@@ -108,7 +108,7 @@ export default function FinancePage() {
   const pendingPayment = orders.filter(o => o.status === 'delivered');
   const overduePayments = orders.filter(o => {
     if (o.status === 'payment_received') return false;
-    const due = (o as any).payment_due_date;
+    const due = o.payment_due_date;
     if (!due) return false;
     return due < todayStr;
   });
@@ -119,7 +119,7 @@ export default function FinancePage() {
   const buckets = useMemo(() => buildMonthBuckets(range.from, range.to), [range]);
   const monthData = useMemo(() => buckets.map(b => {
     const mo = filteredOrders.filter(o => {
-      const d = (o as any).customer_po_date || o.confirmed_date;
+      const d = o.customer_po_date || o.confirmed_date;
       if (!d) return false;
       const od = new Date(d);
       return od.getMonth() === b.month && od.getFullYear() === b.year;
@@ -159,11 +159,11 @@ export default function FinancePage() {
         o.product_type, getUserName(o.sales_person_id),
         statusLabels[o.status] || o.status,
         o.order_value || 0, o.cost_value || 0, p, mg,
-        (o as any).customer_po_number || '',
-        (o as any).customer_po_date || o.confirmed_date || '',
-        (o as any).payment_terms_days ?? '',
-        (o as any).delivery_date || '',
-        (o as any).payment_due_date || '',
+        o.customer_po_number || '',
+        o.customer_po_date || o.confirmed_date || '',
+        o.payment_terms_days ?? '',
+        o.delivery_date || '',
+        o.payment_due_date || '',
         o.notes || '',
       ];
     });
@@ -292,14 +292,14 @@ export default function FinancePage() {
           </div>
           <div className="space-y-2">
             {overduePayments.map(o => {
-              const daysOverdue = Math.floor((new Date(todayStr + 'T00:00:00Z').getTime() - new Date(String((o as any).payment_due_date).slice(0, 10) + 'T00:00:00Z').getTime()) / 86400000);
+              const daysOverdue = Math.floor((new Date(todayStr + 'T00:00:00Z').getTime() - new Date(String(o.payment_due_date).slice(0, 10) + 'T00:00:00Z').getTime()) / 86400000);
               return (
                 <div key={o.id}
                   className="flex items-center justify-between p-3 bg-destructive/5 border border-destructive/20 rounded-lg cursor-pointer hover:bg-destructive/10 transition-colors"
                   onClick={() => navigate(`/orders/${o.id}`)}>
                   <div>
                     <p className="text-sm font-semibold text-foreground">{getClientName(o.client_id)}</p>
-                    <p className="text-xs text-muted-foreground">{o.product_type} · Due {formatDate((o as any).payment_due_date)}</p>
+                    <p className="text-xs text-muted-foreground">{o.product_type} · Due {formatDate(o.payment_due_date)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold text-destructive">{formatPKR(o.order_value)}</p>
@@ -379,7 +379,7 @@ export default function FinancePage() {
               </thead>
               <tbody>
                 {pendingPayment.map(o => {
-                  const paymentDue = (o as any).payment_due_date;
+                  const paymentDue = o.payment_due_date;
                   const isOverdue = paymentDue && paymentDue < todayStr;
                   const statusLabel: Record<string, string> = {
                     po_received: 'PO Received', procurement: 'Procurement',

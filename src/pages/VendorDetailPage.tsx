@@ -26,17 +26,17 @@ export default function VendorDetailPage() {
     // Avg response time: received_at − matched inquiry sent_at (days)
     const durations: number[] = [];
     vendorQuotes.forEach(q => {
-      const inq = vendorInquiries.find(i => i.id === (q as any).inquiry_id)
+      const inq = vendorInquiries.find(i => i.id === q.inquiry_id)
         ?? vendorInquiries.find(i => i.rfq_id === q.rfq_id);
-      if (inq?.sent_at && (q as any).received_at) {
-        const d = (new Date((q as any).received_at).getTime() - new Date(inq.sent_at).getTime()) / 86400000;
+      if (inq?.sent_at && q.received_at) {
+        const d = (new Date(q.received_at).getTime() - new Date(inq.sent_at).getTime()) / 86400000;
         if (!isNaN(d) && d >= 0) durations.push(d);
       }
     });
     const avgResponseDays = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null;
 
     // Win rate: quotes selected as winner / total quotes
-    const won = vendorQuotes.filter(q => (q as any).is_selected).length;
+    const won = vendorQuotes.filter(q => q.is_selected).length;
     const winRate = vendorQuotes.length > 0 ? Math.round((won / vendorQuotes.length) * 100) : null;
 
     // Price competitiveness: on RFQs where this vendor competed against others,
@@ -206,11 +206,11 @@ export default function VendorDetailPage() {
                         <span className="text-xs font-mono font-semibold text-primary">{rfq?.rfq_number || '—'}</span>
                         {rfq && <span className="text-xs text-muted-foreground ml-1.5">{rfq.company_name}</span>}
                       </td>
-                      <td className="py-2.5 text-muted-foreground text-xs">{(q as any).received_at ? formatDate((q as any).received_at) : '—'}</td>
+                      <td className="py-2.5 text-muted-foreground text-xs">{q.received_at ? formatDate(q.received_at) : '—'}</td>
                       <td className="py-2.5 font-semibold text-foreground">{formatPKR(q.unit_price)}</td>
                       <td className="py-2.5 text-muted-foreground">{q.lead_time_days}d</td>
                       <td className="py-2.5">
-                        {(q as any).is_selected
+                        {q.is_selected
                           ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">✓ WON</span>
                           : <span className="text-[10px] text-muted-foreground">—</span>}
                       </td>

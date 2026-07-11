@@ -55,7 +55,7 @@ export default function SalesIntelligencePage() {
   const funnel = useMemo(() => {
     const received = rangeRfqs.length;
     const floated = rangeRfqs.filter(r => hasInquiry.has(r.id)).length;
-    const quoted = rangeRfqs.filter(r => (r as any).quote_sent_date || r.status === 'quoted' || r.status === 'converted').length;
+    const quoted = rangeRfqs.filter(r => r.quote_sent_date || r.status === 'quoted' || r.status === 'converted').length;
     const won = rangeRfqs.filter(r => r.status === 'converted').length;
     const lost = rangeRfqs.filter(r => r.status === 'lost').length;
     const conversionRate = received > 0 ? Math.round((won / received) * 100) : null;
@@ -73,7 +73,7 @@ export default function SalesIntelligencePage() {
         .sort((a, b) => a.sent_at.localeCompare(b.sent_at))[0];
       const tf = daysBetween(r.rfq_date, firstInquiry?.sent_at);
       if (tf !== null) toFloat.push(tf);
-      const tq = daysBetween(r.rfq_date, (r as any).quote_sent_date);
+      const tq = daysBetween(r.rfq_date, r.quote_sent_date);
       if (tq !== null) toQuote.push(tq);
     });
     return { avgToFloat: avg(toFloat), avgToQuote: avg(toQuote) };
@@ -83,7 +83,7 @@ export default function SalesIntelligencePage() {
   const lossBreakdown = useMemo(() => {
     const counts = new Map<string, number>();
     rangeRfqs.filter(r => r.status === 'lost').forEach(r => {
-      const reason = (r as any).loss_reason || 'other';
+      const reason = r.loss_reason || 'other';
       counts.set(reason, (counts.get(reason) ?? 0) + 1);
     });
     const total = Array.from(counts.values()).reduce((s, n) => s + n, 0);
@@ -97,10 +97,10 @@ export default function SalesIntelligencePage() {
       const uid = r.assigned_to || 'unassigned';
       const s = map.get(uid) ?? { received: 0, quoted: 0, won: 0, lost: 0, respDays: [] };
       s.received++;
-      if ((r as any).quote_sent_date || r.status === 'quoted' || r.status === 'converted') s.quoted++;
+      if (r.quote_sent_date || r.status === 'quoted' || r.status === 'converted') s.quoted++;
       if (r.status === 'converted') s.won++;
       if (r.status === 'lost') s.lost++;
-      const tq = daysBetween(r.rfq_date, (r as any).quote_sent_date);
+      const tq = daysBetween(r.rfq_date, r.quote_sent_date);
       if (tq !== null) s.respDays.push(tq);
       map.set(uid, s);
     });
@@ -124,7 +124,7 @@ export default function SalesIntelligencePage() {
 
   const handleExport = () => {
     const periodLabel = PRESETS.find(p => p.key === preset)?.label ?? preset;
-    const rows: any[][] = [];
+    const rows: (string | number)[][] = [];
     rows.push([`Period: ${periodLabel}`, `${range.from} to ${range.to}`]);
     rows.push([]);
     rows.push(['CONVERSION FUNNEL']);

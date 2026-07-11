@@ -152,3 +152,28 @@ export interface SupplierQuote {
   notes: string;
   is_selected: boolean;
 }
+
+export type FollowUpStatus = 'pending' | 'completed' | 'snoozed';
+
+export interface FollowUpAction {
+  id: string;
+  action_type: string;
+  entity_type: string;
+  entity_id: string | null;
+  title: string;
+  description: string | null;
+  due_date: string;
+  priority: RFQPriority;
+  assigned_to: string | null;
+  status: FollowUpStatus;
+  completed_at?: string | null;
+  created_at?: string;
+  recurrence_days?: number | null;
+}
+
+// Shape of a Supabase postgres_changes realtime event
+export interface RealtimePayload<T = Record<string, unknown>> {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  new: T;
+  old: Partial<T>;
+}

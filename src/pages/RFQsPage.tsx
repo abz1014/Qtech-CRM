@@ -7,7 +7,7 @@ import { Pagination } from '@/components/Pagination';
 import { formatPKR, formatDate } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { Plus, X, Search, ArrowRightCircle, Trash2, Download, ArrowUp, ArrowDown, SlidersHorizontal } from 'lucide-react';
-import { RFQStatus, RFQPriority } from '@/types/crm';
+import { RFQ, RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
 import { usePersistedNumber } from '@/hooks/useURLState';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -80,7 +80,7 @@ export default function RFQsPage() {
       .filter(r => !q ||
         r.company_name.toLowerCase().includes(q) ||
         (r.rfq_number?.toLowerCase().includes(q) ?? false) ||
-        ((r as any).loss_notes?.toLowerCase().includes(q) ?? false))
+        (r.loss_notes?.toLowerCase().includes(q) ?? false))
       .sort((a, b) => b.rfq_date.localeCompare(a.rfq_date));
   }, [rfqs, debouncedSearch]);
 
@@ -91,15 +91,15 @@ export default function RFQsPage() {
     const winRate = closed > 0 ? Math.round((converted.length / closed) * 100) : 0;
 
     const preventable = lost.filter(r =>
-      (r as any).loss_reason === 'poor_follow_up' || (r as any).loss_reason === 'delivery_too_slow'
+      r.loss_reason === 'poor_follow_up' || r.loss_reason === 'delivery_too_slow'
     ).length;
 
     // Avg response time: RFQ date → quote sent date (only for RFQs that have been quoted)
-    const quotedRfqs = rfqs.filter(r => (r as any).quote_sent_date && r.rfq_date);
+    const quotedRfqs = rfqs.filter(r => r.quote_sent_date && r.rfq_date);
     let avgResponseDays = 0;
     if (quotedRfqs.length > 0) {
       const totalDays = quotedRfqs.reduce((sum, r) => {
-        const diff = (new Date((r as any).quote_sent_date).getTime() - new Date(r.rfq_date).getTime()) / 86400000;
+        const diff = (new Date(r.quote_sent_date).getTime() - new Date(r.rfq_date).getTime()) / 86400000;
         return sum + Math.max(0, diff);
       }, 0);
       avgResponseDays = Math.round(totalDays / quotedRfqs.length);
@@ -110,7 +110,7 @@ export default function RFQsPage() {
     // Top reason
     const counts: Record<string, number> = {};
     lost.forEach(r => {
-      const reason = (r as any).loss_reason;
+      const reason = r.loss_reason;
       if (reason) counts[reason] = (counts[reason] || 0) + 1;
     });
     const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
@@ -146,7 +146,7 @@ export default function RFQsPage() {
     const rows = filtered.map(r => {
       const inquiryCount = supplierInquiries.filter(si => si.rfq_id === r.id).length;
       const quoteCount = supplierQuotes.filter(sq => sq.rfq_id === r.id).length;
-      const expiry = (r as any).quote_expiry_date || '';
+      const expiry = r.quote_expiry_date || '';
       const isExpired = expiry && expiry < today ? 'Yes' : expiry ? 'No' : '';
       return [
         r.company_name,
@@ -160,12 +160,12 @@ export default function RFQsPage() {
         getUserName(r.assigned_to),
         inquiryCount,
         quoteCount,
-        (r as any).quoted_price ?? '',
-        (r as any).quote_sent_date ?? '',
+        r.quoted_price ?? '',
+        r.quote_sent_date ?? '',
         expiry,
         isExpired,
-        (r as any).loss_reason?.replace(/_/g, ' ') ?? '',
-        (r as any).loss_notes ?? '',
+        r.loss_reason?.replace(/_/g, ' ') ?? '',
+        r.loss_notes ?? '',
         r.notes || '',
       ];
     });
@@ -196,7 +196,12 @@ export default function RFQsPage() {
         estimated_value: 0,
         // Empty date strings must be sent as null — Postgres rejects ''
         quote_deadline: form.quote_deadline || null,
-      } as any);
+        quoted_price: null,
+        quote_sent_date: null,
+        quote_expiry_date: null,
+        loss_reason: null,
+        loss_notes: null,
+      });
       setShowForm(false);
       setForm({ rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '', rfq_date: '', assigned_to: user?.id ?? '', priority: 'medium', status: 'new', notes: '', quote_deadline: '' });
     } catch (error) {
@@ -448,9 +453,9 @@ export default function RFQsPage() {
                 <td className="px-5 py-3">
                   <div className="flex flex-col gap-1">
                     <span className={`status-badge capitalize w-fit ${rfqStatusColors[rfq.status]}`}>{rfq.status.replace('_', ' ')}</span>
-                    {rfq.status === 'lost' && (rfq as any).loss_reason && (
+                    {rfq.status === 'lost' && rfq.loss_reason && (
                       <span className="text-[10px] font-medium text-destructive flex items-center gap-1 max-w-[180px]">
-                        {lossReasonIcon((rfq as any).loss_reason)} {lossReasonLabel((rfq as any).loss_reason)}
+                        {lossReasonIcon(rfq.loss_reason)} {lossReasonLabel(rfq.loss_reason)}
                       </span>
                     )}
                   </div>
@@ -683,7 +688,7 @@ export default function RFQsPage() {
 
 // ─── Lost Deals View ──────────────────────────────────────────────────────────
 function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navigate }: {
-  lostRFQs: any[];
+  lostRFQs: RFQ[];
   metrics: { count: number; winRate: number; avgResponseDays: number; avgResponseSample: number; pendingQuotes: number; preventable: number; topReason: { reason: string; n: number } | null };
   search: string;
   setSearch: (s: string) => void;

@@ -69,6 +69,7 @@ export default function RFQDetailPage() {
     priority: rfq?.priority || 'medium' as RFQPriority,
     status: rfq?.status || 'new' as RFQStatus,
     notes: rfq?.notes || '',
+    quote_deadline: rfq?.quote_deadline || '',
   });
 
   // Per-line-item quote selection (keyed by quote ID so same vendor with multiple quotes works)
@@ -243,8 +244,8 @@ export default function RFQDetailPage() {
         notes: editForm.notes,
         status: editForm.status,
         // Empty date strings must be sent as null — Postgres rejects ''
-        quote_deadline: (editForm as any).quote_deadline || null,
-      } as any);
+        quote_deadline: editForm.quote_deadline || null,
+      });
       setShowEditRFQ(false);
     } catch (error) {
       toast.error('Failed to update RFQ: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -317,7 +318,9 @@ export default function RFQDetailPage() {
         customer_po_number: convertForm.customer_po_number.trim(),
         customer_po_date: convertForm.customer_po_date,
         payment_terms_days: Number(convertForm.payment_terms_days) || 30,
-      } as any);
+        delivery_date: null,
+        payment_due_date: null,
+      });
       setShowConvertOrder(false);
       setItemVendors({});
     } catch (error) {
@@ -329,7 +332,7 @@ export default function RFQDetailPage() {
   };
 
   const handleMarkLost = async (reason: LossReason, notes: string) => {
-    await updateRFQ(id!, { status: 'lost', loss_reason: reason, loss_notes: notes } as any);
+    await updateRFQ(id!, { status: 'lost', loss_reason: reason, loss_notes: notes });
     setShowLossModal(false);
   };
 
@@ -343,15 +346,15 @@ export default function RFQDetailPage() {
   const scoreOf = (id: string) => quoteScores.find(s => s.id === id)?.score ?? 0;
   const bestScore = quoteScores.length ? Math.max(...quoteScores.map(s => s.score)) : 0;
   const bestScoreId = quoteScores.find(s => s.score === bestScore)?.id ?? null;
-  const selectedQuote = quotes.find(q => (q as any).is_selected) ?? null;
+  const selectedQuote = quotes.find(q => q.is_selected) ?? null;
 
   // Mark one quote as the chosen supplier; clears any previous selection.
   const handleSelectWinner = async (quoteId: string) => {
     try {
       for (const q of quotes) {
-        if ((q as any).is_selected && q.id !== quoteId) await updateSupplierQuote(q.id, { is_selected: false } as any);
+        if (q.is_selected && q.id !== quoteId) await updateSupplierQuote(q.id, { is_selected: false });
       }
-      await updateSupplierQuote(quoteId, { is_selected: true } as any);
+      await updateSupplierQuote(quoteId, { is_selected: true });
       toast.success('Supplier selected as the winning quote');
     } catch (err) {
       toast.error('Failed to select supplier: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -712,7 +715,7 @@ export default function RFQDetailPage() {
             </thead>
             <tbody>
               {quotes.map(sq => {
-                const isWinner = (sq as any).is_selected;
+                const isWinner = sq.is_selected;
                 const isBestValue = sq.id === bestScoreId && quotes.length > 1;
                 const rowClass = isWinner
                   ? 'border-l-4 border-l-primary bg-primary/10'
@@ -986,7 +989,7 @@ export default function RFQDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Quote Deadline</label>
-                  <input type="date" value={(editForm as any).quote_deadline || ''} onChange={e => setEditForm(p => ({ ...p, quote_deadline: e.target.value } as any))}
+                  <input type="date" value={editForm.quote_deadline || ''} onChange={e => setEditForm(p => ({ ...p, quote_deadline: e.target.value }))}
                     className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
                 </div>
               </div>

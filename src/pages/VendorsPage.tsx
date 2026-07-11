@@ -260,7 +260,7 @@ export default function VendorsPage() {
               ] as const).map(([key, label]) => (
                 <div key={key}>
                   <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
-                  <input value={(editVendor as any)[key]} onChange={e => setEditVendor(prev => prev ? { ...prev, [key]: e.target.value } : null)}
+                  <input value={editVendor[key as keyof typeof editVendor] as string} onChange={e => setEditVendor(prev => prev ? { ...prev, [key]: e.target.value } : null)}
                     className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
                 </div>
               ))}

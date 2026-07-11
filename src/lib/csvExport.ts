@@ -1,5 +1,5 @@
-export function generateCSV(headers: string[], rows: any[][]): string {
-  const sanitize = (value: any): string => {
+export function generateCSV(headers: string[], rows: unknown[][]): string {
+  const sanitize = (value: unknown): string => {
     if (value === null || value === undefined) return '""';
     let str = String(value);
     // Formula-injection guard: cells starting with = + - @ or tab/CR execute

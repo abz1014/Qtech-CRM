@@ -242,7 +242,7 @@ export default function ClientDetailPage() {
                     <td className="py-2.5 text-muted-foreground text-xs">{formatDate(r.rfq_date)}</td>
                     <td className="py-2.5"><span className={`status-badge capitalize text-[10px] ${rfqStatusColor[r.status]}`}>{r.status.replace('_', ' ')}</span></td>
                     <td className="py-2.5 text-xs text-muted-foreground">
-                      {r.status === 'lost' && (r as any).loss_reason ? `Lost: ${lossReasonLabel((r as any).loss_reason)}` : ''}
+                      {r.status === 'lost' && r.loss_reason ? `Lost: ${lossReasonLabel(r.loss_reason)}` : ''}
                     </td>
                   </tr>
                 ))}
