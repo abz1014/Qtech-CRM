@@ -350,9 +350,15 @@ Enforcement is **client-side (UI/routes) + server-side (Supabase RLS)**. Roles s
 
 ## 21. Responsive Design Standards
 
-- **Primary target: desktop** (the tool is used at a workstation). Layout must remain usable at common laptop widths.
-- **Graceful narrow-screen behavior:** sidebar collapses; tables scroll horizontally within their own container (page never scrolls sideways); modals fit small viewports.
-- **No dedicated mobile app** (out of scope) — but the web app must not break on a tablet/phone browser.
+**Updated 2026-07-10: mobile is now a FIRST-CLASS target.** The team uses the CRM on phones in the field, not only at a workstation. Every screen must be genuinely usable on a phone — not merely "not broken."
+
+- **Dual target: desktop AND mobile.** Both must be comfortable; neither is an afterthought.
+- **Mobile list pages:** filters must not consume the first screen — collapse them behind a toggle so data is visible immediately. Wide data tables should present as stacked cards on phones (one record = one card) rather than forcing horizontal scroll, OR scroll cleanly within their container with the key identifier visible first.
+- **Touch targets:** buttons and rows large enough to tap; primary action reachable without hunting.
+- **Sidebar** collapses to a hamburger drawer (already implemented).
+- **Modals** fit small viewports; the page body never scrolls horizontally.
+- **No dedicated native mobile app** (out of scope) — this is the responsive web app doing the job well on a phone browser.
+- **Definition of done for any screen:** open it on a phone and complete its core task without pinch-zooming or side-scrolling to find things.
 
 ---
 

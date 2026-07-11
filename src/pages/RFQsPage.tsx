@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR, formatDate } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
-import { Plus, X, Search, ArrowRightCircle, Trash2, Download, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, X, Search, ArrowRightCircle, Trash2, Download, ArrowUp, ArrowDown, SlidersHorizontal } from 'lucide-react';
 import { RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
 import { usePersistedNumber } from '@/hooks/useURLState';
@@ -42,6 +42,7 @@ export default function RFQsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [tab, setTab] = useState<'all' | 'lost'>('all');
+  const [showFilters, setShowFilters] = useState(false); // mobile: collapse filters
 
   const [form, setForm] = useState({
     rfq_number: '', client_id: '', company_name: '', contact_person: '', phone: '', email: '',
@@ -262,16 +263,23 @@ export default function RFQsPage() {
       ) : (
       <>
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-4 items-end">
+        <div className="flex gap-2 items-center">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} placeholder="Search by RFQ#, company, product..."
               className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
+          {/* Mobile-only filter toggle */}
+          <button type="button" onClick={() => setShowFilters(s => !s)}
+            className={`sm:hidden flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${showFilters || statusFilter !== 'all' || fromDate || toDate ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-muted border-border text-muted-foreground'}`}>
+            <SlidersHorizontal className="w-4 h-4" /> Filters
+          </button>
+        </div>
+        <div className={`${showFilters ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row gap-4 sm:items-end`}>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Status</label>
             <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-              className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+              className="w-full sm:w-auto px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
               <option value="all">All Statuses</option>
               <option value="new">New</option>
               <option value="in_progress">In Progress</option>
@@ -283,15 +291,15 @@ export default function RFQsPage() {
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">From Date</label>
             <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setCurrentPage(1); }}
-              className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              className="w-full sm:w-auto px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">To Date</label>
             <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setCurrentPage(1); }}
-              className="px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              className="w-full sm:w-auto px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className={`${showFilters ? 'flex' : 'hidden'} sm:flex flex-wrap gap-2`}>
           {([
             ['This Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day + 1); setFromDate(toBusinessDate(mon)); setToDate(businessToday()); }],
             ['Last Week', () => { const d = new Date(); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day - 6); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); setFromDate(toBusinessDate(mon)); setToDate(toBusinessDate(sun)); }],
