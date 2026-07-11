@@ -23,14 +23,17 @@ const CACHE_KEY = 'qtcrm_profile';
 // for up to half a day. Role is also revalidated on window focus below.
 const CACHE_TTL = 60 * 60 * 1000;
 
+// Profile cache lives in sessionStorage so it clears when the browser closes,
+// matching the auth session (which is also session-scoped). A new browser
+// session starts clean and requires login.
 function readCache(userId: string): User | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const { profile, ts } = JSON.parse(raw) as { profile: User; ts: number };
     // Reject if stale or belongs to a different user
     if (!profile || profile.id !== userId || Date.now() - ts > CACHE_TTL) {
-      localStorage.removeItem(CACHE_KEY);
+      sessionStorage.removeItem(CACHE_KEY);
       return null;
     }
     return profile;
@@ -42,12 +45,12 @@ function readCache(userId: string): User | null {
 function writeCache(profile: User | null) {
   try {
     if (profile) {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ profile, ts: Date.now() }));
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ profile, ts: Date.now() }));
     } else {
-      localStorage.removeItem(CACHE_KEY);
+      sessionStorage.removeItem(CACHE_KEY);
     }
   } catch {
-    // localStorage may be unavailable (private browsing) — silent fail
+    // storage may be unavailable (private browsing) — silent fail
   }
 }
 
