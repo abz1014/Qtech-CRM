@@ -126,7 +126,29 @@ export default function ClientsPage() {
           className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
       </div>
 
-      <div className="glass-card overflow-x-auto">
+      {/* ── Mobile card list (phones) ── */}
+      <div className="sm:hidden space-y-2.5">
+        {paginatedClients.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">No clients found.</p>
+        )}
+        {paginatedClients.map(c => {
+          const clientRFQs = getClientRFQs(c.id);
+          return (
+            <div key={c.id} onClick={() => navigate(`/clients/${c.id}`)}
+              className="glass-card p-4 cursor-pointer active:bg-muted/40 transition-colors">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground truncate">{c.company_name}</p>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0">{clientRFQs.length} RFQs</span>
+              </div>
+              <p className="text-xs text-muted-foreground truncate mt-0.5">{c.industry || '—'}</p>
+              <p className="text-xs text-muted-foreground truncate mt-1.5">{c.contact_person} · {c.phone}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Desktop table ── */}
+      <div className="hidden sm:block glass-card overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">

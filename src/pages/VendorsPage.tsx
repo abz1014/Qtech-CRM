@@ -128,7 +128,26 @@ export default function VendorsPage() {
           className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
       </div>
 
-      <div className="glass-card overflow-x-auto">
+      {/* ── Mobile card list (phones) ── */}
+      <div className="sm:hidden space-y-2.5">
+        {paginatedVendors.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">No vendors found.</p>
+        )}
+        {paginatedVendors.map(v => (
+          <div key={v.id} onClick={() => navigate(`/vendors/${v.id}`)}
+            className="glass-card p-4 cursor-pointer active:bg-muted/40 transition-colors">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground truncate">{v.name}</p>
+              <span className="text-xs text-muted-foreground flex-shrink-0">{v.country}</span>
+            </div>
+            <p className="text-xs text-muted-foreground truncate mt-1">{v.contact_person}{v.phone ? ` · ${v.phone}` : ''}</p>
+            {v.products_supplied && <p className="text-xs text-muted-foreground truncate mt-1.5">{v.products_supplied}</p>}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Desktop table ── */}
+      <div className="hidden sm:block glass-card overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">

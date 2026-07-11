@@ -115,7 +115,34 @@ export default function ProspectsPage() {
           className="w-full pl-10 pr-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
       </div>
 
-      <div className="glass-card overflow-x-auto">
+      {/* ── Mobile card list (phones) ── */}
+      <div className="sm:hidden space-y-2.5">
+        {paginatedProspects.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">No prospects found.</p>
+        )}
+        {paginatedProspects.map(p => (
+          <div key={p.id} onClick={() => navigate(`/prospects/${p.id}`)}
+            className="glass-card p-4 cursor-pointer active:bg-muted/40 transition-colors">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground truncate">{p.company_name}</p>
+              <span className={`status-badge capitalize flex-shrink-0 ${statusColors[p.status]}`}>{p.status}</span>
+            </div>
+            <p className="text-xs text-muted-foreground truncate mt-1">{p.contact_person} · {p.lead_source || '—'}</p>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-muted-foreground">Follow up: {formatDate(p.follow_up_date)}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); convertProspect(p.id, user?.id ?? ''); }}
+                className="flex items-center gap-1 text-xs font-semibold text-primary"
+              >
+                <ArrowRightCircle className="w-3.5 h-3.5" /> Convert
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Desktop table ── */}
+      <div className="hidden sm:block glass-card overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">

@@ -482,6 +482,7 @@ export default function RFQDetailPage() {
         </div>
 
         {lineItems.length > 0 ? (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -527,6 +528,7 @@ export default function RFQDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">No line items yet. Add what the customer needs.</p>
         )}
@@ -565,6 +567,7 @@ export default function RFQDetailPage() {
         </div>
 
         {inquiries.length > 0 ? (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -621,6 +624,7 @@ export default function RFQDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">No supplier inquiries yet.</p>
         )}
@@ -692,6 +696,7 @@ export default function RFQDetailPage() {
         </div>
 
         {quotes.length > 0 ? (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -784,6 +789,7 @@ export default function RFQDetailPage() {
               })}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="text-sm text-muted-foreground">
             {inquiries.length === 0 ? 'Log an inquiry first, then add quotes as responses come in.' : 'No quotes received yet.'}
@@ -1055,6 +1061,7 @@ export default function RFQDetailPage() {
                 <div>
                   <p className="text-sm font-semibold text-foreground mb-3">Assign Supplier per Product</p>
                   <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-muted/50 border-b border-border">
@@ -1125,6 +1132,7 @@ export default function RFQDetailPage() {
                         </tr>
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </div>
               )}
