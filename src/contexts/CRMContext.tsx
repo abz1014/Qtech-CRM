@@ -239,7 +239,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setClients((clientsData ?? []) as Client[]);
       setProspects((prospectsData ?? []) as Prospect[]);
       setVendors((vendorsData ?? []) as Vendor[]);
-      setOrders((ordersData ?? []) as Order[]);
+      // Safety net: the historical import used a legacy status 'completed'
+      // (settled orders) that isn't in the app lifecycle. Normalize it to
+      // 'payment_received' on load so it isn't counted as payment-pending.
+      // No-op once the 20260711_fix_legacy_order_statuses migration has run.
+      setOrders(((ordersData ?? []) as Order[]).map(o =>
+        (o.status as string) === 'completed' ? { ...o, status: 'payment_received' as OrderStatus } : o
+      ));
       setOrderEngineers((oeData ?? []) as OrderEngineer[]);
       setRFQs((rfqsData ?? []) as RFQ[]);
       setSupplierInquiries((inquiriesData ?? []) as SupplierInquiry[]);
