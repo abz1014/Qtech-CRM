@@ -4,7 +4,7 @@ import { formatPKR } from '@/lib/format';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, CheckCircle, Calculator } from 'lucide-react';
 import { calcLine, calcRfq, type CostLineInput, type RfqTotals } from '@/lib/costing/qtech-costing';
-import { costLineToInput } from '@/lib/costing/mapping';
+import { distribution, DIST_META } from '@/lib/costing/distribution';
 import type { CostLine } from '@/types/crm';
 
 // Editable draft — string-backed for smooth typing; converted to numbers on calc.
@@ -61,37 +61,6 @@ const draftToRow = (d: Draft): Omit<CostLine, 'id' | 'created_at' | 'rfq_id' | '
   gst_pct: parseFloat(d.gst_pct) || 0,
   sort_order: 0,
 });
-
-// PKR distribution of the customer's incl-GST price (sums to totalInclGst).
-function distribution(inputs: CostLineInput[]) {
-  const buckets = { goods: 0, packing: 0, freight: 0, duty: 0, wht: 0, margin: 0, gst: 0 };
-  for (const inp of inputs) {
-    const r = calcLine(inp);
-    const exch = r.exchangeRate;
-    const goods = r.totalPrice * exch;
-    const packing = r.totalPacking * exch;
-    const freight = r.totalFreight * exch;
-    const cfPkr = r.totalCf * exch;
-    buckets.goods += goods;
-    buckets.packing += packing;
-    buckets.freight += freight;
-    buckets.duty += r.netTotalBuy - cfPkr;
-    buckets.wht += r.totalWht - r.netTotalBuy;
-    buckets.margin += r.totalProfit;
-    buckets.gst += r.totalInclGst - r.totalQuoted;
-  }
-  return buckets;
-}
-
-const DIST_META: { key: keyof ReturnType<typeof distribution>; label: string; color: string }[] = [
-  { key: 'goods',   label: 'Supplier goods', color: 'bg-primary' },
-  { key: 'packing', label: 'Packing',        color: 'bg-info' },
-  { key: 'freight', label: 'Freight',        color: 'bg-cyan-500' },
-  { key: 'duty',    label: 'Customs duty',   color: 'bg-amber-500' },
-  { key: 'wht',     label: 'WHT',            color: 'bg-orange-500' },
-  { key: 'margin',  label: 'Our margin',     color: 'bg-success' },
-  { key: 'gst',     label: 'GST (pass-through)', color: 'bg-muted-foreground' },
-];
 
 interface CostingEditorProps {
   parent: { rfq_id: string } | { order_id: string };
