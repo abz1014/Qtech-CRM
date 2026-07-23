@@ -14,6 +14,7 @@ import {
   CreateExpenseInput, UpdateExpenseInput, CreatePaymentInput, CreatePayableInput,
   UpdatePayableInput, CreatePayablePaymentInput, DashboardMetrics,
   MonthlySummary, ProjectProfitability, CashflowMonth, ARAgingBucket,
+  RecurringExpense, CreateRecurringExpenseInput, UpdateRecurringExpenseInput,
 } from '@/types/bookkeeping';
 
 // Realtime INSERT events echo back our own optimistic inserts (Supabase
@@ -92,6 +93,13 @@ interface CRMContextType {
   addExpense: (expense: CreateExpenseInput, createdBy: string) => Promise<Expense>;
   updateExpense: (expenseId: string, updates: UpdateExpenseInput) => Promise<void>;
   deleteExpense: (expenseId: string) => Promise<void>;
+  // Recurring monthly expenses (admin-only)
+  recurringExpenses: RecurringExpense[];
+  addRecurringExpense: (input: CreateRecurringExpenseInput, createdBy: string) => Promise<RecurringExpense>;
+  updateRecurringExpense: (id: string, updates: UpdateRecurringExpenseInput) => Promise<void>;
+  deleteRecurringExpense: (id: string) => Promise<void>;
+  /** Post the given templates into `expenses` for a YYYY-MM period. Idempotent. Returns count posted. */
+  postRecurringExpenses: (period: string, items: { id: string; amount: number }[], createdBy: string) => Promise<number>;
   recordPayment: (payment: CreatePaymentInput, recordedBy: string) => Promise<PaymentRecord>;
   addPayable: (payable: CreatePayableInput, createdBy: string) => Promise<Payable>;
   updatePayable: (payableId: string, updates: UpdatePayableInput) => Promise<void>;
@@ -190,6 +198,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // Bookkeeping state
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
   const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
   const [payables, setPayables] = useState<Payable[]>([]);
   const [orderPayments, setOrderPayments] = useState<OrderPayment[]>([]);
@@ -223,6 +232,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { data: supplierPaymentsData },
         { data: costLinesData },
         { data: costingConfigData },
+        { data: recurringExpensesData },
       ] = await Promise.all([
         supabase.from('users').select('*').order('name'),
         supabase.from('clients').select('*').order('company_name'),
@@ -245,6 +255,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         isAdmin ? supabase.from('supplier_payments').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
         (isAdmin || isSales) ? supabase.from('cost_lines').select('*').order('sort_order', { ascending: true }).then(res => res).catch(() => ({ data: null })) : emptyResult,
         (isAdmin || isSales) ? supabase.from('costing_config').select('*').eq('id', 1).maybeSingle().then(res => res).catch(() => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('recurring_expenses').select('*').order('label').then(res => res).catch(() => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as User[]);
       setClients((clientsData ?? []) as Client[]);
@@ -271,6 +282,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setSupplierPayments((supplierPaymentsData ?? []) as SupplierPayment[]);
       setCostLines((costLinesData ?? []) as CostLine[]);
       setCostingConfig((costingConfigData ?? null) as CostingConfig | null);
+      setRecurringExpenses((recurringExpensesData ?? []) as RecurringExpense[]);
       setLoading(false);
 
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
@@ -455,6 +467,21 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
             setExpenses(prev => prev.map(exp => exp.expense_id === payload.new.expense_id ? payload.new as Expense : exp));
           } else if (payload.eventType === 'DELETE') {
             setExpenses(prev => prev.filter(exp => exp.expense_id !== payload.old.expense_id));
+          }
+        }
+      );
+
+      // Subscribe to recurring expense templates
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'recurring_expenses' },
+        (payload: RealtimePayload) => {
+          if (payload.eventType === 'INSERT') {
+            setRecurringExpenses(prev => addUnique(prev, payload.new as RecurringExpense, 'id'));
+          } else if (payload.eventType === 'UPDATE') {
+            setRecurringExpenses(prev => prev.map(r => r.id === payload.new.id ? payload.new as RecurringExpense : r));
+          } else if (payload.eventType === 'DELETE') {
+            setRecurringExpenses(prev => prev.filter(r => r.id !== payload.old.id));
           }
         }
       );
@@ -1185,6 +1212,87 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (error) throw new Error(`Failed to delete expense: ${error.message}`);
     setExpenses(prev => prev.filter(exp => exp.expense_id !== expenseId));
   }, []);
+
+  // ── Recurring monthly expense templates ─────────────────────────────────────
+  const addRecurringExpense = useCallback(async (input: CreateRecurringExpenseInput, createdBy: string): Promise<RecurringExpense> => {
+    const { data, error } = await supabase
+      .from('recurring_expenses')
+      .insert({
+        label: input.label,
+        category: input.category,
+        amount: input.amount,
+        day_of_month: input.day_of_month ?? 1,
+        active: input.active ?? true,
+        start_month: input.start_month ?? '',
+        notes: input.notes ?? null,
+        created_by: createdBy,
+      })
+      .select()
+      .single();
+    if (error || !data) throw new Error(`Failed to create recurring expense: ${error?.message ?? 'unknown error'}`);
+    const rec = data as RecurringExpense;
+    setRecurringExpenses(prev => addUnique(prev, rec, 'id'));
+    return rec;
+  }, []);
+
+  const updateRecurringExpense = useCallback(async (id: string, updates: UpdateRecurringExpenseInput) => {
+    const { data, error } = await supabase
+      .from('recurring_expenses')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error || !data) throw new Error(`Failed to update recurring expense: ${error?.message ?? 'unknown error'}`);
+    setRecurringExpenses(prev => prev.map(r => r.id === id ? data as RecurringExpense : r));
+  }, []);
+
+  const deleteRecurringExpense = useCallback(async (id: string) => {
+    const { error } = await supabase.from('recurring_expenses').delete().eq('id', id);
+    if (error) throw new Error(`Failed to delete recurring expense: ${error.message}`);
+    setRecurringExpenses(prev => prev.filter(r => r.id !== id));
+  }, []);
+
+  // Post the given templates into `expenses` for a YYYY-MM period. Idempotent:
+  // the (recurring_id, period) unique index guarantees at most one per month, so
+  // re-posting (or a concurrent post) silently skips the ones already there.
+  const postRecurringExpenses = useCallback(async (
+    period: string,
+    items: { id: string; amount: number }[],
+    createdBy: string,
+  ): Promise<number> => {
+    if (!/^\d{4}-\d{2}$/.test(period)) throw new Error('Invalid period (expected YYYY-MM)');
+    if (items.length === 0) return 0;
+
+    const templates = new Map(recurringExpenses.map(r => [r.id, r]));
+    const rows = items.map(({ id, amount }) => {
+      const t = templates.get(id);
+      if (!t) throw new Error('Unknown recurring template');
+      const day = String(Math.min(28, Math.max(1, t.day_of_month || 1))).padStart(2, '0');
+      return {
+        date: `${period}-${day}`,
+        amount,
+        category: t.category,
+        description: t.label,
+        order_id: null,
+        recurring_id: t.id,
+        period,
+        created_by: createdBy,
+        updated_by: null,
+        updated_at: null,
+      };
+    });
+
+    // ignoreDuplicates so a re-post is a no-op rather than an error.
+    const { data, error } = await supabase
+      .from('expenses')
+      .upsert(rows, { onConflict: 'recurring_id,period', ignoreDuplicates: true })
+      .select();
+    if (error) throw new Error(`Failed to post recurring expenses: ${error.message}`);
+
+    const inserted = (data ?? []) as Expense[];
+    if (inserted.length) setExpenses(prev => [...inserted, ...prev]);
+    return inserted.length;
+  }, [recurringExpenses]);
 
   const recordPayment = useCallback(async (payment: CreatePaymentInput, recordedBy: string): Promise<PaymentRecord> => {
     const { data: paymentData, error: paymentError } = await supabase
@@ -2140,6 +2248,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     costLines, saveCostLines, costingConfig, updateCostingConfig,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
+    recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
     recordPayment,
     addPayable, updatePayable, deletePayable, recordPayablePayment,
     getDashboardMetrics, getMonthlySummary, getProjectProfitability,
@@ -2167,6 +2276,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     costLines, saveCostLines, costingConfig, updateCostingConfig,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
+    recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
     recordPayment,
     addPayable, updatePayable, deletePayable, recordPayablePayment,
     getDashboardMetrics, getMonthlySummary, getProjectProfitability,

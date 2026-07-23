@@ -81,6 +81,8 @@ export interface Expense {
   updated_by: string | null;
   updated_at: string | null;
   notes: string | null;
+  recurring_id?: string | null; // template this instance came from (if any)
+  period?: string | null;       // YYYY-MM this recurring instance covers
 }
 
 export interface CreateExpenseInput {
@@ -92,9 +94,39 @@ export interface CreateExpenseInput {
   rfq_id?: string | null;
   order_id?: string | null;
   notes?: string;
+  recurring_id?: string | null;
+  period?: string | null;
 }
 
 export type UpdateExpenseInput = Partial<CreateExpenseInput>;
+
+// ── Recurring expense templates (salaries, utilities, …) ────────────────────
+
+/** A monthly expense template; posted into `expenses` once per month. */
+export interface RecurringExpense {
+  id: string;
+  label: string;
+  category: ExpenseCategory;
+  amount: number;
+  day_of_month: number;   // 1–28: the day the posted expense is dated
+  active: boolean;
+  start_month: string;    // YYYY-MM; '' = due from the beginning
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface CreateRecurringExpenseInput {
+  label: string;
+  category: ExpenseCategory;
+  amount: number;
+  day_of_month?: number;
+  active?: boolean;
+  start_month?: string;
+  notes?: string | null;
+}
+
+export type UpdateRecurringExpenseInput = Partial<CreateRecurringExpenseInput>;
 
 // ============================================
 // PAYMENT RECORD INTERFACE
