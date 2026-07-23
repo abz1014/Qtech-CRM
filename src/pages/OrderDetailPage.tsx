@@ -2,10 +2,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR, formatDate } from '@/lib/format';
-import { ArrowLeft, MapPin, Calendar, User, TrendingUp, FileText, Edit2, X } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, User, TrendingUp, FileText, Edit2, X, Calculator, ChevronDown, ChevronUp } from 'lucide-react';
 import { OrderStatus, CommissioningStatus, ProductType } from '@/types/crm';
 import { useState } from 'react';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
+import { CostingEditor } from '@/components/costing/CostingEditor';
 
 const statusFlow: OrderStatus[] = ['po_received', 'procurement', 'in_transit', 'delivered', 'payment_received'];
 
@@ -42,6 +43,7 @@ export default function OrderDetailPage() {
 
   const [showAssign, setShowAssign] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showCosting, setShowCosting] = useState(false);
 
   const [assignForm, setAssignForm] = useState({
     engineer_id: '', site_location: '', start_date: '', expected_completion: '',
@@ -224,6 +226,33 @@ export default function OrderDetailPage() {
           })}
         </div>
       </div>
+
+      {/* Cost Breakdown (admin + sales) */}
+      {(isAdmin || isSales) && (
+        <div className="glass-card p-5">
+          <button onClick={() => setShowCosting(s => !s)} className="w-full flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+              <Calculator className="w-4 h-4 text-primary" /> Cost Breakdown — Cost to Complete this PO
+            </h3>
+            {showCosting ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          </button>
+          {showCosting && (
+            <div className="mt-4">
+              <CostingEditor
+                parent={{ order_id: order.id }}
+                applyLabel="Apply to order value"
+                onApply={async (t) => {
+                  await updateOrder(order.id, {
+                    order_value: t.totalInclGst,
+                    order_gst_amount: t.gst,
+                    cost_value: t.totalCost,
+                  });
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Engineering Assignments */}
       <div className="glass-card p-5">

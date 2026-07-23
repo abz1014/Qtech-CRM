@@ -5,10 +5,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR, formatDate } from '@/lib/format';
-import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart } from 'lucide-react';
-import { SupplierInquiryStatus, RFQStatus, RFQPriority, LossReason } from '@/types/crm';
+import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart, Calculator, ChevronDown, ChevronUp } from 'lucide-react';
+import { SupplierInquiryStatus, RFQStatus, RFQPriority, LossReason, RFQ } from '@/types/crm';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { LossReasonModal } from '@/components/rfq/LossReasonModal';
+import { CostingEditor } from '@/components/costing/CostingEditor';
 import { cn } from '@/lib/utils';
 
 const inquiryStatusColors: Record<SupplierInquiryStatus, string> = {
@@ -41,6 +42,7 @@ export default function RFQDetailPage() {
   const [showInquiryForm, setShowInquiryForm] = useState(false);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [showEditRFQ, setShowEditRFQ] = useState(false);
+  const [showCosting, setShowCosting] = useState(false);
   const [showConvertOrder, setShowConvertOrder] = useState(false);
   const [showLossModal, setShowLossModal] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
@@ -832,6 +834,29 @@ export default function RFQDetailPage() {
           </form>
         )}
       </div>
+
+      {/* Costing (admin + sales) */}
+      {(isAdmin || isSales) && (
+        <div className="glass-card p-5">
+          <button onClick={() => setShowCosting(s => !s)} className="w-full flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+              <Calculator className="w-4 h-4 text-primary" /> Costing — price this RFQ
+            </h2>
+            {showCosting ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          </button>
+          {showCosting && (
+            <div className="mt-4">
+              <CostingEditor
+                parent={{ rfq_id: id! }}
+                applyLabel="Apply as quoted price"
+                onApply={async (t) => {
+                  await updateRFQ(id!, { quoted_price: t.totalInclGst, quote_sent_date: businessToday() } as Partial<RFQ>);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Edit Inquiry Modal */}
       {editingInquiry && (
