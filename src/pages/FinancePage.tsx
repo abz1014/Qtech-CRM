@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   TrendingUp, TrendingDown, AlertCircle, CheckCircle, Download,
-  Wallet, Receipt, X, Plus, ArrowDownCircle, ArrowUpCircle,
+  Wallet, Receipt, X, Plus, ArrowDownCircle,
   Repeat, Pencil, Trash2, PieChart, CalendarClock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -223,19 +223,6 @@ export default function FinancePage() {
     r.o.payment_due_date && String(r.o.payment_due_date).slice(0, 10) < todayStr);
   const overdueTotal = overdueList.reduce((s, r) => s + r.balance, 0);
 
-  // ── Payables: supplier cost not yet fully paid out ──────────────────────────
-  const payablesList = useMemo(() =>
-    orders
-      .filter(o => (o.cost_value || 0) > 0 && o.status !== 'payment_received')
-      .map(o => {
-        const paid = paidOutByOrder.get(o.id) ?? 0;
-        return { o, paid, balance: (o.cost_value || 0) - paid };
-      })
-      .filter(r => Math.round(r.balance * 100) > 0)
-      .sort((a, b) => b.balance - a.balance),
-  [orders, paidOutByOrder]);
-  const payableTotal = payablesList.reduce((s, r) => s + r.balance, 0);
-
   // ── Cash flow + P&L by month (within range) ─────────────────────────────────
   const months = useMemo(() => monthKeys(range.from, range.to), [range]);
   const cashflow = useMemo(() => {
@@ -404,7 +391,6 @@ export default function FinancePage() {
     rows.push(['Margin %', margin]);
     rows.push(['Receivables (delivered, unpaid)', receivableTotal]);
     rows.push(['Overdue Receivables', overdueTotal]);
-    rows.push(['Payables (owed to suppliers)', payableTotal]);
     rows.push([]);
     rows.push(['SPEND BY CATEGORY', 'Amount', '% of expenses']);
     spendByCategory.rows.forEach(r => rows.push([r.category, r.amount, `${r.pct.toFixed(1)}%`]));
@@ -542,46 +528,6 @@ export default function FinancePage() {
                 </div>
                 <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mt-1">
                   <div className="h-full rounded-full bg-success/70 transition-all" style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── Payables ── */}
-      <div>
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <p className="section-title flex items-center gap-1.5">
-            <ArrowUpCircle className="w-4 h-4 text-warning" /> Payables — We Owe Suppliers
-          </p>
-          <span className="px-2 py-1 rounded-lg bg-warning/10 text-warning font-semibold text-xs">{formatPKR(payableTotal)} outstanding</span>
-        </div>
-        <div className="glass-card p-4 space-y-2">
-          {payablesList.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2 flex items-center gap-2"><CheckCircle className="w-4 h-4 text-success" /> All suppliers fully paid.</p>
-          ) : payablesList.map(({ o, paid, balance }) => {
-            const total = o.cost_value || 0;
-            const pct = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0;
-            return (
-              <div key={o.id} className="p-3 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2 min-w-0 cursor-pointer" onClick={() => navigate(`/orders/${o.id}`)}>
-                    <span className="text-sm font-semibold text-foreground truncate">{getVendorName(o.vendor_id)}</span>
-                    <span className="text-xs text-muted-foreground truncate">for {getClientName(o.client_id)}</span>
-                    {paid > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-info/15 text-info">ADVANCE PAID</span>}
-                  </div>
-                  <button onClick={() => openPayModal('out', o)}
-                    className="px-2.5 py-1 text-xs font-semibold bg-warning text-warning-foreground rounded-md hover:bg-warning/90 transition-colors">
-                    Record Payment
-                  </button>
-                </div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
-                  <span>Paid {formatPKR(paid)} of {formatPKR(total)}</span>
-                  <span className="font-bold text-foreground">{formatPKR(balance)} to pay</span>
-                </div>
-                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mt-1">
-                  <div className="h-full rounded-full bg-warning/70 transition-all" style={{ width: `${pct}%` }} />
                 </div>
               </div>
             );
