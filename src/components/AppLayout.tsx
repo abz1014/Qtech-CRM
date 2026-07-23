@@ -17,6 +17,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/vendors':          'Vendors',
   '/finance':          'Finance',
   '/costing':          'Costing Calculator',
+  '/gst-register':     'GST Register',
   '/team':             'Team',
   '/my-jobs':          'My Jobs',
 };

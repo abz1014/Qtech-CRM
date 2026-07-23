@@ -128,6 +128,56 @@ export interface CreateRecurringExpenseInput {
 
 export type UpdateRecurringExpenseInput = Partial<CreateRecurringExpenseInput>;
 
+// ── GST Invoice Register ────────────────────────────────────────────────────
+
+/** FBR sales-tax filing stage (set manually by the accountant). */
+export type FbrStatus = 'Pending' | 'Generated' | 'Fully Generated' | 'Receipt Received' | 'Deposited';
+
+export const FBR_STATUSES: FbrStatus[] = ['Pending', 'Generated', 'Fully Generated', 'Receipt Received', 'Deposited'];
+
+/** One GST sales-tax invoice + its TCS/FBR lifecycle. Optionally linked to an order. */
+export interface GstInvoice {
+  id: string;
+  order_id: string | null;
+
+  // identity
+  gst_invoice_number: string;
+  invoice_date: string;        // YYYY-MM-DD
+  client_name: string;
+  supplier_company: string;
+  customer_po_number: string;
+  item_name: string;
+  item_number: string;
+  product_detail: string;
+  delivery_challan_number: string;
+  amount: number;
+  gst_amount: number;
+
+  // TCS courier tracking
+  received_date: string;
+  tcs_sent_date: string;
+  tcs_receipt_number: string;
+  tcs_receipt_date: string;
+  client_received_date: string;
+
+  // FBR filing
+  fbr_status: FbrStatus;
+  wasif_receipt_received: boolean;
+  wasif_receipt_date: string;
+  psid: string;
+  tax_deposit_date: string;
+  tax_deposit_amount: number;
+  tax_deposit_bank: string;
+
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export type CreateGstInvoiceInput = Omit<GstInvoice, 'id' | 'created_by' | 'created_at' | 'updated_at'>;
+export type UpdateGstInvoiceInput = Partial<CreateGstInvoiceInput>;
+
 // ============================================
 // PAYMENT RECORD INTERFACE
 // ============================================

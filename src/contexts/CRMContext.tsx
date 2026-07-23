@@ -15,6 +15,7 @@ import {
   UpdatePayableInput, CreatePayablePaymentInput, DashboardMetrics,
   MonthlySummary, ProjectProfitability, CashflowMonth, ARAgingBucket,
   RecurringExpense, CreateRecurringExpenseInput, UpdateRecurringExpenseInput,
+  GstInvoice, CreateGstInvoiceInput, UpdateGstInvoiceInput,
 } from '@/types/bookkeeping';
 
 // Realtime INSERT events echo back our own optimistic inserts (Supabase
@@ -100,6 +101,11 @@ interface CRMContextType {
   deleteRecurringExpense: (id: string) => Promise<void>;
   /** Post the given templates into `expenses` for a YYYY-MM period. Idempotent. Returns count posted. */
   postRecurringExpenses: (period: string, items: { id: string; amount: number }[], createdBy: string) => Promise<number>;
+  // GST invoice register (admin + sales)
+  gstInvoices: GstInvoice[];
+  addGstInvoice: (input: CreateGstInvoiceInput, createdBy: string) => Promise<GstInvoice>;
+  updateGstInvoice: (id: string, updates: UpdateGstInvoiceInput) => Promise<void>;
+  deleteGstInvoice: (id: string) => Promise<void>;
   recordPayment: (payment: CreatePaymentInput, recordedBy: string) => Promise<PaymentRecord>;
   addPayable: (payable: CreatePayableInput, createdBy: string) => Promise<Payable>;
   updatePayable: (payableId: string, updates: UpdatePayableInput) => Promise<void>;
@@ -199,6 +205,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
+  const [gstInvoices, setGstInvoices] = useState<GstInvoice[]>([]);
   const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
   const [payables, setPayables] = useState<Payable[]>([]);
   const [orderPayments, setOrderPayments] = useState<OrderPayment[]>([]);
@@ -233,6 +240,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { data: costLinesData },
         { data: costingConfigData },
         { data: recurringExpensesData },
+        { data: gstInvoicesData },
       ] = await Promise.all([
         supabase.from('users').select('*').order('name'),
         supabase.from('clients').select('*').order('company_name'),
@@ -256,6 +264,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         (isAdmin || isSales) ? supabase.from('cost_lines').select('*').order('sort_order', { ascending: true }).then(res => res).catch(() => ({ data: null })) : emptyResult,
         (isAdmin || isSales) ? supabase.from('costing_config').select('*').eq('id', 1).maybeSingle().then(res => res).catch(() => ({ data: null })) : emptyResult,
         isAdmin ? supabase.from('recurring_expenses').select('*').order('label').then(res => res).catch(() => ({ data: null })) : emptyResult,
+        (isAdmin || isSales) ? supabase.from('gst_invoices').select('*').order('invoice_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as User[]);
       setClients((clientsData ?? []) as Client[]);
@@ -283,6 +292,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setCostLines((costLinesData ?? []) as CostLine[]);
       setCostingConfig((costingConfigData ?? null) as CostingConfig | null);
       setRecurringExpenses((recurringExpensesData ?? []) as RecurringExpense[]);
+      setGstInvoices((gstInvoicesData ?? []) as GstInvoice[]);
       setLoading(false);
 
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
@@ -572,6 +582,21 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
             setCostingConfig(null);
           } else {
             setCostingConfig(payload.new as CostingConfig);
+          }
+        }
+      );
+
+      // Subscribe to GST invoice register (admin + sales; RLS enforces access)
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gst_invoices' },
+        (payload: RealtimePayload) => {
+          if (payload.eventType === 'INSERT') {
+            setGstInvoices(prev => addUnique(prev, payload.new as GstInvoice, 'id'));
+          } else if (payload.eventType === 'UPDATE') {
+            setGstInvoices(prev => prev.map(g => g.id === payload.new.id ? payload.new as GstInvoice : g));
+          } else if (payload.eventType === 'DELETE') {
+            setGstInvoices(prev => prev.filter(g => g.id !== payload.old.id));
           }
         }
       );
@@ -1293,6 +1318,36 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (inserted.length) setExpenses(prev => [...inserted, ...prev]);
     return inserted.length;
   }, [recurringExpenses]);
+
+  // ── GST invoice register ────────────────────────────────────────────────────
+  const addGstInvoice = useCallback(async (input: CreateGstInvoiceInput, createdBy: string): Promise<GstInvoice> => {
+    const { data, error } = await supabase
+      .from('gst_invoices')
+      .insert({ ...input, created_by: createdBy })
+      .select()
+      .single();
+    if (error || !data) throw new Error(`Failed to create GST invoice: ${error?.message ?? 'unknown error'}`);
+    const gi = data as GstInvoice;
+    setGstInvoices(prev => addUnique(prev, gi, 'id'));
+    return gi;
+  }, []);
+
+  const updateGstInvoice = useCallback(async (id: string, updates: UpdateGstInvoiceInput) => {
+    const { data, error } = await supabase
+      .from('gst_invoices')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error || !data) throw new Error(`Failed to update GST invoice: ${error?.message ?? 'unknown error'}`);
+    setGstInvoices(prev => prev.map(g => g.id === id ? data as GstInvoice : g));
+  }, []);
+
+  const deleteGstInvoice = useCallback(async (id: string) => {
+    const { error } = await supabase.from('gst_invoices').delete().eq('id', id);
+    if (error) throw new Error(`Failed to delete GST invoice: ${error.message}`);
+    setGstInvoices(prev => prev.filter(g => g.id !== id));
+  }, []);
 
   const recordPayment = useCallback(async (payment: CreatePaymentInput, recordedBy: string): Promise<PaymentRecord> => {
     const { data: paymentData, error: paymentError } = await supabase
@@ -2249,6 +2304,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
     recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
+    gstInvoices, addGstInvoice, updateGstInvoice, deleteGstInvoice,
     recordPayment,
     addPayable, updatePayable, deletePayable, recordPayablePayment,
     getDashboardMetrics, getMonthlySummary, getProjectProfitability,
@@ -2277,6 +2333,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
     recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
+    gstInvoices, addGstInvoice, updateGstInvoice, deleteGstInvoice,
     recordPayment,
     addPayable, updatePayable, deletePayable, recordPayablePayment,
     getDashboardMetrics, getMonthlySummary, getProjectProfitability,
