@@ -2,10 +2,12 @@ import { useMemo, useState, useEffect } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { formatPKR } from '@/lib/format';
 import { toast } from 'sonner';
-import { Plus, Trash2, Save, CheckCircle, Calculator } from 'lucide-react';
-import { calcLine, calcRfq, type CostLineInput, type RfqTotals } from '@/lib/costing/qtech-costing';
+import { Plus, Trash2, Save, CheckCircle, Calculator, Layers, Package } from 'lucide-react';
+import { calcLine, calcRfq, type CostLineInput } from '@/lib/costing/qtech-costing';
 import { distribution, DIST_META } from '@/lib/costing/distribution';
-import type { CostLine } from '@/types/crm';
+import { rfqToApply, type ApplyTotals } from '@/lib/costing/apply';
+import { SingleItemEditor } from './SingleItemEditor';
+import type { CostLine, CostingConfigValues } from '@/types/crm';
 
 // Editable draft — string-backed for smooth typing; converted to numbers on calc.
 interface Draft {
@@ -60,24 +62,26 @@ const draftToRow = (d: Draft): Omit<CostLine, 'id' | 'created_at' | 'rfq_id' | '
   margin_pct: parseFloat(d.margin_pct) || 0,
   gst_pct: parseFloat(d.gst_pct) || 0,
   sort_order: 0,
+  mode: 'multi',
 });
 
-interface CostingEditorProps {
-  parent: { rfq_id: string } | { order_id: string };
+interface MultiItemEditorProps {
+  /** Omit for a standalone (ephemeral) calculator — no Save, no saved-line hydration. */
+  parent?: { rfq_id: string } | { order_id: string };
   /** Called when the user applies the costing totals (e.g. fill order value / quote). */
-  onApply?: (totals: RfqTotals) => Promise<void> | void;
+  onApply?: (totals: ApplyTotals) => Promise<void> | void;
   applyLabel?: string;
 }
 
-export function CostingEditor({ parent, onApply, applyLabel = 'Apply totals' }: CostingEditorProps) {
+export function MultiItemEditor({ parent, onApply, applyLabel = 'Apply totals' }: MultiItemEditorProps) {
   const { costLines, saveCostLines } = useCRM();
-  const parentKey = 'rfq_id' in parent ? 'rfq_id' : 'order_id';
-  const parentId = 'rfq_id' in parent ? parent.rfq_id : parent.order_id;
 
-  const saved = useMemo(
-    () => costLines.filter(l => l[parentKey] === parentId).sort((a, b) => a.sort_order - b.sort_order),
-    [costLines, parentKey, parentId]
-  );
+  const saved = useMemo(() => {
+    if (!parent) return [];
+    const k = 'rfq_id' in parent ? 'rfq_id' : 'order_id';
+    const id = 'rfq_id' in parent ? parent.rfq_id : parent.order_id;
+    return costLines.filter(l => l[k] === id && l.mode !== 'single').sort((a, b) => a.sort_order - b.sort_order);
+  }, [costLines, parent]);
 
   const [drafts, setDrafts] = useState<Draft[]>(() => saved.length ? saved.map(fromCostLine) : [blankDraft()]);
   const [saving, setSaving] = useState(false);
@@ -100,6 +104,7 @@ export function CostingEditor({ parent, onApply, applyLabel = 'Apply totals' }: 
   const removeLine = (key: string) => setDrafts(prev => prev.length > 1 ? prev.filter(d => d.key !== key) : prev);
 
   const handleSave = async () => {
+    if (!parent) return;
     setSaving(true);
     try {
       await saveCostLines(parent, drafts.map(draftToRow));
@@ -113,7 +118,7 @@ export function CostingEditor({ parent, onApply, applyLabel = 'Apply totals' }: 
     if (!onApply) return;
     setApplying(true);
     try {
-      await onApply(totals);
+      await onApply(rfqToApply(totals));
       toast.success('Applied');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to apply');
@@ -233,10 +238,12 @@ export function CostingEditor({ parent, onApply, applyLabel = 'Apply totals' }: 
 
       {/* ── Actions ── */}
       <div className="flex gap-2 flex-wrap">
-        <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
-          <Save className="w-4 h-4" /> {saving ? 'Saving…' : 'Save Costing'}
-        </button>
+        {parent && (
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60">
+            <Save className="w-4 h-4" /> {saving ? 'Saving…' : 'Save Costing'}
+          </button>
+        )}
         {onApply && (
           <button onClick={handleApply} disabled={applying}
             className="flex items-center gap-1.5 px-4 py-2 bg-success text-white rounded-lg text-sm font-medium hover:bg-success/90 transition-colors disabled:opacity-60">
@@ -244,6 +251,68 @@ export function CostingEditor({ parent, onApply, applyLabel = 'Apply totals' }: 
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CostingEditor — picks the model (multi-item RFQ chain vs single item) for a
+//  record. The saved data decides the initial model; a record holds one model.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface CostingEditorProps {
+  parent: { rfq_id: string } | { order_id: string };
+  onApply?: (totals: ApplyTotals) => Promise<void> | void;
+  applyLabel?: string;
+}
+
+export function CostingEditor({ parent, onApply, applyLabel = 'Apply totals' }: CostingEditorProps) {
+  const { costLines, costingConfig } = useCRM();
+  const parentKey = 'rfq_id' in parent ? 'rfq_id' : 'order_id';
+  const parentId = 'rfq_id' in parent ? parent.rfq_id : parent.order_id;
+
+  const savedSingle = useMemo(
+    () => costLines.find(l => l[parentKey] === parentId && l.mode === 'single') ?? null,
+    [costLines, parentKey, parentId]
+  );
+
+  const [mode, setMode] = useState<'multi' | 'single'>(savedSingle ? 'single' : 'multi');
+  // Adopt the saved model once data arrives (e.g. realtime hydration after mount).
+  useEffect(() => { if (savedSingle) setMode('single'); }, [savedSingle]);
+
+  const baseConfig: CostingConfigValues | null = costingConfig
+    ? {
+        air_rate: costingConfig.air_rate, sea_rate: costingConfig.sea_rate,
+        courier_rate: costingConfig.courier_rate, road_rate: costingConfig.road_rate,
+        documentation: costingConfig.documentation, bank_charges: costingConfig.bank_charges,
+        clearing: costingConfig.clearing, local_transport: costingConfig.local_transport,
+        gst_percent: costingConfig.gst_percent, wht_percent: costingConfig.wht_percent,
+        insurance_percent: costingConfig.insurance_percent,
+      }
+    : null;
+
+  const tab = (active: boolean) =>
+    `flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+      active ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border hover:text-foreground'
+    }`;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={() => setMode('multi')} className={tab(mode === 'multi')}>
+          <Layers className="w-3.5 h-3.5" /> Multi-item RFQ
+        </button>
+        <button onClick={() => setMode('single')} className={tab(mode === 'single')}>
+          <Package className="w-3.5 h-3.5" /> Single item
+        </button>
+        <span className="text-[11px] text-muted-foreground ml-1">Saving one model replaces the other for this record.</span>
+      </div>
+
+      {mode === 'multi' ? (
+        <MultiItemEditor parent={parent} onApply={onApply} applyLabel={applyLabel} />
+      ) : (
+        <SingleItemEditor parent={parent} initialLine={savedSingle} baseConfig={baseConfig} onApply={onApply} applyLabel={applyLabel} />
+      )}
     </div>
   );
 }

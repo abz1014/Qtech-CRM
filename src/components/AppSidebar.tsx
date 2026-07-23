@@ -5,7 +5,7 @@ import { useCRM } from '@/contexts/CRMContext';
 import {
   LayoutDashboard, Users, Target, ShoppingCart,
   Factory, UserCog, Wrench, LogOut, Zap, FileText,
-  BarChart3, DollarSign, X, Bell, Sun, Moon, TrendingUp, Activity,
+  BarChart3, DollarSign, X, Bell, Sun, Moon, TrendingUp, Activity, Calculator,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { businessToday } from '@/lib/dates';
@@ -32,6 +32,7 @@ const navItems = [
   { label: 'Orders',           path: '/orders',           icon: ShoppingCart,    roles: ['admin', 'sales'] },
   { label: 'Actions',          path: '/actions',          icon: Bell,            roles: ['admin', 'sales'] },
   { label: 'Vendors',          path: '/vendors',          icon: Factory,         roles: ['admin', 'sales'] },
+  { label: 'Costing',          path: '/costing',          icon: Calculator,      roles: ['admin', 'sales'] },
   { label: 'Finance',          path: '/finance',          icon: DollarSign,      roles: ['admin'] },
   { label: 'Team',             path: '/team',             icon: UserCog,         roles: ['admin'] },
   { label: 'My Jobs',          path: '/my-jobs',          icon: Wrench,          roles: ['engineer'] },
@@ -40,7 +41,7 @@ const navItems = [
 const groups = [
   { label: 'Main',   paths: ['/dashboard', '/operations', '/clients', '/prospects'] },
   { label: 'Sales',  paths: ['/rfqs', '/daily-rfq-report', '/sales-intelligence', '/orders', '/actions'] },
-  { label: 'Manage', paths: ['/vendors', '/finance', '/team', '/my-jobs'] },
+  { label: 'Manage', paths: ['/vendors', '/costing', '/finance', '/team', '/my-jobs'] },
 ];
 
 interface AppSidebarProps { open: boolean; onClose: () => void; }

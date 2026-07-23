@@ -29,6 +29,7 @@ const RFQsPage             = lazy(() => import("@/pages/RFQsPage"));
 const RFQDetailPage        = lazy(() => import("@/pages/RFQDetailPage"));
 const DailyRFQReportPage   = lazy(() => import("@/pages/DailyRFQReportPage").then(m => ({ default: m.DailyRFQReportPage })));
 const FinancePage          = lazy(() => import("@/pages/FinancePage"));
+const CostingPage          = lazy(() => import("@/pages/CostingPage"));
 const SalesIntelligencePage = lazy(() => import("@/pages/SalesIntelligencePage"));
 const OperationsPage       = lazy(() => import("@/pages/OperationsPage"));
 const ActionsPage          = lazy(() => import("@/pages/ActionsPage"));
@@ -101,6 +102,7 @@ const App = () => (
                   <Route path="/vendors/:id"      element={<VendorDetailPage />} />
                   <Route path="/team"             element={<RequireRole roles={['admin']}><TeamPage /></RequireRole>} />
                   <Route path="/finance"          element={<RequireRole roles={['admin']}><FinancePage /></RequireRole>} />
+                  <Route path="/costing"          element={<RequireRole roles={['admin', 'sales']}><CostingPage /></RequireRole>} />
                   <Route path="/my-jobs"          element={<RequireRole roles={['engineer', 'admin']}><MyJobsPage /></RequireRole>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />

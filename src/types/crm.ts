@@ -100,6 +100,27 @@ export interface CostLine {
   gst_pct: number;
   sort_order: number;
   created_at?: string;
+
+  // single-item model ('multi' = RFQ chain, 'single' = desktop single-item screen)
+  mode?: 'multi' | 'single';
+  loading_pct?: number;
+  freight_mode?: 'Air' | 'Sea' | 'Courier' | 'Road';
+  shipment_weight?: number;
+  /** effective freight/charges/tax config used for a saved single-item line */
+  config_snapshot?: CostingConfigValues | null;
+}
+
+/** Freight rates, fixed charges and tax % shared by the single-item model. */
+export interface CostingConfigValues {
+  air_rate: number; sea_rate: number; courier_rate: number; road_rate: number;
+  documentation: number; bank_charges: number; clearing: number; local_transport: number;
+  gst_percent: number; wht_percent: number; insurance_percent: number;
+}
+
+/** The singleton costing_config row (id is always 1). */
+export interface CostingConfig extends CostingConfigValues {
+  id: number;
+  updated_at?: string;
 }
 
 // ── Finance (admin-only): money movements attached to orders ────────────────

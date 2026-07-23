@@ -7,6 +7,7 @@ import {
   OrderStatus, CommissioningStatus, RFQStatus, RFQPriority,
   SupplierInquiry, SupplierQuote, RFQLineItem, SupplierInquiryStatus,
   FollowUpAction, RealtimePayload, OrderPayment, SupplierPayment, CostLine,
+  CostingConfig, CostingConfigValues,
 } from '@/types/crm';
 import {
   Invoice, Expense, PaymentRecord, Payable, CreateInvoiceInput, UpdateInvoiceInput,
@@ -137,6 +138,8 @@ interface CRMContextType {
   orderPayments: OrderPayment[];
   costLines: CostLine[];
   saveCostLines: (parent: { rfq_id: string } | { order_id: string }, lines: Omit<CostLine, 'id' | 'created_at' | 'rfq_id' | 'order_id'>[]) => Promise<void>;
+  costingConfig: CostingConfig | null;
+  updateCostingConfig: (values: CostingConfigValues) => Promise<void>;
   supplierPayments: SupplierPayment[];
   addOrderPayment: (payment: Omit<OrderPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string) => Promise<OrderPayment>;
   deleteOrderPayment: (paymentId: string) => Promise<void>;
@@ -192,6 +195,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [orderPayments, setOrderPayments] = useState<OrderPayment[]>([]);
   const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
   const [costLines, setCostLines] = useState<CostLine[]>([]);
+  const [costingConfig, setCostingConfig] = useState<CostingConfig | null>(null);
 
   useEffect(() => {
     // Don't load anything until a user is logged in; financial tables load
@@ -218,6 +222,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { data: orderPaymentsData },
         { data: supplierPaymentsData },
         { data: costLinesData },
+        { data: costingConfigData },
       ] = await Promise.all([
         supabase.from('users').select('*').order('name'),
         supabase.from('clients').select('*').order('company_name'),
@@ -239,6 +244,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         isAdmin ? supabase.from('order_payments').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
         isAdmin ? supabase.from('supplier_payments').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
         (isAdmin || isSales) ? supabase.from('cost_lines').select('*').order('sort_order', { ascending: true }).then(res => res).catch(() => ({ data: null })) : emptyResult,
+        (isAdmin || isSales) ? supabase.from('costing_config').select('*').eq('id', 1).maybeSingle().then(res => res).catch(() => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as User[]);
       setClients((clientsData ?? []) as Client[]);
@@ -264,6 +270,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setOrderPayments((orderPaymentsData ?? []) as OrderPayment[]);
       setSupplierPayments((supplierPaymentsData ?? []) as SupplierPayment[]);
       setCostLines((costLinesData ?? []) as CostLine[]);
+      setCostingConfig((costingConfigData ?? null) as CostingConfig | null);
       setLoading(false);
 
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
@@ -529,6 +536,19 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         }
       );
 
+      // Subscribe to the shared costing config (singleton row; admin + sales read)
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'costing_config' },
+        (payload: RealtimePayload) => {
+          if (payload.eventType === 'DELETE') {
+            setCostingConfig(null);
+          } else {
+            setCostingConfig(payload.new as CostingConfig);
+          }
+        }
+      );
+
       // Subscribe to the channel
       await channel.subscribe();
       return channel;
@@ -543,7 +563,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         if (channel) supabase.removeChannel(channel);
       }).catch(() => { /* load failed; nothing to clean up */ });
     };
-  }, [authUser?.id, isAdmin]);
+  }, [authUser?.id, isAdmin, isSales]);
 
   // O(1) Map lookups — rebuilt only when the source array changes
   const userMap   = useMemo(() => new Map(users.map(u   => [u.id, u.name])),              [users]);
@@ -1441,6 +1461,18 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, []);
 
+  // Update the shared costing config (singleton row id=1). Admin only (RLS).
+  const updateCostingConfig = useCallback(async (values: CostingConfigValues) => {
+    const { data, error } = await supabase
+      .from('costing_config')
+      .update({ ...values, updated_at: new Date().toISOString() })
+      .eq('id', 1)
+      .select()
+      .single();
+    if (error || !data) throw new Error(`Failed to save costing settings: ${error?.message ?? 'unknown error'}`);
+    setCostingConfig(data as CostingConfig);
+  }, []);
+
   const addPayable = useCallback(async (payable: CreatePayableInput, createdBy: string): Promise<Payable> => {
     const { data, error } = await supabase
       .from('payables')
@@ -2105,7 +2137,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
     invoices, expenses, paymentRecords, payables,
     orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
-    costLines, saveCostLines,
+    costLines, saveCostLines, costingConfig, updateCostingConfig,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
     recordPayment,
@@ -2132,7 +2164,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
     invoices, expenses, paymentRecords, payables,
     orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
-    costLines, saveCostLines,
+    costLines, saveCostLines, costingConfig, updateCostingConfig,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
     recordPayment,
