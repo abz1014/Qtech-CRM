@@ -5,7 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR, formatDate } from '@/lib/format';
-import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart, Calculator, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart, Calculator, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { SupplierInquiryStatus, RFQStatus, RFQPriority, LossReason, RFQ } from '@/types/crm';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { LossReasonModal } from '@/components/rfq/LossReasonModal';
@@ -25,7 +25,7 @@ export default function RFQDetailPage() {
   const {
     rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients, users,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateSupplierInquiry, updateInquiryStatus,
-    getVendorName, updateRFQStatus, updateRFQ, getClientName, addVendor, convertRFQToOrder, getUserName,
+    getVendorName, updateRFQStatus, updateRFQ, deleteRFQ, getClientName, addVendor, convertRFQToOrder, getUserName,
     getFollowUpsForEntity, calculateValueScore,
   } = useCRM();
 
@@ -123,6 +123,18 @@ export default function RFQDetailPage() {
   const handleDeleteLineItem = async (id: string) => {
     if (!confirm('Delete this line item?')) return;
     await deleteRFQLineItem(id);
+  };
+
+  const handleDeleteRFQ = async () => {
+    if (!rfq) return;
+    if (!window.confirm(`Delete this RFQ for ${rfq.company_name}? This also removes its follow-ups and cannot be undone.`)) return;
+    try {
+      await deleteRFQ(rfq.id);
+      toast.success('RFQ deleted');
+      navigate('/rfqs');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete RFQ');
+    }
   };
 
   const handleAddInquiry = async (e: React.FormEvent) => {
@@ -399,6 +411,11 @@ export default function RFQDetailPage() {
           {(isAdmin || isSales) && (
             <button onClick={() => setShowEditRFQ(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={handleDeleteRFQ} className="flex items-center gap-1 px-3 py-2 bg-destructive/10 text-destructive rounded-lg text-sm hover:bg-destructive/20 transition-colors">
+              <Trash2 className="w-4 h-4" /> Delete
             </button>
           )}
           <span className={`status-badge capitalize text-sm ${rfq.status === 'converted' ? 'bg-success/15 text-success' : rfq.status === 'lost' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning'}`}>

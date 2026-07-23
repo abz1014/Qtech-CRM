@@ -2,8 +2,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPKR, formatDate } from '@/lib/format';
-import { ArrowLeft, MapPin, Calendar, User, TrendingUp, FileText, Edit2, X, Calculator, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, User, TrendingUp, FileText, Edit2, X, Calculator, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { OrderStatus, CommissioningStatus, ProductType } from '@/types/crm';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { CostingEditor } from '@/components/costing/CostingEditor';
@@ -35,7 +36,7 @@ const commColors: Record<CommissioningStatus, string> = {
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, orderEngineers, rfqs, users, updateOrderStatus, addOrderEngineer, getNextOrderStatus, getClientName, getVendorName, getUserName, updateOrder } = useCRM();
+  const { orders, orderEngineers, rfqs, users, clients, vendors, updateOrderStatus, addOrderEngineer, getNextOrderStatus, getClientName, getVendorName, getUserName, updateOrder, deleteOrder } = useCRM();
   const { isAdmin, isSales } = useAuth();
 
   const order = orders.find(o => o.id === id);
@@ -49,10 +50,12 @@ export default function OrderDetailPage() {
     engineer_id: '', site_location: '', start_date: '', expected_completion: '',
   });
   const [editForm, setEditForm] = useState({
-    product_type: order?.product_type || '' as ProductType,
-    order_value: order?.order_value?.toString() || '',
-    cost_value: order?.cost_value?.toString() || '',
-    notes: order?.notes || '',
+    client_id: '', vendor_id: '', sales_person_id: '',
+    product_type: '' as ProductType | string, status: 'po_received' as OrderStatus,
+    customer_po_number: '', customer_po_date: '',
+    order_value: '', cost_value: '', order_gst_amount: '',
+    invoice_number: '', invoice_date: '', delivery_date: '', payment_terms_days: '',
+    notes: '',
   });
 
   if (!order) {
@@ -87,15 +90,66 @@ export default function OrderDetailPage() {
     setAssignForm({ engineer_id: '', site_location: '', start_date: '', expected_completion: '' });
   };
 
+  const openEdit = () => {
+    if (!order) return;
+    setEditForm({
+      client_id: order.client_id || '',
+      vendor_id: order.vendor_id || '',
+      sales_person_id: order.sales_person_id || '',
+      product_type: order.product_type || '',
+      status: order.status,
+      customer_po_number: order.customer_po_number || '',
+      customer_po_date: order.customer_po_date || '',
+      order_value: order.order_value?.toString() || '',
+      cost_value: order.cost_value?.toString() || '',
+      order_gst_amount: order.order_gst_amount != null ? String(order.order_gst_amount) : '',
+      invoice_number: order.invoice_number || '',
+      invoice_date: order.invoice_date || '',
+      delivery_date: order.delivery_date || '',
+      payment_terms_days: order.payment_terms_days != null ? String(order.payment_terms_days) : '',
+      notes: order.notes || '',
+    });
+    setShowEdit(true);
+  };
+
   const handleEditOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateOrder(id!, {
-      product_type: editForm.product_type,
-      order_value: Number(editForm.order_value),
-      cost_value: Number(editForm.cost_value),
-      notes: editForm.notes,
-    });
-    setShowEdit(false);
+    try {
+      await updateOrder(id!, {
+        client_id: editForm.client_id,
+        vendor_id: editForm.vendor_id,
+        product_type: editForm.product_type,
+        status: editForm.status,
+        customer_po_number: editForm.customer_po_number.trim() || null,
+        customer_po_date: editForm.customer_po_date || null,
+        order_value: Number(editForm.order_value) || 0,
+        cost_value: Number(editForm.cost_value) || 0,
+        order_gst_amount: editForm.order_gst_amount === '' ? null : Number(editForm.order_gst_amount),
+        invoice_number: editForm.invoice_number.trim() || null,
+        invoice_date: editForm.invoice_date || null,
+        delivery_date: editForm.delivery_date || null,
+        payment_terms_days: editForm.payment_terms_days === '' ? 0 : Number(editForm.payment_terms_days),
+        notes: editForm.notes,
+        // only reassign salesperson when one is chosen (FK is non-null)
+        ...(editForm.sales_person_id ? { sales_person_id: editForm.sales_person_id } : {}),
+      });
+      toast.success('Order updated');
+      setShowEdit(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update order');
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!order) return;
+    if (!window.confirm(`Delete this order for ${getClientName(order.client_id)} (${formatPKR(order.order_value)})? This also removes its follow-ups and cannot be undone.`)) return;
+    try {
+      await deleteOrder(order.id);
+      toast.success('Order deleted');
+      navigate('/orders');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete order');
+    }
   };
 
   const engineers = users.filter(u => u.role === 'engineer');
@@ -118,8 +172,13 @@ export default function OrderDetailPage() {
             entityLabel={`${getClientName(order.client_id)} — ${order.product_type}`}
           />
           {(isAdmin || isSales) && (
-            <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
+            <button onClick={openEdit} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={handleDeleteOrder} className="flex items-center gap-1 px-3 py-2 bg-destructive/10 text-destructive rounded-lg text-sm hover:bg-destructive/20 transition-colors">
+              <Trash2 className="w-4 h-4" /> Delete
             </button>
           )}
           <span className={`status-badge text-sm ${statusColors[order.status] || 'bg-muted text-muted-foreground'}`}>{statusLabels[order.status as OrderStatus] || order.status}</span>
@@ -328,32 +387,93 @@ export default function OrderDetailPage() {
       {/* Edit Order Modal */}
       {showEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="modal-card max-w-lg p-6">
+          <div className="modal-card max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-foreground">Edit Order</h2>
               <button onClick={() => setShowEdit(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleEditOrder} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Product Type</label>
-                <input value={editForm.product_type} onChange={e => setEditForm(p => ({ ...p, product_type: e.target.value as ProductType }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Order Value (PKR)</label>
-                <input type="number" value={editForm.order_value} onChange={e => setEditForm(p => ({ ...p, order_value: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Cost Value (PKR)</label>
-                <input type="number" value={editForm.cost_value} onChange={e => setEditForm(p => ({ ...p, cost_value: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-                <textarea value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" rows={3} />
-              </div>
+              {(() => {
+                const fld = 'w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50';
+                const lb = 'block text-xs font-medium text-muted-foreground mb-1';
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={lb}>Client</label>
+                        <select value={editForm.client_id} onChange={e => setEditForm(p => ({ ...p, client_id: e.target.value }))} className={fld} required disabled={!isAdmin}>
+                          <option value="">— Select client —</option>
+                          {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={lb}>Vendor</label>
+                        <select value={editForm.vendor_id} onChange={e => setEditForm(p => ({ ...p, vendor_id: e.target.value }))} className={fld} disabled={!isAdmin}>
+                          <option value="">— Select vendor —</option>
+                          {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={lb}>Salesperson</label>
+                        <select value={editForm.sales_person_id} onChange={e => setEditForm(p => ({ ...p, sales_person_id: e.target.value }))} className={fld}>
+                          <option value="">— Unassigned —</option>
+                          {users.filter(u => u.role === 'admin' || u.role === 'sales').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={lb}>Status</label>
+                        <select value={editForm.status} onChange={e => setEditForm(p => ({ ...p, status: e.target.value as OrderStatus }))} className={fld}>
+                          {statusFlow.map(s => <option key={s} value={s}>{statusLabels[s]}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={lb}>Customer PO #</label>
+                        <input value={editForm.customer_po_number} onChange={e => setEditForm(p => ({ ...p, customer_po_number: e.target.value }))} className={fld} />
+                      </div>
+                      <div>
+                        <label className={lb}>Customer PO date</label>
+                        <input type="date" value={editForm.customer_po_date} onChange={e => setEditForm(p => ({ ...p, customer_po_date: e.target.value }))} className={fld} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className={lb}>Product / item</label>
+                        <input value={editForm.product_type} onChange={e => setEditForm(p => ({ ...p, product_type: e.target.value }))} className={fld} required />
+                      </div>
+                      <div>
+                        <label className={lb}>Order value (PKR)</label>
+                        <input type="number" step="0.01" value={editForm.order_value} onChange={e => setEditForm(p => ({ ...p, order_value: e.target.value }))} className={fld} required />
+                      </div>
+                      <div>
+                        <label className={lb}>Cost value (PKR)</label>
+                        <input type="number" step="0.01" value={editForm.cost_value} onChange={e => setEditForm(p => ({ ...p, cost_value: e.target.value }))} className={fld} />
+                      </div>
+                      <div>
+                        <label className={lb}>GST amount (PKR)</label>
+                        <input type="number" step="0.01" value={editForm.order_gst_amount} onChange={e => setEditForm(p => ({ ...p, order_gst_amount: e.target.value }))} placeholder="blank = unknown" className={fld} />
+                      </div>
+                      <div>
+                        <label className={lb}>Payment terms (days)</label>
+                        <input type="number" value={editForm.payment_terms_days} onChange={e => setEditForm(p => ({ ...p, payment_terms_days: e.target.value }))} className={fld} />
+                      </div>
+                      <div>
+                        <label className={lb}>Invoice #</label>
+                        <input value={editForm.invoice_number} onChange={e => setEditForm(p => ({ ...p, invoice_number: e.target.value }))} className={fld} />
+                      </div>
+                      <div>
+                        <label className={lb}>Invoice date</label>
+                        <input type="date" value={editForm.invoice_date} onChange={e => setEditForm(p => ({ ...p, invoice_date: e.target.value }))} className={fld} />
+                      </div>
+                      <div>
+                        <label className={lb}>Delivery date</label>
+                        <input type="date" value={editForm.delivery_date} onChange={e => setEditForm(p => ({ ...p, delivery_date: e.target.value }))} className={fld} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={lb}>Notes</label>
+                      <textarea value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} className={`${fld} resize-none`} rows={2} />
+                    </div>
+                  </>
+                );
+              })()}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowEdit(false)} className="flex-1 py-2 border border-border rounded-lg text-sm text-foreground hover:bg-muted transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">Save Changes</button>

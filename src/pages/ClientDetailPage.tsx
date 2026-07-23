@@ -2,7 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Edit2, X, ShoppingCart, FileText, TrendingUp, Target, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Edit2, X, ShoppingCart, FileText, TrendingUp, Target, ChevronRight, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { formatPKR, formatDate } from '@/lib/format';
 import { lossReasonLabel } from '@/lib/lossReasons';
@@ -25,7 +26,7 @@ const orderStatusColor: Record<string, string> = {
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { clients, rfqs, orders, updateClient } = useCRM();
+  const { clients, rfqs, orders, updateClient, deleteClient } = useCRM();
   const { isAdmin, isSales } = useAuth();
 
   // Customer intelligence — derived from existing RFQ/order data
@@ -95,6 +96,20 @@ export default function ClientDetailPage() {
     }
   };
 
+  const handleDelete = async () => {
+    const oc = orders.filter(o => o.client_id === id).length;
+    const rc = rfqs.filter(r => r.client_id === id).length;
+    const extra = (oc || rc) ? ` This will ALSO delete ${oc} order(s) and ${rc} RFQ(s) for this client.` : '';
+    if (!window.confirm(`Delete client "${client?.company_name}"?${extra} This cannot be undone.`)) return;
+    try {
+      await deleteClient(id!);
+      toast.success('Client deleted');
+      navigate('/clients');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete client');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <button onClick={() => navigate('/clients')} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -115,6 +130,11 @@ export default function ClientDetailPage() {
           {(isAdmin || isSales) && (
             <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={handleDelete} className="flex items-center gap-1 px-3 py-2 bg-destructive/10 text-destructive rounded-lg text-sm hover:bg-destructive/20 transition-colors">
+              <Trash2 className="w-4 h-4" /> Delete
             </button>
           )}
         </div>

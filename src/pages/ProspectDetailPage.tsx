@@ -2,17 +2,29 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
-import { ArrowLeft, Edit2, X } from 'lucide-react';
+import { ArrowLeft, Edit2, X, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { ProspectStatus } from '@/types/crm';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 
 export default function ProspectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { prospects, users, updateProspect, getUserName } = useCRM();
+  const { prospects, users, updateProspect, deleteProspect, getUserName } = useCRM();
   const { isAdmin } = useAuth();
 
   const prospect = prospects.find(p => p.id === id);
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete prospect "${prospect?.company_name}"? This cannot be undone.`)) return;
+    try {
+      await deleteProspect(id!);
+      toast.success('Prospect deleted');
+      navigate('/prospects');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete prospect');
+    }
+  };
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({
     company_name: prospect?.company_name || '',
@@ -77,6 +89,11 @@ export default function ProspectDetailPage() {
           {isAdmin && (
             <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={handleDelete} className="flex items-center gap-1 px-3 py-2 bg-destructive/10 text-destructive rounded-lg text-sm hover:bg-destructive/20 transition-colors">
+              <Trash2 className="w-4 h-4" /> Delete
             </button>
           )}
         </div>
