@@ -6,7 +6,7 @@ import {
   Client, Prospect, Vendor, Order, OrderEngineer, RFQ, User,
   OrderStatus, CommissioningStatus, RFQStatus, RFQPriority,
   SupplierInquiry, SupplierQuote, RFQLineItem, SupplierInquiryStatus,
-  FollowUpAction, RealtimePayload, OrderPayment, SupplierPayment,
+  FollowUpAction, RealtimePayload, OrderPayment, SupplierPayment, CostLine,
 } from '@/types/crm';
 import {
   Invoice, Expense, PaymentRecord, Payable, CreateInvoiceInput, UpdateInvoiceInput,
@@ -135,6 +135,8 @@ interface CRMContextType {
 
   // Finance rebuild (admin-only)
   orderPayments: OrderPayment[];
+  costLines: CostLine[];
+  saveCostLines: (parent: { rfq_id: string } | { order_id: string }, lines: Omit<CostLine, 'id' | 'created_at' | 'rfq_id' | 'order_id'>[]) => Promise<void>;
   supplierPayments: SupplierPayment[];
   addOrderPayment: (payment: Omit<OrderPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string) => Promise<OrderPayment>;
   deleteOrderPayment: (paymentId: string) => Promise<void>;
@@ -168,7 +170,7 @@ interface CRMContextType {
 const CRMContext = createContext<CRMContextType | null>(null);
 
 export function CRMProvider({ children }: { children: React.ReactNode }) {
-  const { user: authUser, isAdmin } = useAuth();
+  const { user: authUser, isAdmin, isSales } = useAuth();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -189,6 +191,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [payables, setPayables] = useState<Payable[]>([]);
   const [orderPayments, setOrderPayments] = useState<OrderPayment[]>([]);
   const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
+  const [costLines, setCostLines] = useState<CostLine[]>([]);
 
   useEffect(() => {
     // Don't load anything until a user is logged in; financial tables load
@@ -214,6 +217,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { data: payablesData },
         { data: orderPaymentsData },
         { data: supplierPaymentsData },
+        { data: costLinesData },
       ] = await Promise.all([
         supabase.from('users').select('*').order('name'),
         supabase.from('clients').select('*').order('company_name'),
@@ -234,6 +238,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         isAdmin ? supabase.from('payables').select('*').order('due_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
         isAdmin ? supabase.from('order_payments').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
         isAdmin ? supabase.from('supplier_payments').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
+        (isAdmin || isSales) ? supabase.from('cost_lines').select('*').order('sort_order', { ascending: true }).then(res => res).catch(() => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as User[]);
       setClients((clientsData ?? []) as Client[]);
@@ -258,6 +263,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setPayables((payablesData ?? []) as Payable[]);
       setOrderPayments((orderPaymentsData ?? []) as OrderPayment[]);
       setSupplierPayments((supplierPaymentsData ?? []) as SupplierPayment[]);
+      setCostLines((costLinesData ?? []) as CostLine[]);
       setLoading(false);
 
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
@@ -507,6 +513,21 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       );
 
       } // end isAdmin financial subscriptions
+
+      // Subscribe to costing lines (admin + sales; RLS enforces access)
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'cost_lines' },
+        (payload: RealtimePayload) => {
+          if (payload.eventType === 'INSERT') {
+            setCostLines(prev => addUnique(prev, payload.new as CostLine, 'id'));
+          } else if (payload.eventType === 'UPDATE') {
+            setCostLines(prev => prev.map(c => c.id === payload.new.id ? payload.new as CostLine : c));
+          } else if (payload.eventType === 'DELETE') {
+            setCostLines(prev => prev.filter(c => c.id !== payload.old.id));
+          }
+        }
+      );
 
       // Subscribe to the channel
       await channel.subscribe();
@@ -1396,6 +1417,30 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setSupplierPayments(prev => prev.filter(p => p.id !== paymentId));
   }, []);
 
+  // Save a full costing for an RFQ or order — replaces all its existing lines.
+  const saveCostLines = useCallback(async (
+    parent: { rfq_id: string } | { order_id: string },
+    lines: Omit<CostLine, 'id' | 'created_at' | 'rfq_id' | 'order_id'>[],
+  ) => {
+    const parentCol: 'rfq_id' | 'order_id' = 'rfq_id' in parent ? 'rfq_id' : 'order_id';
+    const parentId = 'rfq_id' in parent ? parent.rfq_id : parent.order_id;
+
+    const { error: delErr } = await supabase.from('cost_lines').delete().eq(parentCol, parentId);
+    if (delErr) throw new Error(`Failed to update costing: ${delErr.message}`);
+
+    let inserted: CostLine[] = [];
+    if (lines.length > 0) {
+      const rows = lines.map((l, i) => ({ ...l, [parentCol]: parentId, sort_order: i }));
+      const { data, error } = await supabase.from('cost_lines').insert(rows).select();
+      if (error) throw new Error(`Failed to save costing: ${error.message}`);
+      inserted = (data ?? []) as CostLine[];
+    }
+    setCostLines(prev => [
+      ...prev.filter(c => c[parentCol] !== parentId),
+      ...inserted,
+    ]);
+  }, []);
+
   const addPayable = useCallback(async (payable: CreatePayableInput, createdBy: string): Promise<Payable> => {
     const { data, error } = await supabase
       .from('payables')
@@ -2060,6 +2105,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
     invoices, expenses, paymentRecords, payables,
     orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
+    costLines, saveCostLines,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
     recordPayment,
@@ -2086,6 +2132,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
     invoices, expenses, paymentRecords, payables,
     orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
+    costLines, saveCostLines,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
     recordPayment,

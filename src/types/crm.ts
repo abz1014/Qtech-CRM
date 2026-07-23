@@ -76,6 +76,30 @@ export interface Order {
   // Invoice tracking — one invoice per order, data only (no documents)
   invoice_number?: string | null;
   invoice_date?: string | null;
+  // GST portion of order_value, so value can be shown with/without GST.
+  // null on legacy orders (GST split unknown) → with == without.
+  order_gst_amount?: number | null;
+}
+
+/** A saved costing line (engine INPUTS only). Attaches to an RFQ or an order. */
+export interface CostLine {
+  id: string;
+  rfq_id: string | null;
+  order_id: string | null;
+  sr: string; item: string; pn: string; brand: string; supplier: string;
+  region: string; currency: string;
+  qty: number;
+  unit_weight: number;
+  unit_price: number;
+  unit_packing: number;
+  unit_freight: number;
+  exchange_rate: number;
+  duty_pct: number;
+  wht_pct: number;
+  margin_pct: number;
+  gst_pct: number;
+  sort_order: number;
+  created_at?: string;
 }
 
 // ── Finance (admin-only): money movements attached to orders ────────────────
