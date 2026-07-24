@@ -11,6 +11,7 @@ import {
   Link2, Download, Receipt, Landmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TableSkeleton } from '@/components/ui/skeleton';
 import type { GstInvoice, FbrStatus, CreateGstInvoiceInput } from '@/types/bookkeeping';
 import { FBR_STATUSES } from '@/types/bookkeeping';
 import { needsFbrAttention as fbrNeedsAttention } from '@/lib/gst/fbr';
@@ -73,7 +74,7 @@ const toInput = (f: FormState): CreateGstInvoiceInput => ({
 });
 
 export default function GstRegisterPage() {
-  const { gstInvoices, orders, addGstInvoice, updateGstInvoice, deleteGstInvoice, getClientName, getVendorName } = useCRM();
+  const { gstInvoices, orders, addGstInvoice, updateGstInvoice, deleteGstInvoice, getClientName, getVendorName, loading } = useCRM();
   const { user } = useAuth();
   const confirm = useConfirm();
 
@@ -169,6 +170,8 @@ export default function GstRegisterPage() {
   const lbl = 'block text-xs font-medium text-muted-foreground mb-1';
   const th = 'text-left px-3 py-2.5 text-[12px] font-semibold text-muted-foreground whitespace-nowrap';
   const td = 'px-3 py-2.5 text-sm text-foreground whitespace-nowrap';
+
+  if (loading) return <TableSkeleton cols={9} rows={8} headers={['GST Inv #', 'Client / PO', 'Supplier / Item', 'DC #', 'Amount', 'TCS', 'Client rcvd', 'FBR', 'PSID / Deposit']} />;
 
   return (
     <div className="space-y-6">

@@ -92,8 +92,7 @@ export default function OperationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Operations</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">What needs attention right now — click any item to open it</p>
+        <p className="text-sm text-muted-foreground">What needs attention right now — click any item to open it</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

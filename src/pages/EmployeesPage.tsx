@@ -6,6 +6,7 @@ import { formatPKR, formatDate } from '@/lib/format';
 import { businessToday } from '@/lib/dates';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { TableSkeleton } from '@/components/ui/skeleton';
 import {
   Users, UserCheck, Plus, X, Pencil, Trash2, Search, CalendarDays, Building2, Wallet,
 } from 'lucide-react';
@@ -33,7 +34,7 @@ const blankEmployee = () => ({
 });
 
 export default function EmployeesPage() {
-  const { employees, attendance, addEmployee, updateEmployee, deleteEmployee, markAttendance } = useCRM();
+  const { employees, attendance, addEmployee, updateEmployee, deleteEmployee, markAttendance, loading } = useCRM();
   const { user } = useAuth();
   const confirm = useConfirm();
 
@@ -137,6 +138,8 @@ export default function EmployeesPage() {
   const lbl = 'block text-xs font-medium text-muted-foreground mb-1';
   const tabBtn = (active: boolean) =>
     `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`;
+
+  if (loading) return <TableSkeleton cols={7} rows={8} headers={['Name', 'Designation', 'Department', 'Contact', 'Salary', 'Status', '']} />;
 
   return (
     <div className="space-y-6">

@@ -29,8 +29,7 @@ export default function MyJobsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">My Jobs</h1>
-        <p className="text-muted-foreground mt-1">{myJobs.length} assigned jobs</p>
+        <p className="text-muted-foreground">{myJobs.length} assigned jobs</p>
       </div>
 
       {myJobs.length === 0 ? (

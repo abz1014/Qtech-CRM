@@ -78,7 +78,7 @@ export function DashboardSkeleton() {
       {[4, 4, 3].map((count, gi) => (
         <div key={gi} className="space-y-3">
           <Skeleton className="h-3 w-28" />
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Array.from({ length: count }).map((_, i) => (
               <KpiCardSkeleton key={i} />
             ))}

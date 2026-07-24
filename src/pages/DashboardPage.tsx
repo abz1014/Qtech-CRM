@@ -455,7 +455,7 @@ export default function DashboardPage() {
       {/* ════ TODAY'S PIPELINE ════ */}
       <div>
         <p className="section-title mb-3">Last 10 Days Pipeline</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {todayKpis.map(kpi => (
             <div key={kpi.label} className="kpi-card">
               <div className="flex items-start justify-between mb-4">
@@ -473,7 +473,7 @@ export default function DashboardPage() {
       {/* ════ MONTHLY RFQ PIPELINE ════ */}
       <div>
         <p className="section-title mb-3">Monthly RFQ Pipeline</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {monthlyKpis.map(kpi => (
             <div key={`m-${kpi.label}`} className="kpi-card">
               <div className="flex items-start justify-between mb-4">
@@ -491,7 +491,7 @@ export default function DashboardPage() {
       {/* ════ QUARTERLY RFQ PIPELINE ════ */}
       <div>
         <p className="section-title mb-3">Quarterly RFQ Pipeline (Q{currentQuarter} {currentYear})</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {quarterlyKpis.map(kpi => (
             <div key={`q-${kpi.label}`} className="kpi-card">
               <div className="flex items-start justify-between mb-4">
@@ -520,7 +520,7 @@ export default function DashboardPage() {
             ))}
           </select>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {lastQuarterKpis.map(kpi => (
             <div key={`lq-${kpi.label}`} className="kpi-card opacity-80">
               <div className="flex items-start justify-between mb-4">
@@ -646,7 +646,7 @@ export default function DashboardPage() {
       {/* ════ OVERALL ════ */}
       <div>
         <p className="section-title mb-3">Overall</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {overallKpis.map(kpi => (
             <div key={kpi.label} className="kpi-card">
               <div className="flex items-start justify-between mb-4">

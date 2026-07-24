@@ -438,8 +438,7 @@ export default function FinancePage() {
       {/* ── Header + range ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Finance</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Money in, money out, and what's owed — admin only</p>
+          <p className="text-sm text-muted-foreground">Money in, money out, and what's owed — admin only</p>
         </div>
         <div className="flex gap-1.5 flex-wrap items-center">
           {PRESETS.map(p => (

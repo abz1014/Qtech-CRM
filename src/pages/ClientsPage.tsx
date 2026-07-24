@@ -107,8 +107,7 @@ export default function ClientsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Clients</h1>
-          <p className="text-muted-foreground mt-1">{clients.length} registered clients</p>
+          <p className="text-muted-foreground">{clients.length} registered clients</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2.5 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/80 transition-colors border border-border">
