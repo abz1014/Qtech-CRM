@@ -13,7 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 import { businessToday } from '@/lib/dates';
 import { Order } from '@/types/crm';
-import { ExpenseCategory, RecurringExpense } from '@/types/bookkeeping';
+import { ExpenseCategory, RecurringExpense, Expense } from '@/types/bookkeeping';
 import { buildPostedSet, dueRecurringForMonth, postedKey } from '@/lib/finance/recurring';
 
 // ── Date range helpers ────────────────────────────────────────────────────────
@@ -106,11 +106,11 @@ const monthLabel = (key: string) => {
 export default function FinancePage() {
   const {
     orders, orderPayments, supplierPayments, expenses,
-    addOrderPayment, addSupplierPayment, addExpense,
+    addOrderPayment, addSupplierPayment, addExpense, deleteExpense,
     recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
     getClientName, getVendorName,
   } = useCRM();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   // ── Date range state ────────────────────────────────────────────────────────
@@ -305,6 +305,16 @@ export default function FinancePage() {
       setExpenseForm({ date: businessToday(), amount: '', category: 'Inventory/Procurement', description: '', order_id: '' });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to add expense');
+    }
+  };
+
+  const handleDeleteExpense = async (e: Expense) => {
+    if (!window.confirm(`Delete this expense — ${e.category} ${formatPKR(e.amount)}${e.description ? ` (${e.description})` : ''}? This cannot be undone.`)) return;
+    try {
+      await deleteExpense(e.expense_id);
+      toast.success('Expense deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete expense');
     }
   };
 
@@ -569,16 +579,22 @@ export default function FinancePage() {
           ) : (
             <div className="space-y-1.5">
               {rangeExpenses.slice(0, 15).map(e => (
-                <div key={e.expense_id} className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-muted/40 transition-colors">
+                <div key={e.expense_id} className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-muted/40 transition-colors group">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-info/10 text-info flex-shrink-0">{e.category}</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: categoryColor(e.category), background: categoryColor(e.category).replace(/\)$/, ' / 0.14)') }}>{e.category}</span>
                     <span className="text-sm text-foreground truncate">{e.description || '—'}</span>
                     {e.recurring_id && <span className="text-[10px] text-muted-foreground flex-shrink-0 flex items-center gap-0.5" title="Posted from a recurring template"><Repeat className="w-3 h-3" /> recurring</span>}
                     {e.order_id && <span className="text-[10px] text-muted-foreground flex-shrink-0">↳ {getClientName(orders.find(o => o.id === e.order_id)?.client_id ?? '')}</span>}
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <span className="text-xs text-muted-foreground">{formatDate(e.date)}</span>
-                    <span className="text-sm font-semibold text-foreground">{formatPKR(e.amount)}</span>
+                    <span className="text-sm font-semibold text-foreground tabular-nums">{formatPKR(e.amount)}</span>
+                    {isAdmin && (
+                      <button onClick={() => handleDeleteExpense(e)} title="Delete expense"
+                        className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
