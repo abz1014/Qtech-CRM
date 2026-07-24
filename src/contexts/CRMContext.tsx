@@ -749,14 +749,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       if (inquired.has(r.id) && !quoted.has(r.id)) {
         const age = daysSince(r.rfq_date);
         if (age !== null && age > 7) {
-          autoFollowUp({ title: `Chase supplier response — ${r.company_name}`, action_type: 'supplier_response', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
+          autoFollowUp({ title: `Chase supplier response — ${r.company_name}${r.rfq_number ? ` · ${r.rfq_number}` : ''}`, action_type: 'supplier_response', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
         }
       }
       // Quote sent to customer but no decision after 7 days
       if (r.status === 'quoted') {
         const age = daysSince(r.quote_sent_date ?? r.rfq_date);
         if (age !== null && age > 7) {
-          autoFollowUp({ title: `Follow up on quote — ${r.company_name}`, action_type: 'rfq_followup', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
+          autoFollowUp({ title: `Follow up on quote — ${r.company_name}${r.rfq_number ? ` · ${r.rfq_number}` : ''}`, action_type: 'rfq_followup', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
         }
       }
     });
@@ -766,7 +766,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       if (o.status === 'po_received' || o.status === 'procurement' || o.status === 'in_transit') {
         const age = daysSince(o.customer_po_date ?? o.confirmed_date);
         if (age !== null && age > 30) {
-          autoFollowUp({ title: `Stalled order — check ${getClientName(o.client_id)}`, action_type: 'order_status', entity_type: 'order', entity_id: o.id, assigned_to: o.sales_person_id ?? null, priority: 'medium', daysFromNow: 0 });
+          autoFollowUp({ title: `Stalled order — check ${getClientName(o.client_id)}${o.product_type ? ` · ${o.product_type}` : ''}`, action_type: 'order_status', entity_type: 'order', entity_id: o.id, assigned_to: o.sales_person_id ?? null, priority: 'medium', daysFromNow: 0 });
         }
       }
     });
