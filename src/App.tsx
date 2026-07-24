@@ -6,6 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CRMProvider } from "@/contexts/CRMContext";
+import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 import { AppLayout } from "@/components/AppLayout";
 
 // ─── Lazy-load every page ─────────────────────────────────────────────────────
@@ -81,6 +82,7 @@ const App = () => (
       <Sonner />
       <AuthProvider>
         <CRMProvider>
+          <ConfirmProvider>
           <BrowserRouter>
             <Suspense fallback={<PageLoader />}>
               <Routes>
@@ -111,6 +113,7 @@ const App = () => (
               </Routes>
             </Suspense>
           </BrowserRouter>
+          </ConfirmProvider>
         </CRMProvider>
       </AuthProvider>
     </TooltipProvider>

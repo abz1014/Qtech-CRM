@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { businessToday } from '@/lib/dates';
@@ -74,6 +75,7 @@ const toInput = (f: FormState): CreateGstInvoiceInput => ({
 export default function GstRegisterPage() {
   const { gstInvoices, orders, addGstInvoice, updateGstInvoice, deleteGstInvoice, getClientName, getVendorName } = useCRM();
   const { user } = useAuth();
+  const confirm = useConfirm();
 
   const [search, setSearch] = useState('');
   const [fbrFilter, setFbrFilter] = useState<FbrStatus | 'all' | 'attention'>('all');
@@ -139,7 +141,7 @@ export default function GstRegisterPage() {
   };
 
   const handleDelete = async (g: GstInvoice) => {
-    if (!window.confirm(`Delete invoice ${g.gst_invoice_number || '(no number)'} from the register?`)) return;
+    if (!(await confirm({ title: 'Delete invoice?', message: `Delete invoice ${g.gst_invoice_number || '(no number)'} from the register? This cannot be undone.`, confirmLabel: 'Delete invoice' }))) return;
     try {
       await deleteGstInvoice(g.id);
       toast.success('Invoice removed');

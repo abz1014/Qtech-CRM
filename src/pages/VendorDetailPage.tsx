@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useState, useMemo } from 'react';
 import { ArrowLeft, Edit2, X, Send, Clock, Award, ShoppingCart, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -11,13 +12,14 @@ export default function VendorDetailPage() {
   const navigate = useNavigate();
   const { vendors, supplierInquiries, supplierQuotes, orders, rfqs, updateVendor, deleteVendor } = useCRM();
   const { isAdmin } = useAuth();
+  const confirm = useConfirm();
 
   const vendor = vendors.find(v => v.id === id);
 
   const handleDelete = async () => {
     const oc = orders.filter(o => o.vendor_id === id).length;
     const extra = oc ? ` ${oc} order(s) reference this vendor and will keep their record but lose the vendor link.` : '';
-    if (!window.confirm(`Delete vendor "${vendor?.name}"?${extra} This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete vendor?', message: `Delete vendor "${vendor?.name}"?${extra} This cannot be undone.`, confirmLabel: 'Delete vendor' }))) return;
     try {
       await deleteVendor(id!);
       toast.success('Vendor deleted');

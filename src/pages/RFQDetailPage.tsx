@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
 import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart, Calculator, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { SupplierInquiryStatus, RFQStatus, RFQPriority, LossReason, RFQ } from '@/types/crm';
@@ -22,6 +23,7 @@ export default function RFQDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAdmin, isSales, user } = useAuth();
+  const confirm = useConfirm();
   const {
     rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients, users,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateSupplierInquiry, updateInquiryStatus,
@@ -121,13 +123,13 @@ export default function RFQDetailPage() {
   };
 
   const handleDeleteLineItem = async (id: string) => {
-    if (!confirm('Delete this line item?')) return;
+    if (!(await confirm({ title: 'Delete line item?', message: 'Delete this line item?', confirmLabel: 'Delete' }))) return;
     await deleteRFQLineItem(id);
   };
 
   const handleDeleteRFQ = async () => {
     if (!rfq) return;
-    if (!window.confirm(`Delete this RFQ for ${rfq.company_name}? This also removes its follow-ups and cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete RFQ?', message: `Delete this RFQ for ${rfq.company_name}? This also removes its follow-ups and cannot be undone.`, confirmLabel: 'Delete RFQ' }))) return;
     try {
       await deleteRFQ(rfq.id);
       toast.success('RFQ deleted');
@@ -238,9 +240,13 @@ export default function RFQDetailPage() {
       const existingActions = await getFollowUpsForEntity('rfq', id);
       const hasOpenAction = existingActions.some(a => a.status === 'pending');
       if (!hasOpenAction) {
-        const proceed = confirm(
-          '⚠️ No follow-up action is scheduled for this RFQ.\n\nIt\'s recommended to add a follow-up before marking as "In Progress" so no opportunity is missed.\n\nContinue without a follow-up?'
-        );
+        const proceed = await confirm({
+          title: 'No follow-up scheduled',
+          message: 'No follow-up is scheduled for this RFQ. It\'s recommended to add one before marking it In Progress, so no opportunity is missed. Continue without a follow-up?',
+          confirmLabel: 'Continue',
+          cancelLabel: 'Go back',
+          destructive: false,
+        });
         if (!proceed) return;
       }
     }

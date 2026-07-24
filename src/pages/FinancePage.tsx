@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useNavigate } from 'react-router-dom';
@@ -111,6 +112,7 @@ export default function FinancePage() {
     getClientName, getVendorName,
   } = useCRM();
   const { user, isAdmin } = useAuth();
+  const confirm = useConfirm();
   const navigate = useNavigate();
 
   // ── Date range state ────────────────────────────────────────────────────────
@@ -310,7 +312,7 @@ export default function FinancePage() {
   };
 
   const handleDeleteExpense = async (e: Expense) => {
-    if (!window.confirm(`Delete this expense — ${e.category} ${formatPKR(e.amount)}${e.description ? ` (${e.description})` : ''}? This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete expense?', message: `Delete this expense — ${e.category} ${formatPKR(e.amount)}${e.description ? ` (${e.description})` : ''}? This cannot be undone.`, confirmLabel: 'Delete' }))) return;
     try {
       await deleteExpense(e.expense_id);
       toast.success('Expense deleted');
@@ -366,7 +368,7 @@ export default function FinancePage() {
   };
 
   const handleDeleteRecurring = async (t: RecurringExpense) => {
-    if (!window.confirm(`Delete recurring expense "${t.label}"? Already-posted months stay in the ledger.`)) return;
+    if (!(await confirm({ title: 'Delete recurring expense?', message: `Delete recurring expense "${t.label}"? Already-posted months stay in the ledger.`, confirmLabel: 'Delete' }))) return;
     try {
       await deleteRecurringExpense(t.id);
       toast.success('Recurring expense deleted');

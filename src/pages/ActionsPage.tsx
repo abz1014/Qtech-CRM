@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import {
   CheckCircle, AlertCircle, Clock, Trash2, Bell,
   RotateCcw, AlarmClock, Users, ChevronDown, ChevronUp,
@@ -594,6 +595,7 @@ function GroupedActionList({ actions, users, resolveEntity, onCompleteClick, onS
 export default function ActionsPage() {
   const { followUpActions, getAllFollowUps, completeFollowUp, snoozeFollowUp, deleteFollowUp, users, rfqs, orders, getClientName, getRecentActivity, getPatternInsights } = useCRM();
   const { user, isAdmin } = useAuth();
+  const confirm = useConfirm();
 
   type Tab = 'all' | 'overdue' | 'today' | 'upcoming' | 'team' | 'activity';
   const [tab, setTab]         = useState<Tab>('today');
@@ -702,7 +704,7 @@ export default function ActionsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this action?')) return;
+    if (!(await confirm({ title: 'Delete action?', message: 'Delete this follow-up action?', confirmLabel: 'Delete' }))) return;
     await deleteFollowUp(id);
     setAllActions(prev => prev.filter(a => a.id !== id));
   };

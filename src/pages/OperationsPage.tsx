@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { FileText, Send, MessageSquare, ShoppingCart, AlertTriangle, ChevronRight, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { businessToday } from '@/lib/dates';
@@ -29,6 +30,7 @@ export default function OperationsPage() {
   const navigate = useNavigate();
   const { rfqs, orders, supplierInquiries, supplierQuotes, getClientName, updateOrder } = useCRM();
   const { isAdmin } = useAuth();
+  const confirm = useConfirm();
   const today = businessToday();
 
   const hasInquiry = useMemo(() => new Set(supplierInquiries.map(i => i.rfq_id)), [supplierInquiries]);
@@ -68,7 +70,7 @@ export default function OperationsPage() {
   }, [rfqs, orders, hasInquiry, hasQuote, today]);
 
   const dismissOverdue = async (orderId: string, client: string) => {
-    if (!window.confirm(`Remove ${client}'s overdue payment from Operations? The order itself stays; it just won't show here anymore.`)) return;
+    if (!(await confirm({ title: 'Remove from Operations?', message: `Remove ${client}'s overdue payment from Operations? The order itself stays; it just won't show here anymore.`, confirmLabel: 'Remove', destructive: false }))) return;
     try {
       await updateOrder(orderId, { ops_dismissed: true });
       toast.success('Removed from Operations');

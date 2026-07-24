@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
 import { businessToday } from '@/lib/dates';
 import { toast } from 'sonner';
@@ -34,6 +35,7 @@ const blankEmployee = () => ({
 export default function EmployeesPage() {
   const { employees, attendance, addEmployee, updateEmployee, deleteEmployee, markAttendance } = useCRM();
   const { user } = useAuth();
+  const confirm = useConfirm();
 
   const [tab, setTab] = useState<'roster' | 'attendance'>('roster');
   const [search, setSearch] = useState('');
@@ -95,7 +97,7 @@ export default function EmployeesPage() {
   };
 
   const handleDeleteEmp = async (e: Employee) => {
-    if (!window.confirm(`Delete ${e.name}? Their attendance history will also be removed. This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete employee?', message: `Delete ${e.name}? Their attendance history will also be removed. This cannot be undone.`, confirmLabel: 'Delete employee' }))) return;
     try {
       await deleteEmployee(e.id);
       toast.success('Employee deleted');

@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Edit2, X, ShoppingCart, FileText, TrendingUp, Target, ChevronRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,6 +29,7 @@ export default function ClientDetailPage() {
   const navigate = useNavigate();
   const { clients, rfqs, orders, updateClient, deleteClient } = useCRM();
   const { isAdmin, isSales } = useAuth();
+  const confirm = useConfirm();
 
   // Customer intelligence — derived from existing RFQ/order data
   const clientRFQs = useMemo(() => rfqs.filter(r => r.client_id === id).sort((a, b) => b.rfq_date.localeCompare(a.rfq_date)), [rfqs, id]);
@@ -100,7 +102,7 @@ export default function ClientDetailPage() {
     const oc = orders.filter(o => o.client_id === id).length;
     const rc = rfqs.filter(r => r.client_id === id).length;
     const extra = (oc || rc) ? ` This will ALSO delete ${oc} order(s) and ${rc} RFQ(s) for this client.` : '';
-    if (!window.confirm(`Delete client "${client?.company_name}"?${extra} This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete client?', message: `Delete client "${client?.company_name}"?${extra} This cannot be undone.`, confirmLabel: 'Delete client' }))) return;
     try {
       await deleteClient(id!);
       toast.success('Client deleted');

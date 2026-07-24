@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useState } from 'react';
 import { ArrowLeft, Edit2, X, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,11 +13,12 @@ export default function ProspectDetailPage() {
   const navigate = useNavigate();
   const { prospects, users, updateProspect, deleteProspect, getUserName } = useCRM();
   const { isAdmin } = useAuth();
+  const confirm = useConfirm();
 
   const prospect = prospects.find(p => p.id === id);
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete prospect "${prospect?.company_name}"? This cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete prospect?', message: `Delete prospect "${prospect?.company_name}"? This cannot be undone.`, confirmLabel: 'Delete prospect' }))) return;
     try {
       await deleteProspect(id!);
       toast.success('Prospect deleted');

@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
 import { ArrowLeft, MapPin, Calendar, User, TrendingUp, FileText, Edit2, X, Calculator, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { OrderStatus, CommissioningStatus, ProductType } from '@/types/crm';
@@ -38,6 +39,7 @@ export default function OrderDetailPage() {
   const navigate = useNavigate();
   const { orders, orderEngineers, rfqs, users, clients, vendors, updateOrderStatus, addOrderEngineer, getNextOrderStatus, getClientName, getVendorName, getUserName, updateOrder, deleteOrder } = useCRM();
   const { isAdmin, isSales } = useAuth();
+  const confirm = useConfirm();
 
   const order = orders.find(o => o.id === id);
   const assignments = orderEngineers.filter(oe => oe.order_id === id);
@@ -142,7 +144,7 @@ export default function OrderDetailPage() {
 
   const handleDeleteOrder = async () => {
     if (!order) return;
-    if (!window.confirm(`Delete this order for ${getClientName(order.client_id)} (${formatPKR(order.order_value)})? This also removes its follow-ups and cannot be undone.`)) return;
+    if (!(await confirm({ title: 'Delete order?', message: `Delete this order for ${getClientName(order.client_id)} (${formatPKR(order.order_value)})? This also removes its follow-ups and cannot be undone.`, confirmLabel: 'Delete order' }))) return;
     try {
       await deleteOrder(order.id);
       toast.success('Order deleted');
