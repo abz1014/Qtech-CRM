@@ -596,7 +596,7 @@ export default function FinancePage() {
                     <span className="text-sm font-semibold text-foreground tabular-nums">{formatPKR(e.amount)}</span>
                     {isAdmin && (
                       <button onClick={() => handleDeleteExpense(e)} title="Delete expense"
-                        className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
+                        className="text-muted-foreground/60 hover:text-destructive transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
