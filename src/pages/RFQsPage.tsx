@@ -251,7 +251,7 @@ export default function RFQsPage() {
         >
           Lost Deals
           {lostMetrics.count > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive text-[10px] font-bold">{lostMetrics.count}</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-destructive/15 text-destructive text-[11px] font-bold">{lostMetrics.count}</span>
           )}
         </button>
       </div>
@@ -353,7 +353,7 @@ export default function RFQsPage() {
               <div className="flex items-center justify-between mt-2">
                 <span className="text-xs text-muted-foreground">{formatDate(rfq.rfq_date)}</span>
                 {rfq.quote_deadline && rfq.status !== 'converted' && rfq.status !== 'lost' && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                  <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
                     isExpiring ? (rfq.status === 'quoted' ? 'bg-warning/15 text-warning' : 'bg-destructive/15 text-destructive') : 'bg-muted text-muted-foreground'}`}>
                     {daysToDeadline !== null && daysToDeadline < 0 ? 'DEADLINE EXPIRED'
                       : daysToDeadline === 0 ? 'DUE TODAY'
@@ -425,9 +425,9 @@ export default function RFQsPage() {
                     return (
                       <div className="flex flex-wrap gap-1">
                         {items.slice(0, 3).map(li => (
-                          <span key={li.id} className="text-[11px] font-medium bg-info/10 text-foreground px-1.5 py-0.5 rounded">{li.product_type}{li.quantity > 1 ? ` ×${li.quantity}` : ''}</span>
+                          <span key={li.id} className="text-[12px] font-medium bg-info/10 text-foreground px-1.5 py-0.5 rounded">{li.product_type}{li.quantity > 1 ? ` ×${li.quantity}` : ''}</span>
                         ))}
-                        {items.length > 3 && <span className="text-[10px] text-muted-foreground">+{items.length - 3} more</span>}
+                        {items.length > 3 && <span className="text-[11px] text-muted-foreground">+{items.length - 3} more</span>}
                       </div>
                     );
                   })()}
@@ -436,15 +436,15 @@ export default function RFQsPage() {
                   <div className="flex flex-col gap-0.5">
                     <span>{formatDate(rfq.rfq_date)}</span>
                     {rfq.quote_deadline && rfq.status !== 'converted' && (
-                      <span className={`text-[10px] font-semibold flex items-center gap-1 ${isExpiring ? (rfq.status === 'quoted' ? 'text-warning' : 'text-destructive') : 'text-muted-foreground'}`}>
+                      <span className={`text-[11px] font-semibold flex items-center gap-1 ${isExpiring ? (rfq.status === 'quoted' ? 'text-warning' : 'text-destructive') : 'text-muted-foreground'}`}>
                         {isExpiring ? (rfq.status === 'quoted' ? '🟡' : '🔴') : '📅'} Deadline: {formatDate(rfq.quote_deadline)}
                         {daysToDeadline !== null && daysToDeadline <= 2 && daysToDeadline >= 0 && rfq.status !== 'lost' && (
-                          <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${rfq.status === 'quoted' ? 'bg-warning/15 text-warning' : 'bg-destructive/15 text-destructive'}`}>
+                          <span className={`px-1 py-0.5 rounded text-[11px] font-bold ${rfq.status === 'quoted' ? 'bg-warning/15 text-warning' : 'bg-destructive/15 text-destructive'}`}>
                             {daysToDeadline === 0 ? 'TODAY' : `${daysToDeadline}d left`}
                           </span>
                         )}
                         {daysToDeadline !== null && daysToDeadline < 0 && rfq.status !== 'lost' && (
-                          <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${rfq.status === 'quoted' ? 'bg-warning/15 text-warning' : 'bg-destructive/15 text-destructive'}`}>EXPIRED</span>
+                          <span className={`px-1 py-0.5 rounded text-[11px] font-bold ${rfq.status === 'quoted' ? 'bg-warning/15 text-warning' : 'bg-destructive/15 text-destructive'}`}>EXPIRED</span>
                         )}
                       </span>
                     )}
@@ -454,7 +454,7 @@ export default function RFQsPage() {
                   <div className="flex flex-col gap-1">
                     <span className={`status-badge capitalize w-fit ${rfqStatusColors[rfq.status]}`}>{rfq.status.replace('_', ' ')}</span>
                     {rfq.status === 'lost' && rfq.loss_reason && (
-                      <span className="text-[10px] font-medium text-destructive flex items-center gap-1 max-w-[180px]">
+                      <span className="text-[11px] font-medium text-destructive flex items-center gap-1 max-w-[180px]">
                         {lossReasonIcon(rfq.loss_reason)} {lossReasonLabel(rfq.loss_reason)}
                       </span>
                     )}

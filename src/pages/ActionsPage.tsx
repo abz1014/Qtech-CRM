@@ -81,7 +81,7 @@ function DueLabel({ due_date }: { due_date: string }) {
       <Clock className="w-3 h-3" />
       {text}
       {(tier === 2 || tier === 3) && (
-        <span className="ml-1 text-[10px] font-bold tracking-wide">{badge.text}</span>
+        <span className="ml-1 text-[11px] font-bold tracking-wide">{badge.text}</span>
       )}
     </div>
   );

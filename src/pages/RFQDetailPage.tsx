@@ -475,7 +475,7 @@ export default function RFQDetailPage() {
                 <p className="text-sm font-semibold text-foreground">{o.product_type}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {getVendorName(o.vendor_id)} · {formatPKR(o.order_value)}
-                  <span className={`ml-2 status-badge text-[10px] ${
+                  <span className={`ml-2 status-badge text-[11px] ${
                     o.status === 'payment_received' ? 'bg-success/15 text-success' :
                     o.status === 'delivered' ? 'bg-success/10 text-success' :
                     'bg-warning/15 text-warning'
@@ -747,13 +747,13 @@ export default function RFQDetailPage() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {getVendorName(sq.vendor_id)}
                       {isWinner && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">✓ WINNER</span>
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">✓ WINNER</span>
                       )}
                       {isBestValue && !isWinner && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-success/15 text-success">★ BEST VALUE</span>
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-success/15 text-success">★ BEST VALUE</span>
                       )}
                       {cheapestQuote?.id === sq.id && !isWinner && !isBestValue && (
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">lowest price</span>
+                        <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">lowest price</span>
                       )}
                     </div>
                   </td>

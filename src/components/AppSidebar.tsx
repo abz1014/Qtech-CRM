@@ -82,7 +82,7 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
           </div>
           <div>
             <p className="text-sm font-bold" style={{ color: 'hsl(var(--sidebar-accent-foreground))' }}>Q Tech Solutions</p>
-            <p className="text-[11px]" style={{ color: 'hsl(var(--sidebar-foreground))' }}>Engineering CRM</p>
+            <p className="text-[12px]" style={{ color: 'hsl(var(--sidebar-foreground))' }}>Engineering CRM</p>
           </div>
         </div>
         <button onClick={onClose} className="lg:hidden p-1.5 rounded-lg"
@@ -114,7 +114,7 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
                       <span>{item.label}</span>
                       {item.path === '/actions' && urgentCount > 0 && (
                         <span
-                          className="absolute right-3 top-1/2 -translate-y-1/2 min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-extrabold flex items-center justify-center text-white"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 min-w-[22px] h-[22px] px-1.5 rounded-full text-[12px] font-extrabold flex items-center justify-center text-white"
                           style={{
                             background: 'linear-gradient(135deg, hsl(0 80% 55%), hsl(0 75% 42%))',
                             boxShadow: '0 0 0 2px hsl(var(--sidebar-background)), 0 0 12px hsl(0 80% 55% / 0.6), 0 2px 6px hsl(0 80% 30% / 0.4)',
@@ -144,7 +144,7 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: 'hsl(var(--sidebar-accent-foreground))' }}>{user.name}</p>
-            <p className="text-[11px] capitalize" style={{ color: 'hsl(var(--sidebar-foreground))' }}>{user.role}</p>
+            <p className="text-[12px] capitalize" style={{ color: 'hsl(var(--sidebar-foreground))' }}>{user.role}</p>
           </div>
         </div>
         <div className="flex gap-1.5">

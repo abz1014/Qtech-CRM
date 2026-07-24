@@ -81,7 +81,7 @@ export default function OperationsPage() {
     if (days === null) return null;
     const stale = staleAt !== undefined && days >= staleAt;
     return (
-      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${stale ? 'bg-destructive/15 text-destructive' : 'bg-muted text-muted-foreground'}`}>
+      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${stale ? 'bg-destructive/15 text-destructive' : 'bg-muted text-muted-foreground'}`}>
         {days}d
       </span>
     );
@@ -123,7 +123,7 @@ export default function OperationsPage() {
             const overdue = r.quote_deadline && String(r.quote_deadline).slice(0, 10) < today;
             return (
               <Row key={r.id} onClick={() => navigate(`/rfqs/${r.id}`)}
-                left={<><span className="text-xs font-mono font-semibold text-primary">{r.rfq_number || 'RFQ'}</span><span className="text-xs text-muted-foreground truncate">{r.company_name}</span>{overdue && <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-destructive/15 text-destructive">DEADLINE PASSED</span>}</>}
+                left={<><span className="text-xs font-mono font-semibold text-primary">{r.rfq_number || 'RFQ'}</span><span className="text-xs text-muted-foreground truncate">{r.company_name}</span>{overdue && <span className="text-[11px] font-bold px-1 py-0.5 rounded bg-destructive/15 text-destructive">DEADLINE PASSED</span>}</>}
                 right={<AgeBadge days={daysSince(r.quote_sent_date, today)} staleAt={7} />} />
             );
           })}
@@ -134,7 +134,7 @@ export default function OperationsPage() {
           empty="No open orders in fulfillment." >
           {lists.ordersInProgress.map(({ o, age }) => (
             <Row key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
-              left={<><span className="text-xs font-medium text-foreground truncate">{getClientName(o.client_id)}</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{orderStatusLabel[o.status]}</span></>}
+              left={<><span className="text-xs font-medium text-foreground truncate">{getClientName(o.client_id)}</span><span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{orderStatusLabel[o.status]}</span></>}
               right={<AgeBadge days={age} staleAt={ORDER_STALE_DAYS} />} />
           ))}
         </WorklistCard>
@@ -147,7 +147,7 @@ export default function OperationsPage() {
               <Row key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
                 left={<><span className="text-xs font-medium text-foreground truncate">{getClientName(o.client_id)}</span><span className="text-xs text-muted-foreground">{formatPKR(o.order_value)}</span></>}
                 right={<>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">{daysSince(o.payment_due_date, today)}d overdue</span>
+                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">{daysSince(o.payment_due_date, today)}d overdue</span>
                   {isAdmin && (
                     <button
                       onClick={e => { e.stopPropagation(); dismissOverdue(o.id, getClientName(o.client_id)); }}

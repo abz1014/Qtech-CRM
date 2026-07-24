@@ -203,7 +203,7 @@ export default function ClientDetailPage() {
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-success/15 text-success"><Target className="w-4 h-4" /></div>
           </div>
           <p className="text-2xl font-extrabold text-foreground tracking-tight">{intel.winRate === null ? '—' : `${intel.winRate}%`}</p>
-          {intel.winRate !== null && <p className="text-[10px] text-muted-foreground mt-0.5">of decided RFQs</p>}
+          {intel.winRate !== null && <p className="text-[11px] text-muted-foreground mt-0.5">of decided RFQs</p>}
         </div>
       </div>
 
@@ -218,7 +218,7 @@ export default function ClientDetailPage() {
                 <div className="flex items-center gap-2 min-w-0">
                   <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-xs font-mono font-semibold text-primary">{r.rfq_number || 'RFQ'}</span>
-                  <span className={`status-badge capitalize text-[10px] ${rfqStatusColor[r.status]}`}>{r.status.replace('_', ' ')}</span>
+                  <span className={`status-badge capitalize text-[11px] ${rfqStatusColor[r.status]}`}>{r.status.replace('_', ' ')}</span>
                   <span className="text-xs text-muted-foreground truncate">{formatDate(r.rfq_date)}</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -230,7 +230,7 @@ export default function ClientDetailPage() {
                 <div className="flex items-center gap-2 min-w-0">
                   <ShoppingCart className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-xs font-medium text-foreground truncate">{o.product_type}</span>
-                  <span className={`status-badge capitalize text-[10px] ${orderStatusColor[o.status]}`}>{o.status.replace(/_/g, ' ')}</span>
+                  <span className={`status-badge capitalize text-[11px] ${orderStatusColor[o.status]}`}>{o.status.replace(/_/g, ' ')}</span>
                   <span className="text-xs text-muted-foreground">{formatPKR(o.order_value)}</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -260,7 +260,7 @@ export default function ClientDetailPage() {
                     className="border-b border-border/50 hover:bg-muted/30 cursor-pointer transition-colors">
                     <td className="py-2.5"><span className="text-xs font-mono font-semibold text-primary">{r.rfq_number || '—'}</span></td>
                     <td className="py-2.5 text-muted-foreground text-xs">{formatDate(r.rfq_date)}</td>
-                    <td className="py-2.5"><span className={`status-badge capitalize text-[10px] ${rfqStatusColor[r.status]}`}>{r.status.replace('_', ' ')}</span></td>
+                    <td className="py-2.5"><span className={`status-badge capitalize text-[11px] ${rfqStatusColor[r.status]}`}>{r.status.replace('_', ' ')}</span></td>
                     <td className="py-2.5 text-xs text-muted-foreground">
                       {r.status === 'lost' && r.loss_reason ? `Lost: ${lossReasonLabel(r.loss_reason)}` : ''}
                     </td>

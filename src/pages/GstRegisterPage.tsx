@@ -165,7 +165,7 @@ export default function GstRegisterPage() {
 
   const inputCls = 'w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50';
   const lbl = 'block text-xs font-medium text-muted-foreground mb-1';
-  const th = 'text-left px-3 py-2.5 text-[11px] font-semibold text-muted-foreground whitespace-nowrap';
+  const th = 'text-left px-3 py-2.5 text-[12px] font-semibold text-muted-foreground whitespace-nowrap';
   const td = 'px-3 py-2.5 text-sm text-foreground whitespace-nowrap';
 
   return (
@@ -202,7 +202,7 @@ export default function GstRegisterPage() {
         <div className="kpi-card">
           <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">Needs attention {kpis.attention > 0 && <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}</p>
           <p className={cn('text-2xl font-extrabold tracking-tight mt-1', kpis.attention > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground')}>{kpis.attention}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">prior-month, tax not deposited</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">prior-month, tax not deposited</p>
         </div>
       </div>
 
@@ -253,33 +253,33 @@ export default function GstRegisterPage() {
                   <tr key={g.id} className={cn('border-b border-border/50 hover:bg-muted/30 transition-colors', attention && 'bg-amber-500/[0.06]')}>
                     <td className={td}>
                       <div className="font-semibold">{g.gst_invoice_number || '—'}</div>
-                      <div className="text-[11px] text-muted-foreground">{g.invoice_date ? formatDate(g.invoice_date) : '—'}</div>
+                      <div className="text-[12px] text-muted-foreground">{g.invoice_date ? formatDate(g.invoice_date) : '—'}</div>
                     </td>
                     <td className={td}>
                       <div className="flex items-center gap-1">{g.order_id && <Link2 className="w-3 h-3 text-primary flex-shrink-0" />}<span className="truncate max-w-[160px]">{g.client_name || '—'}</span></div>
-                      <div className="text-[11px] text-muted-foreground">{g.customer_po_number || '—'}</div>
+                      <div className="text-[12px] text-muted-foreground">{g.customer_po_number || '—'}</div>
                     </td>
                     <td className={td}>
                       <div className="truncate max-w-[180px]">{g.supplier_company || '—'}</div>
-                      <div className="text-[11px] text-muted-foreground truncate max-w-[180px]">{g.item_name}{g.item_number ? ` · ${g.item_number}` : ''}</div>
+                      <div className="text-[12px] text-muted-foreground truncate max-w-[180px]">{g.item_name}{g.item_number ? ` · ${g.item_number}` : ''}</div>
                     </td>
                     <td className={`${td} text-muted-foreground`}>{g.delivery_challan_number || '—'}</td>
                     <td className={`${td} text-right`}>
                       <div className="font-semibold">{formatPKR(g.amount)}</div>
-                      <div className="text-[11px] text-muted-foreground">GST {formatPKR(g.gst_amount)}</div>
+                      <div className="text-[12px] text-muted-foreground">GST {formatPKR(g.gst_amount)}</div>
                     </td>
                     <td className={td}>
-                      <div className="text-[11px]">{g.tcs_sent_date ? `Sent ${formatDate(g.tcs_sent_date)}` : '—'}</div>
-                      <div className="text-[11px] text-muted-foreground">{g.tcs_receipt_number ? `#${g.tcs_receipt_number}` : ''}</div>
+                      <div className="text-[12px]">{g.tcs_sent_date ? `Sent ${formatDate(g.tcs_sent_date)}` : '—'}</div>
+                      <div className="text-[12px] text-muted-foreground">{g.tcs_receipt_number ? `#${g.tcs_receipt_number}` : ''}</div>
                     </td>
-                    <td className={`${td} text-[11px] text-muted-foreground`}>{g.client_received_date ? formatDate(g.client_received_date) : '—'}</td>
+                    <td className={`${td} text-[12px] text-muted-foreground`}>{g.client_received_date ? formatDate(g.client_received_date) : '—'}</td>
                     <td className={td}>
-                      <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap', FBR_BADGE[g.fbr_status])}>{g.fbr_status}</span>
-                      {attention && <div className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5 mt-0.5"><AlertTriangle className="w-3 h-3" /> chase WASIF</div>}
+                      <span className={cn('text-[11px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap', FBR_BADGE[g.fbr_status])}>{g.fbr_status}</span>
+                      {attention && <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5 mt-0.5"><AlertTriangle className="w-3 h-3" /> chase WASIF</div>}
                     </td>
                     <td className={td}>
-                      <div className="text-[11px]">{g.psid ? `PSID ${g.psid}` : '—'}</div>
-                      <div className="text-[11px] text-muted-foreground">{g.tax_deposit_date ? `Paid ${formatDate(g.tax_deposit_date)}` : g.wasif_receipt_received ? 'Receipt in' : ''}</div>
+                      <div className="text-[12px]">{g.psid ? `PSID ${g.psid}` : '—'}</div>
+                      <div className="text-[12px] text-muted-foreground">{g.tax_deposit_date ? `Paid ${formatDate(g.tax_deposit_date)}` : g.wasif_receipt_received ? 'Receipt in' : ''}</div>
                     </td>
                     <td className={td}>
                       <div className="flex items-center gap-2">
@@ -294,7 +294,7 @@ export default function GstRegisterPage() {
           </table>
         )}
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[12px] text-muted-foreground">
         FBR reminder: sales tax is usually pending days 1–5, generated after the 5th, fully generated after the 10th — then check for the WASIF &amp; Co receipt (PSID) and deposit the tax. Rows highlighted amber are prior-month invoices whose tax isn't deposited yet.
       </p>
 

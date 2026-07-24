@@ -138,7 +138,7 @@ export default function ClientsPage() {
               className="glass-card p-4 cursor-pointer active:bg-muted/40 transition-colors">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-foreground truncate">{c.company_name}</p>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0">{clientRFQs.length} RFQs</span>
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0">{clientRFQs.length} RFQs</span>
               </div>
               <p className="text-xs text-muted-foreground truncate mt-0.5">{c.industry || '—'}</p>
               <p className="text-xs text-muted-foreground truncate mt-1.5">{c.contact_person} · {c.phone}</p>

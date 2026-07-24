@@ -154,7 +154,7 @@ export default function EmployeesPage() {
           <div className="grid grid-cols-3 gap-4">
             <div className="kpi-card"><p className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Active</p><p className="text-2xl font-extrabold text-foreground mt-1">{kpis.active}</p></div>
             <div className="kpi-card"><p className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><Building2 className="w-3.5 h-3.5" /> Departments</p><p className="text-2xl font-extrabold text-foreground mt-1">{kpis.departments}</p></div>
-            <div className="kpi-card"><p className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><Wallet className="w-3.5 h-3.5" /> Monthly payroll</p><p className="text-2xl font-extrabold text-foreground mt-1">{formatPKR(kpis.payroll)}</p><p className="text-[10px] text-muted-foreground">reference only</p></div>
+            <div className="kpi-card"><p className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><Wallet className="w-3.5 h-3.5" /> Monthly payroll</p><p className="text-2xl font-extrabold text-foreground mt-1">{formatPKR(kpis.payroll)}</p><p className="text-[11px] text-muted-foreground">reference only</p></div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -172,18 +172,18 @@ export default function EmployeesPage() {
               <p className="text-sm text-muted-foreground p-6 text-center">{employees.length === 0 ? 'No employees yet. Add your first staff member.' : 'No employees match this search.'}</p>
             ) : (
               <table className="w-full text-sm" style={{ minWidth: 720 }}>
-                <thead><tr className="border-b border-border text-left text-[11px] font-semibold text-muted-foreground">
+                <thead><tr className="border-b border-border text-left text-[12px] font-semibold text-muted-foreground">
                   <th className="px-3 py-2.5">Name</th><th className="px-3 py-2.5">Designation</th><th className="px-3 py-2.5">Department</th><th className="px-3 py-2.5">Contact</th><th className="px-3 py-2.5 text-right">Salary</th><th className="px-3 py-2.5">Status</th><th className="px-3 py-2.5"></th>
                 </tr></thead>
                 <tbody>
                   {rosterFiltered.map(e => (
                     <tr key={e.id} className={cn('border-b border-border/50 hover:bg-muted/30 transition-colors', e.status === 'inactive' && 'opacity-55')}>
-                      <td className="px-3 py-2.5"><div className="font-semibold text-foreground">{e.name}</div>{e.employee_code && <div className="text-[11px] text-muted-foreground">{e.employee_code}</div>}</td>
+                      <td className="px-3 py-2.5"><div className="font-semibold text-foreground">{e.name}</div>{e.employee_code && <div className="text-[12px] text-muted-foreground">{e.employee_code}</div>}</td>
                       <td className="px-3 py-2.5 text-foreground">{e.designation || '—'}</td>
-                      <td className="px-3 py-2.5"><span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-info/10 text-info">{e.department || '—'}</span></td>
+                      <td className="px-3 py-2.5"><span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-info/10 text-info">{e.department || '—'}</span></td>
                       <td className="px-3 py-2.5 text-muted-foreground text-xs">{e.phone || e.email || '—'}</td>
                       <td className="px-3 py-2.5 text-right text-foreground">{formatPKR(e.salary)}</td>
-                      <td className="px-3 py-2.5"><button onClick={() => toggleActive(e)} className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded', e.status === 'active' ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground')}>{e.status}</button></td>
+                      <td className="px-3 py-2.5"><button onClick={() => toggleActive(e)} className={cn('text-[11px] font-semibold px-1.5 py-0.5 rounded', e.status === 'active' ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground')}>{e.status}</button></td>
                       <td className="px-3 py-2.5"><div className="flex items-center gap-2">
                         <button onClick={() => openEdit(e)} className="text-muted-foreground hover:text-primary transition-colors" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
                         <button onClick={() => handleDeleteEmp(e)} className="text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -223,7 +223,7 @@ export default function EmployeesPage() {
             </div>
             <div className="glass-card p-0 overflow-x-auto">
               <table className="w-full text-sm" style={{ minWidth: 620 }}>
-                <thead><tr className="border-b border-border text-left text-[11px] font-semibold text-muted-foreground">
+                <thead><tr className="border-b border-border text-left text-[12px] font-semibold text-muted-foreground">
                   <th className="px-3 py-2.5">Employee</th><th className="px-3 py-2.5 text-center">Present</th><th className="px-3 py-2.5 text-center">Absent</th><th className="px-3 py-2.5 text-center">Leave</th><th className="px-3 py-2.5 text-center">Half-day</th><th className="px-3 py-2.5 text-center">Late</th><th className="px-3 py-2.5 text-center">Marked</th>
                 </tr></thead>
                 <tbody>
@@ -244,7 +244,7 @@ export default function EmployeesPage() {
                 </tbody>
               </table>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1.5">Counts cover {monthKeyLabel(summaryMonth)}. "Late" is set from check-in vs. the employee's shift start, or marked manually.</p>
+            <p className="text-[12px] text-muted-foreground mt-1.5">Counts cover {monthKeyLabel(summaryMonth)}. "Late" is set from check-in vs. the employee's shift start, or marked manually.</p>
           </div>
         </>
       )}
@@ -314,7 +314,7 @@ function AttendanceRow({ emp, record, onMark }: {
     <div className="flex items-center gap-2 flex-wrap p-2 rounded-lg hover:bg-muted/40 transition-colors">
       <div className="min-w-[140px] flex-1">
         <p className="text-sm font-medium text-foreground truncate">{emp.name}</p>
-        <p className="text-[11px] text-muted-foreground truncate">{emp.designation || emp.department}</p>
+        <p className="text-[12px] text-muted-foreground truncate">{emp.designation || emp.department}</p>
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0">
@@ -322,7 +322,7 @@ function AttendanceRow({ emp, record, onMark }: {
           const on = record?.status === s;
           return (
             <button key={s} onClick={() => onMark({ status: s })}
-              className={cn('px-2 py-1 rounded text-[11px] font-semibold border transition-colors',
+              className={cn('px-2 py-1 rounded text-[12px] font-semibold border transition-colors',
                 on ? STATUS_BTN[s].on + ' border-transparent' : 'border-border ' + STATUS_BTN[s].off)}>
               {ATTENDANCE_LABEL[s]}
             </button>
@@ -331,7 +331,7 @@ function AttendanceRow({ emp, record, onMark }: {
       </div>
 
       <button onClick={() => onMark({ late: !record?.late })} disabled={!record}
-        className={cn('px-2 py-1 rounded text-[11px] font-semibold border transition-colors flex-shrink-0',
+        className={cn('px-2 py-1 rounded text-[12px] font-semibold border transition-colors flex-shrink-0',
           record?.late ? 'bg-amber-500 text-white border-transparent' : 'border-border text-muted-foreground hover:text-amber-600',
           !record && 'opacity-40 cursor-not-allowed')}
         title={record ? 'Toggle late' : 'Mark a status first'}>

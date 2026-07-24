@@ -134,7 +134,7 @@ export function MultiItemEditor({ parent, onApply, applyLabel = 'Apply totals' }
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-separate border-spacing-y-1" style={{ minWidth: 900 }}>
           <thead>
-            <tr className="text-left text-[11px] text-muted-foreground">
+            <tr className="text-left text-[12px] text-muted-foreground">
               <th className="px-2 font-medium">Item</th>
               <th className="px-2 font-medium">Curr.</th>
               <th className="px-2 font-medium">Qty</th>
@@ -185,27 +185,27 @@ export function MultiItemEditor({ parent, onApply, applyLabel = 'Apply totals' }
       {/* ── Totals ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">Company Cost</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">Company Cost</p>
           <p className="text-lg font-extrabold text-foreground tracking-tight mt-1">{formatPKR(totals.totalCost)}</p>
-          <p className="text-[10px] text-muted-foreground">incl WHT</p>
+          <p className="text-[11px] text-muted-foreground">incl WHT</p>
         </div>
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">Quoted (excl GST)</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">Quoted (excl GST)</p>
           <p className="text-lg font-extrabold text-foreground tracking-tight mt-1">{formatPKR(totals.totalExclGst)}</p>
         </div>
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">GST</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">GST</p>
           <p className="text-lg font-extrabold text-foreground tracking-tight mt-1">{formatPKR(totals.gst)}</p>
-          <p className="text-[10px] text-muted-foreground">pass-through</p>
+          <p className="text-[11px] text-muted-foreground">pass-through</p>
         </div>
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">Customer Price (incl GST)</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">Customer Price (incl GST)</p>
           <p className="text-lg font-extrabold text-primary tracking-tight mt-1">{formatPKR(totals.totalInclGst)}</p>
         </div>
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">Gross Profit</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">Gross Profit</p>
           <p className={`text-lg font-extrabold tracking-tight mt-1 ${totals.grossProfit >= 0 ? 'text-success' : 'text-destructive'}`}>{formatPKR(totals.grossProfit)}</p>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             {totals.totalExclGst > 0 ? `${((totals.grossProfit / totals.totalExclGst) * 100).toFixed(1)}% of quoted` : '—'}
           </p>
         </div>
@@ -227,7 +227,7 @@ export function MultiItemEditor({ parent, onApply, applyLabel = 'Apply totals' }
               <div key={m.key} className="flex items-center gap-2">
                 <span className={`w-2.5 h-2.5 rounded-sm ${m.color} flex-shrink-0`} />
                 <div className="min-w-0">
-                  <p className="text-[11px] text-muted-foreground truncate">{m.label}</p>
+                  <p className="text-[12px] text-muted-foreground truncate">{m.label}</p>
                   <p className="text-xs font-semibold text-foreground">{formatPKR(dist[m.key])} <span className="text-muted-foreground font-normal">· {pct.toFixed(1)}%</span></p>
                 </div>
               </div>
@@ -305,7 +305,7 @@ export function CostingEditor({ parent, onApply, applyLabel = 'Apply totals' }: 
         <button onClick={() => setMode('single')} className={tab(mode === 'single')}>
           <Package className="w-3.5 h-3.5" /> Single item
         </button>
-        <span className="text-[11px] text-muted-foreground ml-1">Saving one model replaces the other for this record.</span>
+        <span className="text-[12px] text-muted-foreground ml-1">Saving one model replaces the other for this record.</span>
       </div>
 
       {mode === 'multi' ? (

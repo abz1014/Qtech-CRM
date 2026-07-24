@@ -69,7 +69,7 @@ export function AppLayout() {
 
             <div>
               <h1 className="text-lg font-bold text-foreground leading-none">{pageTitle}</h1>
-              <p className="text-[11px] text-muted-foreground mt-0.5 hidden sm:block">
+              <p className="text-[12px] text-muted-foreground mt-0.5 hidden sm:block">
                 Q Tech Solutions · Industrial Engineering CRM
               </p>
             </div>

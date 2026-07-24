@@ -144,7 +144,7 @@ export function SingleItemEditor({ parent, initialLine, baseConfig, onApply, app
   };
 
   const cell = 'px-2 py-1.5 bg-muted border border-border rounded text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 w-full';
-  const label = 'text-[11px] font-medium text-muted-foreground mb-1 block';
+  const label = 'text-[12px] font-medium text-muted-foreground mb-1 block';
 
   return (
     <div className="space-y-4">
@@ -178,16 +178,16 @@ export function SingleItemEditor({ parent, initialLine, baseConfig, onApply, app
       <div className="glass-card">
         <button onClick={() => setShowCfg(v => !v)} className="w-full flex items-center justify-between px-4 py-2.5 text-sm">
           <span className="flex items-center gap-1.5 font-medium text-foreground"><Settings2 className="w-4 h-4 text-primary" /> Freight & charges
-            {cfgDiffers && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400">overridden for this quote</span>}
+            {cfgDiffers && <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400">overridden for this quote</span>}
           </span>
           {showCfg ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
         </button>
         {showCfg && (
           <div className="px-4 pb-4 space-y-3">
-            <p className="text-[11px] text-muted-foreground">Defaults come from admin settings. Edits here apply to <strong>this quote only</strong> and are saved with it.</p>
+            <p className="text-[12px] text-muted-foreground">Defaults come from admin settings. Edits here apply to <strong>this quote only</strong> and are saved with it.</p>
             {['Freight rates', 'Fixed charges', 'Tax'].map(group => (
               <div key={group}>
-                <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">{group}</p>
+                <p className="text-[12px] font-semibold text-muted-foreground mb-1.5">{group}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {CONFIG_FIELDS.filter(f => f.group === group).map(f => (
                     <div key={f.key}>
@@ -205,27 +205,27 @@ export function SingleItemEditor({ parent, initialLine, baseConfig, onApply, app
       {/* ── Totals ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">Company Cost</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">Company Cost</p>
           <p className="text-lg font-extrabold text-foreground tracking-tight mt-1">{formatPKR(result.totalCost)}</p>
-          <p className="text-[10px] text-muted-foreground">incl freight + WHT</p>
+          <p className="text-[11px] text-muted-foreground">incl freight + WHT</p>
         </div>
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">Quoted (excl GST)</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">Quoted (excl GST)</p>
           <p className="text-lg font-extrabold text-foreground tracking-tight mt-1">{formatPKR(result.totalSelling)}</p>
         </div>
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">GST</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">GST</p>
           <p className="text-lg font-extrabold text-foreground tracking-tight mt-1">{formatPKR(result.gstAmount * input.quantity)}</p>
-          <p className="text-[10px] text-muted-foreground">pass-through</p>
+          <p className="text-[11px] text-muted-foreground">pass-through</p>
         </div>
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">Customer Price (incl GST)</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">Customer Price (incl GST)</p>
           <p className="text-lg font-extrabold text-primary tracking-tight mt-1">{formatPKR(result.totalRevenue)}</p>
         </div>
         <div className="kpi-card">
-          <p className="text-[11px] font-semibold text-muted-foreground">Gross Profit</p>
+          <p className="text-[12px] font-semibold text-muted-foreground">Gross Profit</p>
           <p className={`text-lg font-extrabold tracking-tight mt-1 ${result.grossProfit >= 0 ? 'text-success' : 'text-destructive'}`}>{formatPKR(result.grossProfit)}</p>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             {result.totalSelling > 0 ? `${result.marginActualPct.toFixed(1)}% of quoted` : '—'}
           </p>
         </div>
@@ -247,7 +247,7 @@ export function SingleItemEditor({ parent, initialLine, baseConfig, onApply, app
               <div key={m.key} className="flex items-center gap-2">
                 <span className={`w-2.5 h-2.5 rounded-sm ${m.color} flex-shrink-0`} />
                 <div className="min-w-0">
-                  <p className="text-[11px] text-muted-foreground truncate">{m.label}</p>
+                  <p className="text-[12px] text-muted-foreground truncate">{m.label}</p>
                   <p className="text-xs font-semibold text-foreground">{formatPKR(dist[m.key])} <span className="text-muted-foreground font-normal">· {pct.toFixed(1)}%</span></p>
                 </div>
               </div>

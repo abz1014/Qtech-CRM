@@ -173,7 +173,7 @@ export default function VendorDetailPage() {
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-info/15 text-info"><Send className="w-4 h-4" /></div>
           </div>
           <p className="text-2xl font-extrabold text-foreground tracking-tight">{intel.responseRate === null ? '—' : `${intel.responseRate}%`}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{intel.quotesGiven}/{intel.inquiriesSent} inquiries answered</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{intel.quotesGiven}/{intel.inquiriesSent} inquiries answered</p>
         </div>
         <div className="kpi-card">
           <div className="flex items-start justify-between mb-3">
@@ -188,7 +188,7 @@ export default function VendorDetailPage() {
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-success/15 text-success"><Award className="w-4 h-4" /></div>
           </div>
           <p className="text-2xl font-extrabold text-foreground tracking-tight">{intel.winRate === null ? '—' : `${intel.winRate}%`}</p>
-          {intel.competitiveness !== null && <p className="text-[10px] text-muted-foreground mt-0.5">cheapest {intel.competitiveness}% of the time</p>}
+          {intel.competitiveness !== null && <p className="text-[11px] text-muted-foreground mt-0.5">cheapest {intel.competitiveness}% of the time</p>}
         </div>
         <div className="kpi-card">
           <div className="flex items-start justify-between mb-3">
@@ -196,7 +196,7 @@ export default function VendorDetailPage() {
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/15 text-primary"><ShoppingCart className="w-4 h-4" /></div>
           </div>
           <p className="text-2xl font-extrabold text-foreground tracking-tight">{intel.ordersWon}</p>
-          {intel.ordersValue > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{formatPKR(intel.ordersValue)}</p>}
+          {intel.ordersValue > 0 && <p className="text-[11px] text-muted-foreground mt-0.5">{formatPKR(intel.ordersValue)}</p>}
         </div>
       </div>
 
@@ -230,8 +230,8 @@ export default function VendorDetailPage() {
                       <td className="py-2.5 text-muted-foreground">{q.lead_time_days}d</td>
                       <td className="py-2.5">
                         {q.is_selected
-                          ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">✓ WON</span>
-                          : <span className="text-[10px] text-muted-foreground">—</span>}
+                          ? <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">✓ WON</span>
+                          : <span className="text-[11px] text-muted-foreground">—</span>}
                       </td>
                     </tr>
                   );

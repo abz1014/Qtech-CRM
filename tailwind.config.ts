@@ -17,6 +17,18 @@ export default {
       fontFamily: {
         sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
       },
+      // Reading-ease type scale: the workhorse sizes (xs/sm/base) bumped ~1-2px
+      // with roomier line-heights. Larger display sizes (3xl+) keep Tailwind
+      // defaults so hero numbers don't overflow. Spacing is untouched, so the
+      // UI stays dense — only the glyphs grow.
+      fontSize: {
+        xs:   ['0.8125rem', { lineHeight: '1.15rem' }],  // 13px
+        sm:   ['0.9375rem', { lineHeight: '1.4rem' }],   // 15px
+        base: ['1.0625rem', { lineHeight: '1.65rem' }],  // 17px
+        lg:   ['1.1875rem', { lineHeight: '1.75rem' }],  // 19px
+        xl:   ['1.3125rem', { lineHeight: '1.85rem' }],  // 21px
+        '2xl':['1.5625rem', { lineHeight: '2rem' }],     // 25px
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

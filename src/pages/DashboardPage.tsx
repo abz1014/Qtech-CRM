@@ -334,7 +334,7 @@ export default function DashboardPage() {
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md text-white"
+                  <span className="text-[11px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md text-white"
                     style={{ background: 'hsl(0 75% 50%)' }}>
                     URGENT
                   </span>
@@ -348,13 +348,13 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                   {overdueActions.slice(0, 2).map(a => (
                     <span key={a.id}
-                      className="text-[11px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[280px]"
+                      className="text-[12px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[280px]"
                       style={{ background: 'hsl(0 60% 30% / 0.6)', border: '1px solid hsl(0 60% 45% / 0.4)' }}>
                       {a.title}
                     </span>
                   ))}
                   {overdueActions.length > 2 && (
-                    <span className="text-[11px] font-semibold text-white/80">
+                    <span className="text-[12px] font-semibold text-white/80">
                       +{overdueActions.length - 2} more
                     </span>
                   )}
@@ -387,7 +387,7 @@ export default function DashboardPage() {
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md text-white"
+                  <span className="text-[11px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md text-white"
                     style={{ background: 'hsl(35 90% 45%)' }}>
                     TODAY
                   </span>
@@ -401,7 +401,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                   {todayActions.slice(0, 2).map(a => (
                     <span key={a.id}
-                      className="text-[11px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[280px]"
+                      className="text-[12px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[280px]"
                       style={{ background: 'hsl(30 70% 25% / 0.6)', border: '1px solid hsl(35 60% 45% / 0.4)' }}>
                       {a.title}
                     </span>
@@ -440,7 +440,7 @@ export default function DashboardPage() {
                 <Zap className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">
+                <p className="text-[11px] font-extrabold uppercase tracking-widest text-primary">
                   Today's Briefing
                 </p>
                 <p className="text-sm font-bold text-foreground mt-0.5">

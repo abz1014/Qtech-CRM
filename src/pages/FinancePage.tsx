@@ -479,18 +479,18 @@ export default function FinancePage() {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Where it went</p>
-            <p className="text-xl font-extrabold tracking-tight mt-1.5 tabular-nums" style={{ color: 'hsl(35 92% 52%)' }}>{formatPKR(cost)} <span className="text-[11px] text-muted-foreground font-medium">supplier cost</span></p>
-            <p className="text-base font-bold tracking-tight tabular-nums" style={{ color: 'hsl(22 90% 56%)' }}>{formatPKR(expensesTotal)} <span className="text-[11px] text-muted-foreground font-medium">expenses</span></p>
+            <p className="text-[12px] uppercase tracking-wider text-muted-foreground">Where it went</p>
+            <p className="text-xl font-extrabold tracking-tight mt-1.5 tabular-nums" style={{ color: 'hsl(35 92% 52%)' }}>{formatPKR(cost)} <span className="text-[12px] text-muted-foreground font-medium">supplier cost</span></p>
+            <p className="text-base font-bold tracking-tight tabular-nums" style={{ color: 'hsl(22 90% 56%)' }}>{formatPKR(expensesTotal)} <span className="text-[12px] text-muted-foreground font-medium">expenses</span></p>
           </div>
         </div>
 
         {revenue > 0 ? (
           <>
             <div className="flex h-8 rounded-lg overflow-hidden gap-0.5 mt-5">
-              <div className="flex items-center pl-2.5 text-[11px] font-bold text-black/75 whitespace-nowrap overflow-hidden" style={{ flexGrow: Math.max(0, cost), flexBasis: 0, background: 'hsl(35 92% 52%)' }} title={`Supplier cost ${formatPKR(cost)}`}>{cost / revenue > 0.08 ? 'Cost' : ''}</div>
-              <div className="flex items-center pl-2 text-[11px] font-bold text-black/75 whitespace-nowrap overflow-hidden" style={{ flexGrow: Math.max(0, expensesTotal), flexBasis: 0, background: 'hsl(22 90% 56%)' }} title={`Expenses ${formatPKR(expensesTotal)}`}>{expensesTotal / revenue > 0.07 ? 'Exp' : ''}</div>
-              {profit > 0 && <div className="flex items-center pl-2.5 text-[11px] font-bold text-white whitespace-nowrap overflow-hidden" style={{ flexGrow: profit, flexBasis: 0, background: 'hsl(var(--primary))' }} title={`Net profit ${formatPKR(profit)}`}>{profit / revenue > 0.08 ? 'Profit' : ''}</div>}
+              <div className="flex items-center pl-2.5 text-[12px] font-bold text-black/75 whitespace-nowrap overflow-hidden" style={{ flexGrow: Math.max(0, cost), flexBasis: 0, background: 'hsl(35 92% 52%)' }} title={`Supplier cost ${formatPKR(cost)}`}>{cost / revenue > 0.08 ? 'Cost' : ''}</div>
+              <div className="flex items-center pl-2 text-[12px] font-bold text-black/75 whitespace-nowrap overflow-hidden" style={{ flexGrow: Math.max(0, expensesTotal), flexBasis: 0, background: 'hsl(22 90% 56%)' }} title={`Expenses ${formatPKR(expensesTotal)}`}>{expensesTotal / revenue > 0.07 ? 'Exp' : ''}</div>
+              {profit > 0 && <div className="flex items-center pl-2.5 text-[12px] font-bold text-white whitespace-nowrap overflow-hidden" style={{ flexGrow: profit, flexBasis: 0, background: 'hsl(var(--primary))' }} title={`Net profit ${formatPKR(profit)}`}>{profit / revenue > 0.08 ? 'Profit' : ''}</div>}
             </div>
             <div className="flex flex-wrap gap-x-8 gap-y-3 mt-4">
               <LegendItem color="hsl(var(--muted-foreground))" label="Booked revenue" value={formatPKR(revenue)} />
@@ -546,9 +546,9 @@ export default function FinancePage() {
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0 cursor-pointer" onClick={() => navigate(`/orders/${o.id}`)}>
                     <span className="text-sm font-semibold text-foreground truncate">{getClientName(o.client_id)}</span>
-                    {o.invoice_number && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary">{o.invoice_number}</span>}
-                    {o.status === 'delivered' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-success/15 text-success">DELIVERED</span>}
-                    {isOverdue && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive flex items-center gap-0.5"><AlertCircle className="w-3 h-3" /> OVERDUE</span>}
+                    {o.invoice_number && <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary">{o.invoice_number}</span>}
+                    {o.status === 'delivered' && <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-success/15 text-success">DELIVERED</span>}
+                    {isOverdue && <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive flex items-center gap-0.5"><AlertCircle className="w-3 h-3" /> OVERDUE</span>}
                   </div>
                   <button onClick={() => openPayModal('in', o)}
                     className="px-2.5 py-1 text-xs font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
@@ -586,10 +586,10 @@ export default function FinancePage() {
               {rangeExpenses.slice(0, 15).map(e => (
                 <div key={e.expense_id} className="flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-muted/40 transition-colors group">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: categoryColor(e.category), background: categoryColor(e.category).replace(/\)$/, ' / 0.14)') }}>{e.category}</span>
+                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: categoryColor(e.category), background: categoryColor(e.category).replace(/\)$/, ' / 0.14)') }}>{e.category}</span>
                     <span className="text-sm text-foreground truncate">{e.description || '—'}</span>
-                    {e.recurring_id && <span className="text-[10px] text-muted-foreground flex-shrink-0 flex items-center gap-0.5" title="Posted from a recurring template"><Repeat className="w-3 h-3" /> recurring</span>}
-                    {e.order_id && <span className="text-[10px] text-muted-foreground flex-shrink-0">↳ {getClientName(orders.find(o => o.id === e.order_id)?.client_id ?? '')}</span>}
+                    {e.recurring_id && <span className="text-[11px] text-muted-foreground flex-shrink-0 flex items-center gap-0.5" title="Posted from a recurring template"><Repeat className="w-3 h-3" /> recurring</span>}
+                    {e.order_id && <span className="text-[11px] text-muted-foreground flex-shrink-0">↳ {getClientName(orders.find(o => o.id === e.order_id)?.client_id ?? '')}</span>}
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <span className="text-xs text-muted-foreground">{formatDate(e.date)}</span>
@@ -674,12 +674,12 @@ export default function FinancePage() {
                   <div key={t.id} className={`flex items-center justify-between gap-2 p-2.5 rounded-lg transition-colors ${t.active ? 'hover:bg-muted/40' : 'opacity-55'}`}>
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.active ? 'bg-success' : 'bg-muted-foreground'}`} title={t.active ? 'Active' : 'Paused'} />
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-info/10 text-info flex-shrink-0">{t.category}</span>
+                      <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-info/10 text-info flex-shrink-0">{t.category}</span>
                       <span className="text-sm font-medium text-foreground truncate">{t.label}</span>
-                      <span className="text-[10px] text-muted-foreground flex-shrink-0">day {t.day_of_month}</span>
+                      <span className="text-[11px] text-muted-foreground flex-shrink-0">day {t.day_of_month}</span>
                       {t.active && (postedThisMonth
-                        ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-success/15 text-success flex-shrink-0 flex items-center gap-0.5"><CheckCircle className="w-3 h-3" /> posted</span>
-                        : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 flex-shrink-0">due</span>)}
+                        ? <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-success/15 text-success flex-shrink-0 flex items-center gap-0.5"><CheckCircle className="w-3 h-3" /> posted</span>
+                        : <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 flex-shrink-0">due</span>)}
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <span className="text-sm font-semibold text-foreground">{formatPKR(t.amount)}</span>
@@ -693,7 +693,7 @@ export default function FinancePage() {
               })}
             </div>
           )}
-          <p className="text-[11px] text-muted-foreground">Posting adds an editable expense for the chosen month. A template can only post once per month, so re-posting is safe.</p>
+          <p className="text-[12px] text-muted-foreground">Posting adds an editable expense for the chosen month. A template can only post once per month, so re-posting is safe.</p>
         </div>
       </div>
 
@@ -707,11 +707,11 @@ export default function FinancePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Month</th>
-                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">In</th>
-                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Out</th>
-                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Net</th>
-                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Running</th>
+                <th className="text-left px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Month</th>
+                <th className="text-right px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">In</th>
+                <th className="text-right px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Out</th>
+                <th className="text-right px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Net</th>
+                <th className="text-right px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Running</th>
               </tr>
             </thead>
             <tbody>
@@ -737,7 +737,7 @@ export default function FinancePage() {
             </tbody>
           </table>
         </div>
-        <p className="text-[11px] text-muted-foreground mt-1.5">In = customer payments received · Out = supplier payments + expenses, by the date the money actually moved.</p>
+        <p className="text-[12px] text-muted-foreground mt-1.5">In = customer payments received · Out = supplier payments + expenses, by the date the money actually moved.</p>
       </div>
 
       {/* ── P&L ── */}
@@ -747,11 +747,11 @@ export default function FinancePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Month</th>
-                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Revenue</th>
-                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Cost</th>
-                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Expenses</th>
-                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Net Profit</th>
+                <th className="text-left px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Month</th>
+                <th className="text-right px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Revenue</th>
+                <th className="text-right px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Cost</th>
+                <th className="text-right px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Expenses</th>
+                <th className="text-right px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Net Profit</th>
               </tr>
             </thead>
             <tbody>
@@ -838,7 +838,7 @@ export default function FinancePage() {
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Category / group</label>
                 <input list="expense-cats" value={expenseForm.category} onChange={e => setExpenseForm(p => ({ ...p, category: e.target.value }))} className={inputCls} placeholder="Pick a group or type a new one" required />
-                <p className="text-[10px] text-muted-foreground mt-0.5">Type any name to create a new expense group.</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Type any name to create a new expense group.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Description</label>
@@ -889,12 +889,12 @@ export default function FinancePage() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Day of month</label>
                   <input type="number" min="1" max="28" value={recurringForm.day_of_month} onChange={e => setRecurringForm(p => ({ ...p, day_of_month: e.target.value }))} className={inputCls} />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">1–28 · the date posted expenses carry</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">1–28 · the date posted expenses carry</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Start month (optional)</label>
                   <input type="month" value={recurringForm.start_month} onChange={e => setRecurringForm(p => ({ ...p, start_month: e.target.value }))} className={inputCls} />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Blank = due from any month</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Blank = due from any month</p>
                 </div>
               </div>
               <div>
@@ -926,7 +926,7 @@ export default function FinancePage() {
                   <div key={t.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/40">
                     <input type="checkbox" checked={d.checked} onChange={e => setPostDrafts(p => ({ ...p, [t.id]: { ...d, checked: e.target.checked } }))}
                       className="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 flex-shrink-0" />
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-info/10 text-info flex-shrink-0">{t.category}</span>
+                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-info/10 text-info flex-shrink-0">{t.category}</span>
                     <span className="text-sm text-foreground truncate flex-1 min-w-0">{t.label}</span>
                     <input type="number" min="0" step="0.01" value={d.amount} onChange={e => setPostDrafts(p => ({ ...p, [t.id]: { ...d, amount: e.target.value } }))}
                       className="w-32 px-2 py-1 bg-muted border border-border rounded text-sm text-right text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 flex-shrink-0" />
@@ -957,9 +957,9 @@ function LegendItem({ color, label, value, pct, valueClass }: { color: string; l
     <div className="flex items-center gap-2.5">
       <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0 mt-0.5" style={{ background: color }} />
       <div>
-        <p className="text-[11px] text-muted-foreground leading-tight">{label}</p>
+        <p className="text-[12px] text-muted-foreground leading-tight">{label}</p>
         <p className={cn('text-sm font-bold tracking-tight tabular-nums', valueClass)}>
-          {value}{pct !== undefined && <span className="text-[10px] text-muted-foreground font-normal ml-1">{pct.toFixed(1)}%</span>}
+          {value}{pct !== undefined && <span className="text-[11px] text-muted-foreground font-normal ml-1">{pct.toFixed(1)}%</span>}
         </p>
       </div>
     </div>

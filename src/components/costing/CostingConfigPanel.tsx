@@ -59,19 +59,19 @@ export function CostingConfigPanel() {
   };
 
   const cell = 'px-2 py-1.5 bg-muted border border-border rounded text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 w-full disabled:opacity-70';
-  const label = 'text-[11px] font-medium text-muted-foreground mb-1 block';
+  const label = 'text-[12px] font-medium text-muted-foreground mb-1 block';
 
   return (
     <div className="glass-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <p className="section-title flex items-center gap-1.5"><Settings2 className="w-4 h-4 text-primary" /> Freight &amp; charges settings</p>
-        {!isAdmin && <span className="text-[11px] text-muted-foreground">Read-only (admin manages these)</span>}
+        {!isAdmin && <span className="text-[12px] text-muted-foreground">Read-only (admin manages these)</span>}
       </div>
-      <p className="text-[11px] text-muted-foreground">Defaults applied to every single-item costing. Each quote can still override them for its own case.</p>
+      <p className="text-[12px] text-muted-foreground">Defaults applied to every single-item costing. Each quote can still override them for its own case.</p>
 
       {['Freight rates', 'Fixed charges', 'Tax'].map(group => (
         <div key={group}>
-          <p className="text-[11px] font-semibold text-muted-foreground mb-1.5">{group}</p>
+          <p className="text-[12px] font-semibold text-muted-foreground mb-1.5">{group}</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {FIELDS.filter(f => f.group === group).map(f => (
               <div key={f.key}>
