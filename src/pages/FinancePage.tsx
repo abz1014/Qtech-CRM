@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import {
   TrendingUp, AlertCircle, CheckCircle, Download,
   Wallet, Receipt, X, Plus, ArrowDownCircle,
-  Repeat, Pencil, Trash2, PieChart, CalendarClock,
+  Repeat, Pencil, Trash2, PieChart, CalendarClock, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { businessToday } from '@/lib/dates';
@@ -131,6 +131,7 @@ export default function FinancePage() {
   // ── Modal state ─────────────────────────────────────────────────────────────
   const [payModal, setPayModal] = useState<{ kind: 'in' | 'out'; order: Order } | null>(null);
   const [payForm, setPayForm] = useState({ amount: '', payment_date: businessToday(), payment_method: '', reference: '', notes: '' });
+  const [showReceivables, setShowReceivables] = useState(true);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ date: businessToday(), amount: '', category: 'Inventory/Procurement' as string, description: '', order_id: '' });
 
@@ -523,14 +524,17 @@ export default function FinancePage() {
       {/* ── Receivables ── */}
       <div>
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <p className="section-title flex items-center gap-1.5">
+          <button onClick={() => setShowReceivables(v => !v)} className="section-title flex items-center gap-1.5 hover:text-foreground transition-colors">
             <ArrowDownCircle className="w-4 h-4 text-success" /> Receivables — Customers Owe Us
-          </p>
+            {receivables.length > 0 && <span className="normal-case tracking-normal font-normal text-muted-foreground">({receivables.length})</span>}
+            {showReceivables ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
           <div className="flex gap-2 text-xs">
-            <span className="px-2 py-1 rounded-lg bg-success/10 text-success font-semibold">{formatPKR(receivableTotal)} delivered &amp; unpaid</span>
-            {overdueTotal > 0 && <span className="px-2 py-1 rounded-lg bg-destructive/10 text-destructive font-semibold">{formatPKR(overdueTotal)} overdue</span>}
+            <span className="px-2 py-1 rounded-lg bg-success/10 text-success font-semibold tabular-nums">{formatPKR(receivableTotal)} delivered &amp; unpaid</span>
+            {overdueTotal > 0 && <span className="px-2 py-1 rounded-lg bg-destructive/10 text-destructive font-semibold tabular-nums">{formatPKR(overdueTotal)} overdue</span>}
           </div>
         </div>
+        {showReceivables && (
         <div className="glass-card p-4 space-y-2">
           {receivables.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2 flex items-center gap-2"><CheckCircle className="w-4 h-4 text-success" /> Nothing outstanding — all orders fully paid.</p>
@@ -562,6 +566,7 @@ export default function FinancePage() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* ── Expenses ── */}
