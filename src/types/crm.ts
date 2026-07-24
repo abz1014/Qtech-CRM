@@ -79,6 +79,8 @@ export interface Order {
   // GST portion of order_value, so value can be shown with/without GST.
   // null on legacy orders (GST split unknown) → with == without.
   order_gst_amount?: number | null;
+  // Admin hid this order's overdue payment from the Operations tab.
+  ops_dismissed?: boolean;
 }
 
 /** A saved costing line (engine INPUTS only). Attaches to an RFQ or an order. */

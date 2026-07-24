@@ -1,12 +1,15 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
-import { FileText, Send, MessageSquare, ShoppingCart, AlertTriangle, ChevronRight } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { FileText, Send, MessageSquare, ShoppingCart, AlertTriangle, ChevronRight, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { businessToday } from '@/lib/dates';
 import { RFQ } from '@/types/crm';
 import { formatPKR } from '@/lib/format';
 
 const ORDER_STALE_DAYS = 30; // an order not delivered N days after its PO is "stale"
+const OPERATIONS_MAX_AGE_DAYS = 80; // pipeline lists only show items from the last ~80 days
 
 function daysSince(dateStr: string | null | undefined, today: string): number | null {
   if (!dateStr) return null;
@@ -24,7 +27,8 @@ const orderStatusLabel: Record<string, string> = {
 
 export default function OperationsPage() {
   const navigate = useNavigate();
-  const { rfqs, orders, supplierInquiries, supplierQuotes, getClientName } = useCRM();
+  const { rfqs, orders, supplierInquiries, supplierQuotes, getClientName, updateOrder } = useCRM();
+  const { isAdmin } = useAuth();
   const today = businessToday();
 
   const hasInquiry = useMemo(() => new Set(supplierInquiries.map(i => i.rfq_id)), [supplierInquiries]);
@@ -32,30 +36,46 @@ export default function OperationsPage() {
 
   const lists = useMemo(() => {
     const active = (r: RFQ) => r.status !== 'converted' && r.status !== 'lost';
+    // Pipeline lists only show recent work: item is within the window, or undated.
+    const withinWindow = (dateStr: string | null | undefined) => {
+      const age = daysSince(dateStr, today);
+      return age === null || age <= OPERATIONS_MAX_AGE_DAYS;
+    };
 
-    // 1. Not floated — received but no supplier inquiry yet
-    const notFloated = rfqs.filter(r => active(r) && !hasInquiry.has(r.id))
+    // 1. Not floated — received but no supplier inquiry yet (last ~80 days)
+    const notFloated = rfqs.filter(r => active(r) && !hasInquiry.has(r.id) && withinWindow(r.rfq_date))
       .sort((a, b) => a.rfq_date.localeCompare(b.rfq_date));
 
-    // 2. Awaiting supplier response — floated but no quote back
-    const awaitingSupplier = rfqs.filter(r => active(r) && hasInquiry.has(r.id) && !hasQuote.has(r.id))
+    // 2. Awaiting supplier response — floated but no quote back (last ~80 days)
+    const awaitingSupplier = rfqs.filter(r => active(r) && hasInquiry.has(r.id) && !hasQuote.has(r.id) && withinWindow(r.rfq_date))
       .sort((a, b) => a.rfq_date.localeCompare(b.rfq_date));
 
-    // 3. Awaiting customer decision — quote sent to client, no order yet
-    const awaitingCustomer = rfqs.filter(r => r.status === 'quoted')
+    // 3. Awaiting customer decision — quote sent to client, no order yet (last ~80 days)
+    const awaitingCustomer = rfqs.filter(r => r.status === 'quoted' && withinWindow(r.quote_sent_date || r.rfq_date))
       .sort((a, b) => (a.quote_sent_date || a.rfq_date).localeCompare(b.quote_sent_date || b.rfq_date));
 
-    // 4. Orders in progress — not delivered/paid; stale if older than threshold
-    const ordersInProgress = orders.filter(o => o.status === 'po_received' || o.status === 'procurement' || o.status === 'in_transit')
+    // 4. Orders in progress — not delivered/paid, last ~80 days; stale if older than threshold
+    const ordersInProgress = orders.filter(o => (o.status === 'po_received' || o.status === 'procurement' || o.status === 'in_transit') && withinWindow(o.customer_po_date || o.confirmed_date))
       .map(o => ({ o, age: daysSince(o.customer_po_date || o.confirmed_date, today) }))
       .sort((a, b) => (b.age ?? 0) - (a.age ?? 0));
 
-    // 5. Overdue payments — past payment due date, not yet paid
-    const overduePayments = orders.filter(o => o.status !== 'payment_received' && o.payment_due_date && String(o.payment_due_date).slice(0, 10) < today)
+    // 5. Overdue payments — past due date, not yet paid. No age cutoff (money owed
+    //    stays visible regardless of age); admin can dismiss handled ones from the tab.
+    const overduePayments = orders.filter(o => o.status !== 'payment_received' && !o.ops_dismissed && o.payment_due_date && String(o.payment_due_date).slice(0, 10) < today)
       .sort((a, b) => String(a.payment_due_date).localeCompare(String(b.payment_due_date)));
 
     return { notFloated, awaitingSupplier, awaitingCustomer, ordersInProgress, overduePayments };
   }, [rfqs, orders, hasInquiry, hasQuote, today]);
+
+  const dismissOverdue = async (orderId: string, client: string) => {
+    if (!window.confirm(`Remove ${client}'s overdue payment from Operations? The order itself stays; it just won't show here anymore.`)) return;
+    try {
+      await updateOrder(orderId, { ops_dismissed: true });
+      toast.success('Removed from Operations');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove');
+    }
+  };
 
   const AgeBadge = ({ days, staleAt }: { days: number | null; staleAt?: number }) => {
     if (days === null) return null;
@@ -126,7 +146,17 @@ export default function OperationsPage() {
             {lists.overduePayments.map(o => (
               <Row key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
                 left={<><span className="text-xs font-medium text-foreground truncate">{getClientName(o.client_id)}</span><span className="text-xs text-muted-foreground">{formatPKR(o.order_value)}</span></>}
-                right={<span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">{daysSince(o.payment_due_date, today)}d overdue</span>} />
+                right={<>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">{daysSince(o.payment_due_date, today)}d overdue</span>
+                  {isAdmin && (
+                    <button
+                      onClick={e => { e.stopPropagation(); dismissOverdue(o.id, getClientName(o.client_id)); }}
+                      className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
+                      title="Remove from Operations">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </>} />
             ))}
           </WorklistCard>
         </div>

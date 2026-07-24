@@ -5,7 +5,7 @@ import { useCRM } from '@/contexts/CRMContext';
 import {
   LayoutDashboard, Users, Target, ShoppingCart,
   Factory, UserCog, Wrench, LogOut, Zap, FileText,
-  BarChart3, DollarSign, X, Bell, Sun, Moon, TrendingUp, Activity, Calculator, ReceiptText, UserSquare,
+  BarChart3, DollarSign, X, Bell, Sun, Moon, Activity, Calculator, ReceiptText, UserSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { businessToday } from '@/lib/dates';
@@ -28,7 +28,6 @@ const navItems = [
   { label: 'Prospects',        path: '/prospects',        icon: Target,          roles: ['admin', 'sales'] },
   { label: 'RFQs',             path: '/rfqs',             icon: FileText,        roles: ['admin', 'sales'] },
   { label: 'Daily RFQ Report', path: '/daily-rfq-report', icon: BarChart3,       roles: ['admin', 'sales'] },
-  { label: 'Sales Intelligence', path: '/sales-intelligence', icon: TrendingUp,  roles: ['admin', 'sales'] },
   { label: 'Orders',           path: '/orders',           icon: ShoppingCart,    roles: ['admin', 'sales'] },
   { label: 'Actions',          path: '/actions',          icon: Bell,            roles: ['admin', 'sales'] },
   { label: 'Vendors',          path: '/vendors',          icon: Factory,         roles: ['admin', 'sales'] },
@@ -42,7 +41,7 @@ const navItems = [
 
 const groups = [
   { label: 'Main',   paths: ['/dashboard', '/operations', '/clients', '/prospects'] },
-  { label: 'Sales',  paths: ['/rfqs', '/daily-rfq-report', '/sales-intelligence', '/orders', '/actions'] },
+  { label: 'Sales',  paths: ['/rfqs', '/daily-rfq-report', '/orders', '/actions'] },
   { label: 'Manage', paths: ['/vendors', '/costing', '/gst-register', '/finance', '/employees', '/team', '/my-jobs'] },
 ];
 

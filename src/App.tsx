@@ -32,7 +32,6 @@ const FinancePage          = lazy(() => import("@/pages/FinancePage"));
 const CostingPage          = lazy(() => import("@/pages/CostingPage"));
 const GstRegisterPage      = lazy(() => import("@/pages/GstRegisterPage"));
 const EmployeesPage        = lazy(() => import("@/pages/EmployeesPage"));
-const SalesIntelligencePage = lazy(() => import("@/pages/SalesIntelligencePage"));
 const OperationsPage       = lazy(() => import("@/pages/OperationsPage"));
 const ActionsPage          = lazy(() => import("@/pages/ActionsPage"));
 const NotFound             = lazy(() => import("@/pages/NotFound"));
@@ -95,7 +94,6 @@ const App = () => (
                   <Route path="/rfqs"             element={<RFQsPage />} />
                   <Route path="/rfqs/:id"         element={<RFQDetailPage />} />
                   <Route path="/daily-rfq-report" element={<DailyRFQReportPage />} />
-                  <Route path="/sales-intelligence" element={<SalesIntelligencePage />} />
                   <Route path="/operations" element={<OperationsPage />} />
                   <Route path="/actions"          element={<ActionsPage />} />
                   <Route path="/orders"           element={<OrdersPage />} />
