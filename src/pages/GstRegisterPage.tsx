@@ -329,8 +329,6 @@ export default function GstRegisterPage() {
                   <div><label className={lbl}>Customer PO #</label><input value={form.customer_po_number} onChange={e => set('customer_po_number', e.target.value)} className={inputCls} /></div>
                   <div><label className={lbl}>Supplier company (from)</label><input value={form.supplier_company} onChange={e => set('supplier_company', e.target.value)} className={inputCls} /></div>
                   <div><label className={lbl}>Item</label><input value={form.item_name} onChange={e => set('item_name', e.target.value)} className={inputCls} /></div>
-                  <div><label className={lbl}>Item number</label><input value={form.item_number} onChange={e => set('item_number', e.target.value)} className={inputCls} /></div>
-                  <div><label className={lbl}>Product detail</label><input value={form.product_detail} onChange={e => set('product_detail', e.target.value)} className={inputCls} /></div>
                   <div><label className={lbl}>Amount (incl GST)</label><input type="number" step="0.01" value={form.amount} onChange={e => set('amount', e.target.value)} className={inputCls} /></div>
                   <div><label className={lbl}>GST amount</label><input type="number" step="0.01" value={form.gst_amount} onChange={e => set('gst_amount', e.target.value)} className={inputCls} /></div>
                 </div>
@@ -340,11 +338,9 @@ export default function GstRegisterPage() {
               <div>
                 <p className="section-title mb-2 flex items-center gap-1.5"><FileText className="w-4 h-4 text-info" /> TCS courier</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <div><label className={lbl}>Received / booked</label><input type="date" value={form.received_date} onChange={e => set('received_date', e.target.value)} className={inputCls} /></div>
-                  <div><label className={lbl}>TCS'd to client on</label><input type="date" value={form.tcs_sent_date} onChange={e => set('tcs_sent_date', e.target.value)} className={inputCls} /></div>
+                  <div><label className={lbl}>TCS departure date</label><input type="date" value={form.tcs_sent_date} onChange={e => set('tcs_sent_date', e.target.value)} className={inputCls} /></div>
                   <div><label className={lbl}>Client received on</label><input type="date" value={form.client_received_date} onChange={e => set('client_received_date', e.target.value)} className={inputCls} /></div>
-                  <div><label className={lbl}>TCS receipt #</label><input value={form.tcs_receipt_number} onChange={e => set('tcs_receipt_number', e.target.value)} className={inputCls} /></div>
-                  <div><label className={lbl}>TCS receipt date</label><input type="date" value={form.tcs_receipt_date} onChange={e => set('tcs_receipt_date', e.target.value)} className={inputCls} /></div>
+                  <div><label className={lbl}>TCS receipt # <span className="text-muted-foreground font-normal">(optional)</span></label><input value={form.tcs_receipt_number} onChange={e => set('tcs_receipt_number', e.target.value)} className={inputCls} /></div>
                 </div>
               </div>
 
