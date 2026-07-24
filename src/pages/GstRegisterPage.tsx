@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { GstInvoice, FbrStatus, CreateGstInvoiceInput } from '@/types/bookkeeping';
 import { FBR_STATUSES } from '@/types/bookkeeping';
+import { needsFbrAttention as fbrNeedsAttention } from '@/lib/gst/fbr';
 
 const FBR_BADGE: Record<FbrStatus, string> = {
   'Pending':          'bg-amber-500/15 text-amber-600 dark:text-amber-400',
@@ -24,12 +25,7 @@ const FBR_BADGE: Record<FbrStatus, string> = {
 const currentMonth = () => businessToday().slice(0, 7);
 
 // A prior-month invoice whose sales tax isn't deposited yet needs chasing.
-function needsFbrAttention(g: GstInvoice): boolean {
-  if (g.fbr_status === 'Deposited') return false;
-  const m = (g.invoice_date || '').slice(0, 7);
-  if (!m) return false;
-  return m < currentMonth();
-}
+const needsFbrAttention = (g: GstInvoice): boolean => fbrNeedsAttention(g, currentMonth());
 
 type FormState = {
   order_id: string;

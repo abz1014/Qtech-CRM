@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { businessToday } from '@/lib/dates';
 import { Order } from '@/types/crm';
 import { ExpenseCategory, RecurringExpense } from '@/types/bookkeeping';
+import { buildPostedSet, dueRecurringForMonth, postedKey } from '@/lib/finance/recurring';
 
 // ── Date range helpers ────────────────────────────────────────────────────────
 
@@ -179,18 +180,10 @@ export default function FinancePage() {
   }, [rangeExpenses]);
 
   // ── Recurring: which templates are already posted, and which are due ────────
-  const postedSet = useMemo(() => {
-    const s = new Set<string>();
-    expenses.forEach(e => { if (e.recurring_id && e.period) s.add(`${e.recurring_id}|${e.period}`); });
-    return s;
-  }, [expenses]);
+  const postedSet = useMemo(() => buildPostedSet(expenses), [expenses]);
 
   const dueForMonth = useCallback((period: string): RecurringExpense[] =>
-    recurringExpenses.filter(t =>
-      t.active &&
-      (!t.start_month || t.start_month <= period) &&
-      !postedSet.has(`${t.id}|${period}`)
-    ),
+    dueRecurringForMonth(recurringExpenses, postedSet, period),
   [recurringExpenses, postedSet]);
 
   const currentMonth = currentMonthKey();
@@ -629,7 +622,7 @@ export default function FinancePage() {
           ) : (
             <div className="space-y-1.5">
               {recurringExpenses.map(t => {
-                const postedThisMonth = postedSet.has(`${t.id}|${postMonth}`);
+                const postedThisMonth = postedSet.has(postedKey(t.id, postMonth));
                 return (
                   <div key={t.id} className={`flex items-center justify-between gap-2 p-2.5 rounded-lg transition-colors ${t.active ? 'hover:bg-muted/40' : 'opacity-55'}`}>
                     <div className="flex items-center gap-2 min-w-0">
