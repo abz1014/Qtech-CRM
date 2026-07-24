@@ -71,7 +71,7 @@ export interface Expense {
   expense_id: string;
   date: string; // YYYY-MM-DD
   amount: number;
-  category: ExpenseCategory;
+  category: string; // a built-in ExpenseCategory or a custom group the user added
   description: string;
   vendor_id: string | null;
   rfq_id: string | null;
@@ -88,7 +88,7 @@ export interface Expense {
 export interface CreateExpenseInput {
   date: string;
   amount: number;
-  category: ExpenseCategory;
+  category: string; // a built-in ExpenseCategory or a custom group the user added
   description: string;
   vendor_id?: string | null;
   rfq_id?: string | null;
@@ -106,7 +106,7 @@ export type UpdateExpenseInput = Partial<CreateExpenseInput>;
 export interface RecurringExpense {
   id: string;
   label: string;
-  category: ExpenseCategory;
+  category: string; // a built-in ExpenseCategory or a custom group the user added
   amount: number;
   day_of_month: number;   // 1–28: the day the posted expense is dated
   active: boolean;
@@ -118,7 +118,7 @@ export interface RecurringExpense {
 
 export interface CreateRecurringExpenseInput {
   label: string;
-  category: ExpenseCategory;
+  category: string; // a built-in ExpenseCategory or a custom group the user added
   amount: number;
   day_of_month?: number;
   active?: boolean;

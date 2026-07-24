@@ -6,7 +6,7 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-  TrendingUp, TrendingDown, AlertCircle, CheckCircle, Download,
+  TrendingUp, AlertCircle, CheckCircle, Download,
   Wallet, Receipt, X, Plus, ArrowDownCircle,
   Repeat, Pencil, Trash2, PieChart, CalendarClock,
 } from 'lucide-react';
@@ -60,18 +60,25 @@ const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   'Salaries', 'Software Subscriptions', 'Utilities', 'Marketing', 'Misc',
 ];
 
-// Stable colour per expense category for the "Spend by Category" bar.
-const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
-  'Salaries':               'bg-primary',
-  'Inventory/Procurement':  'bg-info',
-  'Utilities':              'bg-amber-500',
-  'Travel':                 'bg-cyan-500',
-  'Equipment':              'bg-violet-500',
-  'Office Expenses':        'bg-emerald-500',
-  'Software Subscriptions': 'bg-pink-500',
-  'Marketing':              'bg-orange-500',
-  'Misc':                   'bg-muted-foreground',
+// Stable colour per category (CSS value, so custom groups get a colour too).
+const CATEGORY_HUES: Record<string, string> = {
+  'Salaries':               'hsl(158 60% 42%)',
+  'Inventory/Procurement':  'hsl(214 100% 60%)',
+  'Utilities':              'hsl(35 92% 52%)',
+  'Travel':                 'hsl(190 70% 45%)',
+  'Equipment':              'hsl(265 60% 60%)',
+  'Office Expenses':        'hsl(158 40% 55%)',
+  'Software Subscriptions': 'hsl(320 60% 58%)',
+  'Marketing':              'hsl(22 90% 56%)',
+  'Misc':                   'hsl(218 14% 52%)',
 };
+function categoryColor(cat: string): string {
+  if (CATEGORY_HUES[cat]) return CATEGORY_HUES[cat];
+  // deterministic hue for any custom group
+  let h = 0;
+  for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360} 55% 56%)`;
+}
 
 const currentMonthKey = () => businessToday().slice(0, 7); // YYYY-MM
 const monthKeyLabel = (key: string) => {
@@ -125,11 +132,11 @@ export default function FinancePage() {
   const [payModal, setPayModal] = useState<{ kind: 'in' | 'out'; order: Order } | null>(null);
   const [payForm, setPayForm] = useState({ amount: '', payment_date: businessToday(), payment_method: '', reference: '', notes: '' });
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({ date: businessToday(), amount: '', category: 'Inventory/Procurement' as ExpenseCategory, description: '', order_id: '' });
+  const [expenseForm, setExpenseForm] = useState({ date: businessToday(), amount: '', category: 'Inventory/Procurement' as string, description: '', order_id: '' });
 
   // ── Recurring expense state ─────────────────────────────────────────────────
   const [recurringModal, setRecurringModal] = useState<{ mode: 'add' | 'edit'; template?: RecurringExpense } | null>(null);
-  const [recurringForm, setRecurringForm] = useState({ label: '', category: 'Salaries' as ExpenseCategory, amount: '', day_of_month: '1', start_month: '', notes: '' });
+  const [recurringForm, setRecurringForm] = useState({ label: '', category: 'Salaries' as string, amount: '', day_of_month: '1', start_month: '', notes: '' });
   const [postMonth, setPostMonth] = useState(currentMonthKey());
   const [postModal, setPostModal] = useState<{ period: string } | null>(null);
   const [postDrafts, setPostDrafts] = useState<Record<string, { checked: boolean; amount: string }>>({});
@@ -168,7 +175,7 @@ export default function FinancePage() {
 
   // ── Spend by category (selected range) ──────────────────────────────────────
   const spendByCategory = useMemo(() => {
-    const m = new Map<ExpenseCategory, number>();
+    const m = new Map<string, number>();
     rangeExpenses.forEach(e => m.set(e.category, (m.get(e.category) ?? 0) + e.amount));
     const total = [...m.values()].reduce((s, v) => s + v, 0);
     return {
@@ -192,6 +199,16 @@ export default function FinancePage() {
   const recurringMonthlyTotal = useMemo(
     () => recurringExpenses.filter(t => t.active).reduce((s, t) => s + t.amount, 0),
     [recurringExpenses]);
+
+  // Built-in categories + any custom groups already used → datalist suggestions.
+  const allCategories = useMemo(() => {
+    const set = new Set<string>(EXPENSE_CATEGORIES);
+    expenses.forEach(e => { if (e.category) set.add(e.category); });
+    recurringExpenses.forEach(t => { if (t.category) set.add(t.category); });
+    return [...set].sort();
+  }, [expenses, recurringExpenses]);
+
+  const rangeLabel = preset === 'custom' ? 'Custom range' : (PRESETS.find(p => p.key === preset)?.label ?? 'Selected period');
 
   // ── Receivables: any order not fully paid by the customer ──────────────────
   const receivables = useMemo(() =>
@@ -228,6 +245,8 @@ export default function FinancePage() {
       return { key: k, cashIn, cashOut, net: cashIn - cashOut, running };
     });
   }, [months, orderPayments, supplierPayments, expenses]);
+  const cashRunning = cashflow.length ? cashflow[cashflow.length - 1].running : 0;
+  const maxNetFlow = Math.max(1, ...cashflow.map(r => Math.abs(r.net)));
 
   const pnl = useMemo(() => months.map(k => {
     const mo = orders.filter(o => (o.customer_po_date || o.confirmed_date || '').startsWith(k));
@@ -400,6 +419,9 @@ export default function FinancePage() {
 
   return (
     <div className="space-y-8">
+      {/* Suggestions for expense category inputs (built-ins + custom groups already used) */}
+      <datalist id="expense-cats">{allCategories.map(c => <option key={c} value={c} />)}</datalist>
+
       {/* ── Header + range ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -432,39 +454,43 @@ export default function FinancePage() {
         </div>
       )}
 
-      {/* ── KPIs (selected range) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="kpi-card">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-muted-foreground">Booked Revenue</p>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/15 text-primary"><TrendingUp className="w-4 h-4" /></div>
+      {/* ── Period P&L — where every booked rupee goes ── */}
+      <div className="glass-card p-6">
+        <div className="flex items-start justify-between gap-6 flex-wrap">
+          <div>
+            <p className="section-title">Net profit · {rangeLabel}</p>
+            <p className={cn('text-4xl sm:text-5xl font-extrabold tracking-tight mt-1.5 tabular-nums', profit >= 0 ? 'text-primary' : 'text-destructive')}>{formatPKR(profit)}</p>
+            <p className="text-sm text-muted-foreground mt-1.5">
+              on <span className="font-semibold text-foreground tabular-nums">{formatPKR(revenue)}</span> booked
+              <span className="text-muted-foreground/50"> · </span>
+              <span className={cn('font-semibold tabular-nums', profit >= 0 ? 'text-success' : 'text-destructive')}>{margin}% margin</span>
+              <span className="text-muted-foreground/50"> · </span>{filteredOrders.length} orders by PO date
+            </p>
           </div>
-          <p className="text-2xl font-extrabold text-foreground tracking-tight">{formatPKR(revenue)}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{filteredOrders.length} orders by PO date</p>
-        </div>
-        <div className="kpi-card">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-muted-foreground">Supplier Cost</p>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-warning/15 text-warning"><TrendingDown className="w-4 h-4" /></div>
+          <div className="text-right">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Where it went</p>
+            <p className="text-xl font-extrabold tracking-tight mt-1.5 tabular-nums" style={{ color: 'hsl(35 92% 52%)' }}>{formatPKR(cost)} <span className="text-[11px] text-muted-foreground font-medium">supplier cost</span></p>
+            <p className="text-base font-bold tracking-tight tabular-nums" style={{ color: 'hsl(22 90% 56%)' }}>{formatPKR(expensesTotal)} <span className="text-[11px] text-muted-foreground font-medium">expenses</span></p>
           </div>
-          <p className="text-2xl font-extrabold text-foreground tracking-tight">{formatPKR(cost)}</p>
         </div>
-        <div className="kpi-card">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-muted-foreground">Expenses</p>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-info/15 text-info"><Receipt className="w-4 h-4" /></div>
-          </div>
-          <p className="text-2xl font-extrabold text-foreground tracking-tight">{formatPKR(expensesTotal)}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{rangeExpenses.length} entries</p>
-        </div>
-        <div className="kpi-card">
-          <div className="flex items-start justify-between mb-3">
-            <p className="text-xs font-semibold text-muted-foreground">Net Profit</p>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${profit >= 0 ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}><Wallet className="w-4 h-4" /></div>
-          </div>
-          <p className={`text-2xl font-extrabold tracking-tight ${profit >= 0 ? 'text-foreground' : 'text-destructive'}`}>{formatPKR(profit)}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{margin}% margin (after expenses)</p>
-        </div>
+
+        {revenue > 0 ? (
+          <>
+            <div className="flex h-8 rounded-lg overflow-hidden gap-0.5 mt-5">
+              <div className="flex items-center pl-2.5 text-[11px] font-bold text-black/75 whitespace-nowrap overflow-hidden" style={{ flexGrow: Math.max(0, cost), flexBasis: 0, background: 'hsl(35 92% 52%)' }} title={`Supplier cost ${formatPKR(cost)}`}>{cost / revenue > 0.08 ? 'Cost' : ''}</div>
+              <div className="flex items-center pl-2 text-[11px] font-bold text-black/75 whitespace-nowrap overflow-hidden" style={{ flexGrow: Math.max(0, expensesTotal), flexBasis: 0, background: 'hsl(22 90% 56%)' }} title={`Expenses ${formatPKR(expensesTotal)}`}>{expensesTotal / revenue > 0.07 ? 'Exp' : ''}</div>
+              {profit > 0 && <div className="flex items-center pl-2.5 text-[11px] font-bold text-white whitespace-nowrap overflow-hidden" style={{ flexGrow: profit, flexBasis: 0, background: 'hsl(var(--primary))' }} title={`Net profit ${formatPKR(profit)}`}>{profit / revenue > 0.08 ? 'Profit' : ''}</div>}
+            </div>
+            <div className="flex flex-wrap gap-x-8 gap-y-3 mt-4">
+              <LegendItem color="hsl(var(--muted-foreground))" label="Booked revenue" value={formatPKR(revenue)} />
+              <LegendItem color="hsl(35 92% 52%)" label="Supplier cost" value={formatPKR(cost)} pct={(cost / revenue) * 100} />
+              <LegendItem color="hsl(22 90% 56%)" label="Expenses" value={formatPKR(expensesTotal)} pct={(expensesTotal / revenue) * 100} />
+              <LegendItem color="hsl(var(--primary))" label="Net profit" value={formatPKR(profit)} pct={(profit / revenue) * 100} valueClass={profit >= 0 ? 'text-success' : 'text-destructive'} />
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground mt-4">No revenue booked in this period.</p>
+        )}
       </div>
 
       {/* ── Recurring reminder banner (current month) ── */}
@@ -570,21 +596,21 @@ export default function FinancePage() {
             <p className="text-sm text-muted-foreground py-2">No expenses to break down in this period.</p>
           ) : (
             <>
-              <div className="w-full h-3 rounded-full overflow-hidden flex mb-4">
+              <div className="w-full h-3 rounded-full overflow-hidden flex mb-4 gap-px">
                 {spendByCategory.rows.map(r => (
-                  r.pct > 0 ? <div key={r.category} className={CATEGORY_COLORS[r.category]} style={{ width: `${r.pct}%` }} title={`${r.category}: ${r.pct.toFixed(1)}%`} /> : null
+                  r.pct > 0 ? <div key={r.category} style={{ width: `${r.pct}%`, background: categoryColor(r.category) }} title={`${r.category}: ${r.pct.toFixed(1)}%`} /> : null
                 ))}
               </div>
               <div className="space-y-2.5">
                 {spendByCategory.rows.map(r => (
                   <div key={r.category} className="flex items-center gap-3">
-                    <span className={`w-2.5 h-2.5 rounded-sm ${CATEGORY_COLORS[r.category]} flex-shrink-0`} />
+                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: categoryColor(r.category) }} />
                     <span className="text-sm text-foreground w-44 flex-shrink-0 truncate">{r.category}</span>
                     <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${CATEGORY_COLORS[r.category]} opacity-70`} style={{ width: `${r.pct}%` }} />
+                      <div className="h-full rounded-full opacity-80" style={{ width: `${r.pct}%`, background: categoryColor(r.category) }} />
                     </div>
-                    <span className="text-sm font-semibold text-foreground w-28 text-right flex-shrink-0">{formatPKR(r.amount)}</span>
-                    <span className="text-xs text-muted-foreground w-12 text-right flex-shrink-0">{r.pct.toFixed(1)}%</span>
+                    <span className="text-sm font-semibold text-foreground w-28 text-right flex-shrink-0 tabular-nums">{formatPKR(r.amount)}</span>
+                    <span className="text-xs text-muted-foreground w-12 text-right flex-shrink-0 tabular-nums">{r.pct.toFixed(1)}%</span>
                   </div>
                 ))}
               </div>
@@ -652,28 +678,41 @@ export default function FinancePage() {
 
       {/* ── Cash Flow ── */}
       <div>
-        <p className="section-title mb-3 flex items-center gap-1.5"><Wallet className="w-4 h-4 text-primary" /> Cash Flow (actual money moved)</p>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <p className="section-title flex items-center gap-1.5"><Wallet className="w-4 h-4 text-primary" /> Cash Flow <span className="normal-case tracking-normal font-normal text-muted-foreground">· actual money moved</span></p>
+          <span className={cn('text-xs font-semibold px-2 py-1 rounded-lg tabular-nums', cashRunning >= 0 ? 'bg-primary/10 text-success' : 'bg-destructive/10 text-destructive')}>{formatPKR(cashRunning)} cash position</span>
+        </div>
         <div className="glass-card p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Month</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">In (customers)</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Out (suppliers + expenses)</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Net</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Running</th>
+                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Month</th>
+                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">In</th>
+                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Out</th>
+                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Net</th>
+                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Running</th>
               </tr>
             </thead>
             <tbody>
-              {cashflow.map(r => (
-                <tr key={r.key} className="border-b border-border/50">
-                  <td className="px-4 py-2.5 font-medium text-foreground">{monthLabel(r.key)}</td>
-                  <td className="px-4 py-2.5 text-right text-success">{r.cashIn ? formatPKR(r.cashIn) : '—'}</td>
-                  <td className="px-4 py-2.5 text-right text-warning">{r.cashOut ? formatPKR(r.cashOut) : '—'}</td>
-                  <td className={cn('px-4 py-2.5 text-right font-semibold', r.net >= 0 ? 'text-success' : 'text-destructive')}>{formatPKR(r.net)}</td>
-                  <td className={cn('px-4 py-2.5 text-right font-bold', r.running >= 0 ? 'text-foreground' : 'text-destructive')}>{formatPKR(r.running)}</td>
-                </tr>
-              ))}
+              {cashflow.map(r => {
+                const w = Math.round((Math.abs(r.net) / maxNetFlow) * 50);
+                return (
+                  <tr key={r.key} className="border-b border-border/40">
+                    <td className="px-4 py-2.5 font-medium text-foreground">{monthLabel(r.key)}</td>
+                    <td className="px-4 py-2.5 text-right text-success tabular-nums">{r.cashIn ? formatPKR(r.cashIn) : '—'}</td>
+                    <td className="px-4 py-2.5 text-right text-warning tabular-nums">{r.cashOut ? formatPKR(r.cashOut) : '—'}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <span className="inline-flex items-center gap-2 justify-end">
+                        <span className="relative w-[46px] h-1.5 rounded-sm bg-muted overflow-hidden flex-shrink-0">
+                          <span className="absolute top-0 bottom-0" style={{ left: r.net >= 0 ? '50%' : `calc(50% - ${w}%)`, width: `${w}%`, background: r.net >= 0 ? 'hsl(var(--success))' : 'hsl(var(--destructive))' }} />
+                        </span>
+                        <span className={cn('font-semibold tabular-nums', r.net >= 0 ? 'text-success' : 'text-destructive')}>{formatPKR(r.net)}</span>
+                      </span>
+                    </td>
+                    <td className={cn('px-4 py-2.5 text-right font-bold tabular-nums', r.running >= 0 ? 'text-foreground' : 'text-destructive')}>{formatPKR(r.running)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -682,26 +721,26 @@ export default function FinancePage() {
 
       {/* ── P&L ── */}
       <div>
-        <p className="section-title mb-3 flex items-center gap-1.5"><TrendingUp className="w-4 h-4 text-primary" /> Profit &amp; Loss (booked, by PO date)</p>
+        <p className="section-title mb-3 flex items-center gap-1.5"><TrendingUp className="w-4 h-4 text-primary" /> Profit &amp; Loss <span className="normal-case tracking-normal font-normal text-muted-foreground">· booked, by PO date</span></p>
         <div className="glass-card p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Month</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Revenue</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Supplier Cost</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Expenses</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Net Profit</th>
+                <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Month</th>
+                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Revenue</th>
+                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Cost</th>
+                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Expenses</th>
+                <th className="text-right px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Net Profit</th>
               </tr>
             </thead>
             <tbody>
               {pnl.map(r => (
-                <tr key={r.key} className="border-b border-border/50">
+                <tr key={r.key} className="border-b border-border/40">
                   <td className="px-4 py-2.5 font-medium text-foreground">{monthLabel(r.key)}</td>
-                  <td className="px-4 py-2.5 text-right text-foreground">{r.revenue ? formatPKR(r.revenue) : '—'}</td>
-                  <td className="px-4 py-2.5 text-right text-muted-foreground">{r.cost ? formatPKR(r.cost) : '—'}</td>
-                  <td className="px-4 py-2.5 text-right text-muted-foreground">{r.expenses ? formatPKR(r.expenses) : '—'}</td>
-                  <td className={cn('px-4 py-2.5 text-right font-bold', r.net >= 0 ? 'text-success' : 'text-destructive')}>{formatPKR(r.net)}</td>
+                  <td className="px-4 py-2.5 text-right text-foreground tabular-nums">{r.revenue ? formatPKR(r.revenue) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right text-warning tabular-nums">{r.cost ? formatPKR(r.cost) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums" style={{ color: r.expenses ? 'hsl(22 90% 56%)' : undefined }}>{r.expenses ? formatPKR(r.expenses) : '—'}</td>
+                  <td className={cn('px-4 py-2.5 text-right font-bold tabular-nums', r.net >= 0 ? 'text-success' : 'text-destructive')}>{formatPKR(r.net)}</td>
                 </tr>
               ))}
             </tbody>
@@ -776,10 +815,9 @@ export default function FinancePage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Category</label>
-                <select value={expenseForm.category} onChange={e => setExpenseForm(p => ({ ...p, category: e.target.value as ExpenseCategory }))} className={inputCls}>
-                  {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <label className="block text-sm font-medium text-foreground mb-1">Category / group</label>
+                <input list="expense-cats" value={expenseForm.category} onChange={e => setExpenseForm(p => ({ ...p, category: e.target.value }))} className={inputCls} placeholder="Pick a group or type a new one" required />
+                <p className="text-[10px] text-muted-foreground mt-0.5">Type any name to create a new expense group.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Description</label>
@@ -818,10 +856,8 @@ export default function FinancePage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Category</label>
-                  <select value={recurringForm.category} onChange={e => setRecurringForm(p => ({ ...p, category: e.target.value as ExpenseCategory }))} className={inputCls}>
-                    {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <label className="block text-sm font-medium text-foreground mb-1">Category / group</label>
+                  <input list="expense-cats" value={recurringForm.category} onChange={e => setRecurringForm(p => ({ ...p, category: e.target.value }))} className={inputCls} placeholder="Pick or type a new group" required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Default amount (PKR)</label>
@@ -890,6 +926,21 @@ export default function FinancePage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// One term of the P&L flow bar: swatch + label + figure (+ share of revenue).
+function LegendItem({ color, label, value, pct, valueClass }: { color: string; label: string; value: string; pct?: number; valueClass?: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0 mt-0.5" style={{ background: color }} />
+      <div>
+        <p className="text-[11px] text-muted-foreground leading-tight">{label}</p>
+        <p className={cn('text-sm font-bold tracking-tight tabular-nums', valueClass)}>
+          {value}{pct !== undefined && <span className="text-[10px] text-muted-foreground font-normal ml-1">{pct.toFixed(1)}%</span>}
+        </p>
+      </div>
     </div>
   );
 }
