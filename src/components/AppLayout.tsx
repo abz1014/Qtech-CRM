@@ -16,6 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/actions':          'Actions',
   '/vendors':          'Vendors',
   '/finance':          'Finance',
+  '/employees':        'Employees',
   '/costing':          'Costing Calculator',
   '/gst-register':     'GST Register',
   '/team':             'Team',

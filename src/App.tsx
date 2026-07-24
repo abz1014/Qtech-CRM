@@ -31,6 +31,7 @@ const DailyRFQReportPage   = lazy(() => import("@/pages/DailyRFQReportPage").the
 const FinancePage          = lazy(() => import("@/pages/FinancePage"));
 const CostingPage          = lazy(() => import("@/pages/CostingPage"));
 const GstRegisterPage      = lazy(() => import("@/pages/GstRegisterPage"));
+const EmployeesPage        = lazy(() => import("@/pages/EmployeesPage"));
 const SalesIntelligencePage = lazy(() => import("@/pages/SalesIntelligencePage"));
 const OperationsPage       = lazy(() => import("@/pages/OperationsPage"));
 const ActionsPage          = lazy(() => import("@/pages/ActionsPage"));
@@ -103,6 +104,7 @@ const App = () => (
                   <Route path="/vendors/:id"      element={<VendorDetailPage />} />
                   <Route path="/team"             element={<RequireRole roles={['admin']}><TeamPage /></RequireRole>} />
                   <Route path="/finance"          element={<RequireRole roles={['admin']}><FinancePage /></RequireRole>} />
+                  <Route path="/employees"        element={<RequireRole roles={['admin']}><EmployeesPage /></RequireRole>} />
                   <Route path="/costing"          element={<RequireRole roles={['admin', 'sales']}><CostingPage /></RequireRole>} />
                   <Route path="/gst-register"     element={<RequireRole roles={['admin', 'sales']}><GstRegisterPage /></RequireRole>} />
                   <Route path="/my-jobs"          element={<RequireRole roles={['engineer', 'admin']}><MyJobsPage /></RequireRole>} />
