@@ -85,6 +85,7 @@ export default function GstRegisterPage() {
   const [saving, setSaving] = useState(false);
   const [orderQuery, setOrderQuery] = useState('');
   const [orderPickerOpen, setOrderPickerOpen] = useState(false);
+  const [detail, setDetail] = useState<GstInvoice | null>(null);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -284,7 +285,7 @@ export default function GstRegisterPage() {
               {filtered.map(g => {
                 const attention = needsFbrAttention(g);
                 return (
-                  <tr key={g.id} className={cn('border-b border-border/50 hover:bg-muted/30 transition-colors', attention && 'bg-amber-500/[0.06]')}>
+                  <tr key={g.id} onClick={() => setDetail(g)} className={cn('border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer', attention && 'bg-amber-500/[0.06]')}>
                     <td className={td}>
                       <div className="font-semibold">{g.gst_invoice_number || '—'}</div>
                       <div className="text-[12px] text-muted-foreground">{g.invoice_date ? formatDate(g.invoice_date) : '—'}</div>
@@ -317,8 +318,8 @@ export default function GstRegisterPage() {
                     </td>
                     <td className={td}>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => openEdit(g)} className="text-muted-foreground hover:text-primary transition-colors" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => handleDelete(g)} className="text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={e => { e.stopPropagation(); openEdit(g); }} className="text-muted-foreground hover:text-primary transition-colors" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={e => { e.stopPropagation(); handleDelete(g); }} className="text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </td>
                   </tr>
@@ -452,6 +453,81 @@ export default function GstRegisterPage() {
           </div>
         </div>
       )}
+
+      {/* Read-only detail view */}
+      {detail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setDetail(null)}>
+          <div className="modal-card max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-lg font-semibold text-foreground">Invoice {detail.gst_invoice_number || '(no number)'}</h2>
+                  <span className={cn('text-[11px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap', FBR_BADGE[detail.fbr_status])}>{detail.fbr_status}</span>
+                  {needsFbrAttention(detail) && <span className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5"><AlertTriangle className="w-3 h-3" /> chase WASIF</span>}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">{detail.invoice_date ? formatDate(detail.invoice_date) : 'No invoice date'}{detail.order_id ? ' · linked to a CRM order' : ''}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={() => { const g = detail; setDetail(null); openEdit(g); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-foreground hover:bg-muted/80 transition-colors border border-border"><Pencil className="w-3.5 h-3.5" /> Edit</button>
+                <button onClick={() => setDetail(null)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <section>
+                <p className="section-title mb-2 flex items-center gap-1.5"><Receipt className="w-4 h-4 text-primary" /> Invoice &amp; identity</p>
+                <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
+                  <DField label="Client (sent to)" value={detail.client_name || '—'} />
+                  <DField label="Customer PO #" value={detail.customer_po_number || '—'} />
+                  <DField label="Supplier (from)" value={detail.supplier_company || '—'} />
+                  <DField label="Delivery challan #" value={detail.delivery_challan_number || '—'} />
+                  <DField label="Amount (incl GST)" value={formatPKR(detail.amount)} />
+                  <DField label="GST amount" value={formatPKR(detail.gst_amount)} />
+                  <div className="col-span-2 md:col-span-3"><DField label="Item" value={[detail.item_name, detail.item_number].filter(Boolean).join(' · ') || '—'} /></div>
+                  {detail.product_detail && <div className="col-span-2 md:col-span-3"><DField label="Product detail" value={detail.product_detail} /></div>}
+                </dl>
+              </section>
+
+              <section>
+                <p className="section-title mb-2 flex items-center gap-1.5"><FileText className="w-4 h-4 text-info" /> TCS courier</p>
+                <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
+                  <DField label="TCS departure" value={detail.tcs_sent_date ? formatDate(detail.tcs_sent_date) : '—'} />
+                  <DField label="Client received on" value={detail.client_received_date ? formatDate(detail.client_received_date) : '—'} />
+                  <DField label="TCS receipt #" value={detail.tcs_receipt_number || '—'} />
+                </dl>
+              </section>
+
+              <section>
+                <p className="section-title mb-2 flex items-center gap-1.5"><Landmark className="w-4 h-4 text-success" /> FBR sales tax</p>
+                <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
+                  <DField label="FBR status" value={detail.fbr_status} />
+                  <DField label="PSID" value={detail.psid || '—'} />
+                  <DField label="WASIF & Co receipt" value={detail.wasif_receipt_received ? (detail.wasif_receipt_date ? `Received ${formatDate(detail.wasif_receipt_date)}` : 'Received') : 'Not yet'} />
+                  <DField label="Tax deposit date" value={detail.tax_deposit_date ? formatDate(detail.tax_deposit_date) : '—'} />
+                  <DField label="Tax deposit amount" value={detail.tax_deposit_amount ? formatPKR(detail.tax_deposit_amount) : '—'} />
+                  <DField label="Deposit bank" value={detail.tax_deposit_bank || '—'} />
+                </dl>
+              </section>
+
+              {detail.notes && (
+                <section>
+                  <p className="section-title mb-2">Notes</p>
+                  <p className="text-sm text-foreground break-words">{detail.notes}</p>
+                </section>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</dt>
+      <dd className="text-sm text-foreground mt-0.5 break-words">{value}</dd>
     </div>
   );
 }
