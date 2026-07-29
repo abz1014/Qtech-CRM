@@ -502,6 +502,7 @@ export default function GstRegisterPage() {
                   <DField label="Supplier (from)" value={detail.supplier_company || '—'} />
                   <DField label="Delivery challan #" value={detail.delivery_challan_number || '—'} />
                   <DField label="Amount (incl GST)" value={formatPKR(detail.amount)} />
+                  <DField label="Net (excl GST)" value={formatPKR((detail.amount || 0) - (detail.gst_amount || 0))} />
                   <DField label="GST amount" value={formatPKR(detail.gst_amount)} />
                   <div className="col-span-2 md:col-span-3"><DField label="Item" value={[detail.item_name, detail.item_number].filter(Boolean).join(' · ') || '—'} /></div>
                   {detail.product_detail && <div className="col-span-2 md:col-span-3"><DField label="Product detail" value={detail.product_detail} /></div>}
