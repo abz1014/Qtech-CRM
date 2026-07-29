@@ -110,6 +110,14 @@ export default function GstRegisterPage() {
 
   const linkedOrder = form.order_id ? orders.find(o => o.id === form.order_id) : undefined;
 
+  // Live GST consistency check. `amount` is GST-inclusive, so at the standard 18%
+  // the tax should be amount × 18/118. Warn (never block) when the typed GST drifts.
+  const amtNum = parseFloat(form.amount) || 0;
+  const gstNum = parseFloat(form.gst_amount) || 0;
+  const expectedGst = amtNum > 0 ? Math.round((amtNum * 18) / 118) : 0;
+  const netExcl = amtNum - gstNum;
+  const gstMismatch = amtNum > 0 && gstNum > 0 && Math.abs(gstNum - expectedGst) > 2;
+
   // Selecting an order pre-fills the identity fields from the CRM.
   const applyOrder = (orderId: string) => {
     const o = orders.find(x => x.id === orderId);
@@ -427,6 +435,21 @@ export default function GstRegisterPage() {
                   <div><label className={lbl}>Amount (incl GST)</label><input type="number" step="0.01" value={form.amount} onChange={e => set('amount', e.target.value)} className={inputCls} /></div>
                   <div><label className={lbl}>GST amount</label><input type="number" step="0.01" value={form.gst_amount} onChange={e => set('gst_amount', e.target.value)} className={inputCls} /></div>
                 </div>
+                {amtNum > 0 && (
+                  <div className={cn('mt-2 text-xs rounded-lg px-3 py-2 border', gstMismatch ? 'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300' : 'bg-muted/40 border-border text-muted-foreground')}>
+                    {gstMismatch ? (
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <span className="font-medium">GST {formatPKR(gstNum)} doesn’t match 18% of net — expected ~{formatPKR(expectedGst)}.</span> Check the invoice.
+                          <button type="button" onClick={() => set('gst_amount', String(expectedGst))} className="ml-2 underline font-medium hover:no-underline">Use 18% ({formatPKR(expectedGst)})</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <span>Net (excl GST): <span className="font-medium text-foreground">{formatPKR(netExcl)}</span> · GST at 18%: <span className="font-medium text-foreground">{formatPKR(expectedGst)}</span> ✓</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* TCS */}
