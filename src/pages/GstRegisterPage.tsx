@@ -83,8 +83,28 @@ export default function GstRegisterPage() {
   const [modal, setModal] = useState<{ mode: 'add' | 'edit'; id?: string } | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
   const [saving, setSaving] = useState(false);
+  const [orderQuery, setOrderQuery] = useState('');
+  const [orderPickerOpen, setOrderPickerOpen] = useState(false);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm(prev => ({ ...prev, [key]: value }));
+
+  const productLabel = (o: typeof orders[number]) => (typeof o.product_type === 'string' ? o.product_type : '');
+
+  // Orders matching the picker query — search by PO number, product, client or invoice #.
+  // Most-recent orders (by PO date) surface first; capped so the list stays scannable.
+  const orderMatches = useMemo(() => {
+    const q = orderQuery.trim().toLowerCase();
+    return [...orders]
+      .filter(o => {
+        if (!q) return true;
+        return [o.customer_po_number, productLabel(o), getClientName(o.client_id), o.invoice_number]
+          .some(v => (v || '').toLowerCase().includes(q));
+      })
+      .sort((a, b) => (b.customer_po_date || b.confirmed_date || '').localeCompare(a.customer_po_date || a.confirmed_date || ''))
+      .slice(0, 12);
+  }, [orders, orderQuery, getClientName]);
+
+  const linkedOrder = form.order_id ? orders.find(o => o.id === form.order_id) : undefined;
 
   // Selecting an order pre-fills the identity fields from the CRM.
   const applyOrder = (orderId: string) => {
@@ -106,13 +126,19 @@ export default function GstRegisterPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return gstInvoices.filter(g => {
+    const matched = gstInvoices.filter(g => {
       if (fbrFilter === 'attention' && !needsFbrAttention(g)) return false;
       if (fbrFilter !== 'all' && fbrFilter !== 'attention' && g.fbr_status !== fbrFilter) return false;
       if (!q) return true;
       return [g.gst_invoice_number, g.customer_po_number, g.client_name, g.supplier_company,
         g.item_name, g.item_number, g.delivery_challan_number, g.psid, g.tcs_receipt_number]
         .some(v => (v || '').toLowerCase().includes(q));
+    });
+    // Sequence the register: newest invoice first, then by invoice number (numeric-aware) descending.
+    return matched.sort((a, b) => {
+      const byDate = (b.invoice_date || '').localeCompare(a.invoice_date || '');
+      if (byDate !== 0) return byDate;
+      return (b.gst_invoice_number || '').localeCompare(a.gst_invoice_number || '', undefined, { numeric: true });
     });
   }, [gstInvoices, search, fbrFilter]);
 
@@ -123,8 +149,11 @@ export default function GstRegisterPage() {
     return { count: gstInvoices.length, totalGst, pending, attention };
   }, [gstInvoices]);
 
-  const openAdd = () => { setForm(blankForm()); setModal({ mode: 'add' }); };
-  const openEdit = (g: GstInvoice) => { setForm(fromInvoice(g)); setModal({ mode: 'edit', id: g.id }); };
+  const openAdd = () => { setForm(blankForm()); setOrderQuery(''); setOrderPickerOpen(false); setModal({ mode: 'add' }); };
+  const openEdit = (g: GstInvoice) => { setForm(fromInvoice(g)); setOrderQuery(''); setOrderPickerOpen(false); setModal({ mode: 'edit', id: g.id }); };
+
+  const linkOrder = (orderId: string) => { applyOrder(orderId); setOrderPickerOpen(false); setOrderQuery(''); };
+  const unlinkOrder = () => { set('order_id', ''); setOrderQuery(''); setOrderPickerOpen(true); };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -316,15 +345,55 @@ export default function GstRegisterPage() {
               <div>
                 <p className="section-title mb-2 flex items-center gap-1.5"><Receipt className="w-4 h-4 text-primary" /> Invoice &amp; identity</p>
                 <div className="mb-3">
-                  <label className={lbl}>Link to CRM order (auto-fills the fields below)</label>
-                  <select value={form.order_id} onChange={e => applyOrder(e.target.value)} className={inputCls}>
-                    <option value="">— No linked order (enter manually) —</option>
-                    {orders.map(o => (
-                      <option key={o.id} value={o.id}>
-                        {getClientName(o.client_id)} · {o.customer_po_number || (typeof o.product_type === 'string' ? o.product_type : '')} · {formatPKR(o.order_value)}
-                      </option>
-                    ))}
-                  </select>
+                  <label className={lbl}>Link a CRM order — search by PO # or product (auto-fills the fields below)</label>
+                  {linkedOrder ? (
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Link2 className="w-4 h-4 text-primary flex-shrink-0" />
+                        <span className="text-sm text-foreground truncate">
+                          <span className="font-medium">{linkedOrder.customer_po_number || '(no PO #)'}</span>
+                          <span className="text-muted-foreground"> · {getClientName(linkedOrder.client_id)}{productLabel(linkedOrder) ? ` · ${productLabel(linkedOrder)}` : ''}</span>
+                        </span>
+                      </div>
+                      <button type="button" onClick={unlinkOrder} className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0" title="Unlink order"><X className="w-4 h-4" /></button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        value={orderQuery}
+                        onChange={e => { setOrderQuery(e.target.value); setOrderPickerOpen(true); }}
+                        onFocus={() => setOrderPickerOpen(true)}
+                        onBlur={() => setOrderPickerOpen(false)}
+                        placeholder="Type a PO number, product, or client…"
+                        className="w-full pl-9 pr-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                      {orderPickerOpen && (
+                        <div className="mt-1 border border-border rounded-lg bg-card shadow-lg overflow-hidden">
+                          {orderMatches.length === 0 ? (
+                            <p className="px-3 py-2.5 text-xs text-muted-foreground">No orders match “{orderQuery}”. Leave this empty and enter the details manually below.</p>
+                          ) : (
+                            <ul className="max-h-56 overflow-y-auto divide-y divide-border/60">
+                              {orderMatches.map(o => (
+                                <li key={o.id}>
+                                  {/* onMouseDown (not onClick) fires before the input's onBlur, so the pick isn't lost. */}
+                                  <button type="button" onMouseDown={e => { e.preventDefault(); linkOrder(o.id); }}
+                                    className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-sm font-medium text-foreground truncate">{o.customer_po_number || '(no PO #)'}</span>
+                                      <span className="text-[12px] text-muted-foreground flex-shrink-0">{formatPKR(o.order_value)}</span>
+                                    </div>
+                                    <div className="text-[12px] text-muted-foreground truncate">{getClientName(o.client_id)}{productLabel(o) ? ` · ${productLabel(o)}` : ''}</div>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted-foreground mt-1">Linking auto-fills client, supplier, PO, item and amounts. Leave empty to enter everything manually.</p>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <div><label className={lbl}>GST invoice #</label><input value={form.gst_invoice_number} onChange={e => set('gst_invoice_number', e.target.value)} className={inputCls} required /></div>
