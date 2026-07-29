@@ -146,11 +146,12 @@ export default function GstRegisterPage() {
         g.item_name, g.item_number, g.delivery_challan_number, g.psid, g.tcs_receipt_number]
         .some(v => (v || '').toLowerCase().includes(q));
     });
-    // Sequence the register: newest invoice first, then by invoice number (numeric-aware) descending.
+    // Sequence the register by GST invoice number (numeric-aware) descending — highest
+    // number first — tie-broken by invoice date so the order is always deterministic.
     return matched.sort((a, b) => {
-      const byDate = (b.invoice_date || '').localeCompare(a.invoice_date || '');
-      if (byDate !== 0) return byDate;
-      return (b.gst_invoice_number || '').localeCompare(a.gst_invoice_number || '', undefined, { numeric: true });
+      const byNum = (b.gst_invoice_number || '').localeCompare(a.gst_invoice_number || '', undefined, { numeric: true });
+      if (byNum !== 0) return byNum;
+      return (b.invoice_date || '').localeCompare(a.invoice_date || '');
     });
   }, [gstInvoices, search, fbrFilter]);
 
