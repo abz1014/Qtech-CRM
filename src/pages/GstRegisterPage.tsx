@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
@@ -11,6 +11,7 @@ import {
   Link2, Download, Receipt, Landmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Pagination } from '@/components/Pagination';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import type { GstInvoice, FbrStatus, CreateGstInvoiceInput } from '@/types/bookkeeping';
 import { FBR_STATUSES } from '@/types/bookkeeping';
@@ -86,6 +87,8 @@ export default function GstRegisterPage() {
   const [orderQuery, setOrderQuery] = useState('');
   const [orderPickerOpen, setOrderPickerOpen] = useState(false);
   const [detail, setDetail] = useState<GstInvoice | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -142,6 +145,14 @@ export default function GstRegisterPage() {
       return (b.gst_invoice_number || '').localeCompare(a.gst_invoice_number || '', undefined, { numeric: true });
     });
   }, [gstInvoices, search, fbrFilter]);
+
+  // Jump back to the first page whenever the result set changes underfoot.
+  useEffect(() => { setCurrentPage(1); }, [search, fbrFilter, itemsPerPage]);
+
+  const paginated = useMemo(
+    () => filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+    [filtered, currentPage, itemsPerPage],
+  );
 
   const kpis = useMemo(() => {
     const totalGst = gstInvoices.reduce((s, g) => s + (g.gst_amount || 0), 0);
@@ -282,7 +293,7 @@ export default function GstRegisterPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(g => {
+              {paginated.map(g => {
                 const attention = needsFbrAttention(g);
                 return (
                   <tr key={g.id} onClick={() => setDetail(g)} className={cn('border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer', attention && 'bg-amber-500/[0.06]')}>
@@ -329,6 +340,15 @@ export default function GstRegisterPage() {
           </table>
         )}
       </div>
+      {filtered.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={(page) => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          onItemsPerPageChange={setItemsPerPage}
+        />
+      )}
       <p className="text-[12px] text-muted-foreground">
         FBR reminder: sales tax is usually pending days 1–5, generated after the 5th, fully generated after the 10th — then check for the WASIF &amp; Co receipt (PSID) and deposit the tax. Rows highlighted amber are prior-month invoices whose tax isn't deposited yet.
       </p>
