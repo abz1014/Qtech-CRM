@@ -3,6 +3,8 @@ import { businessToday } from '@/lib/dates';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useClients } from '@/hooks/useClients';
+import { useVendors, useAddVendor } from '@/hooks/useVendors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -26,11 +28,14 @@ export default function RFQDetailPage() {
   const { isAdmin, isSales, user } = useAuth();
   const confirm = useConfirm();
   const {
-    rfqs, vendors, supplierInquiries, supplierQuotes, rfqLineItems, orders, clients, users,
+    rfqs, supplierInquiries, supplierQuotes, rfqLineItems, orders, users,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateSupplierInquiry, updateInquiryStatus,
-    getVendorName, updateRFQStatus, updateRFQ, deleteRFQ, getClientName, addVendor, convertRFQToOrder, getUserName,
+    getVendorName, updateRFQStatus, updateRFQ, deleteRFQ, getClientName, convertRFQToOrder, getUserName,
     getFollowUpsForEntity, calculateValueScore,
   } = useCRM();
+  const { data: vendors = [] } = useVendors();
+  const { data: clients = [] } = useClients();
+  const addVendorMutation = useAddVendor();
 
   const rfq = rfqs.find(r => r.id === id);
   // All orders linked to this RFQ (supports multiple orders per RFQ)
@@ -151,7 +156,7 @@ export default function RFQDetailPage() {
         if (existing) {
           vendorId = existing.id;
         } else {
-          const newVendor = await addVendor({
+          const newVendor = await addVendorMutation.mutateAsync({
             name: vendorQuery.trim(),
             country: '',
             contact_person: '',

@@ -11,6 +11,7 @@ import { RFQ, RFQStatus, RFQPriority } from '@/types/crm';
 import { useNavigate } from 'react-router-dom';
 import { usePersistedNumber } from '@/hooks/useURLState';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useClients } from '@/hooks/useClients';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { lossReasonLabel, lossReasonIcon } from '@/lib/lossReasons';
 
@@ -29,7 +30,8 @@ const priorityColors: Record<RFQPriority, string> = {
 };
 
 export default function RFQsPage() {
-  const { rfqs, clients, users, supplierInquiries, supplierQuotes, rfqLineItems, addRFQ, updateRFQStatus, updateRFQPriority, deleteRFQ, getUserName, loading } = useCRM();
+  const { rfqs, users, supplierInquiries, supplierQuotes, rfqLineItems, addRFQ, updateRFQStatus, updateRFQPriority, deleteRFQ, getUserName, loading } = useCRM();
+  const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
@@ -126,7 +128,7 @@ export default function RFQsPage() {
     };
   }, [rfqs]);
 
-  if (loading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Products', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
+  if (loading || clientsLoading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Products', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedRFQs = filtered.slice(

@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useClients } from '@/hooks/useClients';
+import { useVendors } from '@/hooks/useVendors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -37,7 +39,9 @@ const commColors: Record<CommissioningStatus, string> = {
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, orderEngineers, rfqs, users, clients, vendors, updateOrderStatus, addOrderEngineer, getNextOrderStatus, getClientName, getVendorName, getUserName, updateOrder, deleteOrder } = useCRM();
+  const { orders, orderEngineers, rfqs, users, updateOrderStatus, addOrderEngineer, getNextOrderStatus, getClientName, getVendorName, getUserName, updateOrder, deleteOrder } = useCRM();
+  const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const { data: vendors = [], isLoading: vendorsLoading } = useVendors();
   const { isAdmin, isSales } = useAuth();
   const confirm = useConfirm();
 
@@ -93,7 +97,9 @@ export default function OrderDetailPage() {
   };
 
   const openEdit = () => {
-    if (!order) return;
+    // Wait for the client/vendor dropdown data -- a controlled required
+    // <select> with an empty options list renders blank and blocks Save.
+    if (!order || clientsLoading || vendorsLoading) return;
     setEditForm({
       client_id: order.client_id || '',
       vendor_id: order.vendor_id || '',

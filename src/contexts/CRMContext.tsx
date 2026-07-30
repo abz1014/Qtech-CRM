@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useClientsQuery, CLIENTS_QUERY_KEY } from '@/hooks/useClients';
+import { useVendorsQuery } from '@/hooks/useVendors';
+import { PROSPECTS_QUERY_KEY } from '@/hooks/useProspects';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -74,9 +78,11 @@ const allowedTransitions: Record<OrderStatus, OrderStatus | null> = {
 interface CRMContextType {
   loading: boolean;
   users: User[];
-  clients: Client[];
-  prospects: Prospect[];
-  vendors: Vendor[];
+  // clients/prospects/vendors arrays + single-domain CRUD moved to
+  // src/hooks/useClients.ts / useProspects.ts / useVendors.ts (T2-2).
+  // getClientName/getVendorName stay here (12+ consumers), backed by the
+  // same React Query cache. addProspect stays (fires autoFollowUp);
+  // deleteClient stays (unlinks context-held RFQs/orders/follow-ups).
   orders: Order[];
   orderEngineers: OrderEngineer[];
   rfqs: RFQ[];
@@ -86,12 +92,9 @@ interface CRMContextType {
   getUserName: (userId: string) => string;
   getClientName: (clientId: string | null) => string;
   getVendorName: (vendorId: string) => string;
-  addClient: (client: Omit<Client, 'id'>) => Promise<void>;
   addProspect: (prospect: Omit<Prospect, 'id' | 'converted_client_id'>) => Promise<void>;
-  addVendor: (vendor: Omit<Vendor, 'id'>) => Promise<Vendor>;
   addOrder: (order: Omit<Order, 'id'>) => Promise<Order>;
   addOrderEngineer: (oe: Omit<OrderEngineer, 'id'>) => Promise<void>;
-  convertProspect: (prospectId: string, createdBy: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   updateCommissioningStatus: (oeId: string, status: CommissioningStatus) => Promise<void>;
   addRFQ: (rfq: Omit<RFQ, 'id' | 'converted_order_id'>) => Promise<void>;
@@ -109,16 +112,11 @@ interface CRMContextType {
   updateSupplierInquiry: (inquiryId: string, updates: Partial<Omit<SupplierInquiry, 'id'>>) => Promise<void>;
   getRFQMetrics: (dateStr: string) => { receivedToday: number; notFloated: number; floated: number; responded: number };
   getRFQMetricsByDateRange: (startDate: string, endDate: string) => { total: number; notFloated: number; floated: number; responded: number };
-  updateClient: (clientId: string, updates: Partial<Omit<Client, 'id'>>) => Promise<void>;
-  updateVendor: (vendorId: string, updates: Partial<Omit<Vendor, 'id'>>) => Promise<void>;
-  updateProspect: (prospectId: string, updates: Partial<Omit<Prospect, 'id' | 'converted_client_id'>>) => Promise<void>;
   updateRFQ: (rfqId: string, updates: Partial<Omit<RFQ, 'id' | 'converted_order_id'>>) => Promise<void>;
   updateOrder: (orderId: string, updates: Partial<Omit<Order, 'id' | 'rfq_id'>>) => Promise<void>;
   deleteRFQ: (rfqId: string) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
   deleteClient: (clientId: string) => Promise<void>;
-  deleteVendor: (vendorId: string) => Promise<void>;
-  deleteProspect: (prospectId: string) => Promise<void>;
 
   // Bookkeeping Methods
   invoices: Invoice[];
@@ -229,9 +227,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const { user: authUser, isAdmin, isSales } = useAuth();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [prospects, setProspects] = useState<Prospect[]>([]);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
+  // clients/vendors are READ here from the shared React Query cache (query-only
+  // variants: no app-lifetime realtime channel) for getClientName/getVendorName,
+  // addOrder validation, and auto-follow-up titles. Their state/CRUD live in
+  // the T2-2 domain hooks.
+  const queryClient = useQueryClient();
+  const { data: clients = [] } = useClientsQuery();
+  const { data: vendors = [] } = useVendorsQuery();
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderEngineers, setOrderEngineers] = useState<OrderEngineer[]>([]);
   const [rfqs, setRFQs] = useState<RFQ[]>([]);
@@ -260,9 +262,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const load = async () => {
       const [
         { data: usersData },
-        { data: clientsData },
-        { data: prospectsData },
-        { data: vendorsData },
         { data: ordersData },
         { data: oeData },
         { data: rfqsData },
@@ -282,9 +281,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { data: gstInvoicesData },
       ] = await Promise.all([
         supabase.from('users').select('*').order('name'),
-        supabase.from('clients').select('*').order('company_name'),
-        supabase.from('prospects').select('*').order('company_name'),
-        supabase.from('vendors').select('*').order('name'),
+        // clients/prospects/vendors load via their T2-2 React Query hooks
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('order_engineers').select('*'),
         supabase.from('rfqs').select('*').order('created_at', { ascending: false }),
@@ -306,9 +303,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         (isAdmin || isSales) ? supabase.from('gst_invoices').select('*').order('invoice_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as unknown as User[]);
-      setClients((clientsData ?? []) as unknown as Client[]);
-      setProspects((prospectsData ?? []) as unknown as Prospect[]);
-      setVendors((vendorsData ?? []) as unknown as Vendor[]);
       // Safety net: the historical import used a legacy status 'completed'
       // (settled orders) that isn't in the app lifecycle. Normalize it to
       // 'payment_received' on load so it isn't counted as payment-pending.
@@ -337,50 +331,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
       const channel = supabase.channel('crm-changes');
 
-      // Subscribe to clients changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'clients' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setClients(prev => addUnique(prev, payload.new as unknown as Client, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setClients(prev => prev.map(c => c.id === payload.new.id ? payload.new as unknown as Client : c));
-          } else if (payload.eventType === 'DELETE') {
-            setClients(prev => prev.filter(c => c.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to prospects changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'prospects' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setProspects(prev => addUnique(prev, payload.new as unknown as Prospect, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setProspects(prev => prev.map(p => p.id === payload.new.id ? payload.new as unknown as Prospect : p));
-          } else if (payload.eventType === 'DELETE') {
-            setProspects(prev => prev.filter(p => p.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to vendors changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'vendors' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setVendors(prev => addUnique(prev, payload.new as unknown as Vendor, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setVendors(prev => prev.map(v => v.id === payload.new.id ? payload.new as unknown as Vendor : v));
-          } else if (payload.eventType === 'DELETE') {
-            setVendors(prev => prev.filter(v => v.id !== payload.old.id));
-          }
-        }
-      );
+      // clients/prospects/vendors realtime moved to their T2-2 hooks --
+      // each subscribes only while a page using the domain is mounted.
 
       // Subscribe to orders changes
       channel.on(
@@ -669,11 +621,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const getClientName = useCallback((id: string | null) => (id ? clientMap.get(id) : undefined) ?? 'Unknown', [clientMap]);
   const getVendorName = useCallback((id: string) => vendorMap.get(id) ?? 'Unknown', [vendorMap]);
 
-  const addClient = useCallback(async (c: Omit<Client, 'id'>) => {
-    const { data } = await supabase.from('clients').insert(c).select().single();
-    if (data) setClients(prev => [...prev, data as Client]);
-  }, []);
-
   // ── autoFollowUp MUST be defined before any callback that lists it in deps ──
   // Defining it AFTER causes a Temporal Dead Zone crash in production builds.
   const autoFollowUp = useCallback(async (params: {
@@ -765,10 +712,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     });
   }, [loading, authUser, rfqs, orders, supplierInquiries, supplierQuotes, autoFollowUp, getClientName]);
 
+  // addProspect stays in the context (not the T2-2 prospects hook) because it
+  // fires the "Initial outreach" auto-follow-up through autoFollowUp, which
+  // owns context-held followUpActions state.
   const addProspect = useCallback(async (p: Omit<Prospect, 'id' | 'converted_client_id'>) => {
     const { data } = await supabase.from('prospects').insert({ ...p, converted_client_id: null }).select().single();
     if (data) {
-      setProspects(prev => [...prev, data as Prospect]);
+      queryClient.invalidateQueries({ queryKey: PROSPECTS_QUERY_KEY });
       // Auto-trigger: new prospect → schedule initial outreach
       autoFollowUp({
         title: `Initial outreach to ${p.company_name}`,
@@ -780,15 +730,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         daysFromNow: 1,
       });
     }
-  }, [autoFollowUp]);
-
-  const addVendor = useCallback(async (v: Omit<Vendor, 'id'>): Promise<Vendor> => {
-    const { data, error } = await supabase.from('vendors').insert(v).select().single();
-    if (error || !data) throw new Error('Failed to create vendor');
-    const vendor = data as Vendor;
-    setVendors(prev => [...prev, vendor]);
-    return vendor;
-  }, []);
+  }, [autoFollowUp, queryClient]);
 
   const addOrder = useCallback(async (o: Omit<Order, 'id'>): Promise<Order> => {
     // Validate client_id exists
@@ -807,30 +749,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (data) setOrderEngineers(prev => [...prev, data as OrderEngineer]);
   }, []);
 
-  const convertProspect = useCallback(async (prospectId: string, createdBy: string) => {
-    const prospect = prospects.find(p => p.id === prospectId);
-    if (!prospect) return;
-    const { data: clientData } = await supabase.from('clients').insert({
-      company_name: prospect.company_name,
-      industry: '',
-      contact_person: prospect.contact_person,
-      phone: prospect.phone,
-      email: prospect.email,
-      address: '',
-      created_by: createdBy || null,
-    }).select().single();
-    if (!clientData) return;
-    setClients(prev => [...prev, clientData as Client]);
-    const { data: updatedProspect } = await supabase
-      .from('prospects')
-      .update({ converted_client_id: clientData.id })
-      .eq('id', prospectId)
-      .select()
-      .single();
-    if (updatedProspect) {
-      setProspects(prev => prev.map(p => p.id === prospectId ? updatedProspect as Prospect : p));
-    }
-  }, [prospects]);
+  // convertProspect moved to useConvertProspect (src/hooks/useProspects.ts),
+  // which also fixes its stale-local-state read of the prospect row.
 
   const getNextOrderStatus = useCallback((currentStatus: OrderStatus): OrderStatus | null => {
     return allowedTransitions[currentStatus];
@@ -1061,36 +981,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     return { total: rfqsInRange.length, notFloated, floated, responded };
   }, [rfqs, supplierInquiries, supplierQuotes]);
 
-  const updateClient = useCallback(async (clientId: string, updates: Partial<Omit<Client, 'id'>>) => {
-    const { data } = await supabase
-      .from('clients')
-      .update(updates)
-      .eq('id', clientId)
-      .select()
-      .single();
-    if (data) setClients(prev => prev.map(c => c.id === clientId ? data as Client : c));
-  }, []);
-
-  const updateVendor = useCallback(async (vendorId: string, updates: Partial<Omit<Vendor, 'id'>>) => {
-    const { data } = await supabase
-      .from('vendors')
-      .update(updates)
-      .eq('id', vendorId)
-      .select()
-      .single();
-    if (data) setVendors(prev => prev.map(v => v.id === vendorId ? data as Vendor : v));
-  }, []);
-
-  const updateProspect = useCallback(async (prospectId: string, updates: Partial<Omit<Prospect, 'id' | 'converted_client_id'>>) => {
-    const { data } = await supabase
-      .from('prospects')
-      .update(updates)
-      .eq('id', prospectId)
-      .select()
-      .single();
-    if (data) setProspects(prev => prev.map(p => p.id === prospectId ? data as Prospect : p));
-  }, []);
-
   const updateRFQ = useCallback(async (rfqId: string, updates: Partial<Omit<RFQ, 'id' | 'converted_order_id'>>) => {
     const { data } = await supabase
       .from('rfqs')
@@ -1164,31 +1054,15 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.from('clients').delete().eq('id', clientId);
     if (error) throw new Error(`Failed to delete client: ${error.message}`);
 
-    setClients(prev => prev.filter(c => c.id !== clientId));
+    queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY });
     setRFQs(prev => prev.map(r => r.client_id === clientId ? { ...r, client_id: null } : r));
     setOrders(prev => prev.map(o => o.client_id === clientId ? { ...o, client_id: null } : o));
     setFollowUpActions(prev => prev.filter(a => !(a.entity_id === clientId && a.entity_type === 'client')));
-  }, []);
+  }, [queryClient]);
 
-  const deleteVendor = useCallback(async (vendorId: string) => {
-    const { error } = await supabase.from('vendors').delete().eq('id', vendorId);
-    if (error) {
-      // 23503 = foreign_key_violation. orders.vendor_id is NO ACTION and
-      // payables.vendor_id is RESTRICT, so a vendor with either can't be
-      // deleted -- surface that plainly instead of the raw Postgres error.
-      if (error.code === '23503') {
-        throw new Error('Cannot delete vendor: it still has orders or payables on record.');
-      }
-      throw new Error(`Failed to delete vendor: ${error.message}`);
-    }
-    setVendors(prev => prev.filter(v => v.id !== vendorId));
-  }, []);
-
-  const deleteProspect = useCallback(async (prospectId: string) => {
-    const { error } = await supabase.from('prospects').delete().eq('id', prospectId);
-    if (error) throw new Error(`Failed to delete prospect: ${error.message}`);
-    setProspects(prev => prev.filter(p => p.id !== prospectId));
-  }, []);
+  // deleteVendor/deleteProspect moved to useDeleteVendor/useDeleteProspect
+  // (T2-2 domain hooks); deleteClient stays because it also unlinks the
+  // context-held RFQ/order/follow-up state above.
 
   // ============================================
   // BOOKKEEPING METHODS
@@ -2301,17 +2175,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // consumer in the app on EVERY render of the provider. All functions are
   // useCallback-wrapped, so listing them as deps keeps this stable.
   const contextValue = useMemo(() => ({
-    loading, users, clients, prospects, vendors, orders, orderEngineers, rfqs,
+    loading, users, orders, orderEngineers, rfqs,
     supplierInquiries, supplierQuotes, rfqLineItems,
     getUserName, getClientName, getVendorName,
-    addClient, addProspect, addVendor, addOrder, addOrderEngineer,
-    convertProspect, updateOrderStatus, updateCommissioningStatus,
+    addProspect, addOrder, addOrderEngineer,
+    updateOrderStatus, updateCommissioningStatus,
     addRFQ, updateRFQStatus, updateRFQPriority, convertRFQToOrder,
     getNextOrderStatus,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus, updateSupplierInquiry,
     getRFQMetrics, getRFQMetricsByDateRange,
-    updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
-    deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
+    updateRFQ, updateOrder,
+    deleteRFQ, deleteOrder, deleteClient,
     invoices, expenses, paymentRecords, payables,
     orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
     costLines, saveCostLines, costingConfig, updateCostingConfig,
@@ -2330,17 +2204,17 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     deleteFollowUp, getOverdueFollowUps, getFollowUpsForEntity, getUserWorkload,
     applySequence, getRecentActivity, getPatternInsights,
   }), [
-    loading, users, clients, prospects, vendors, orders, orderEngineers, rfqs,
+    loading, users, orders, orderEngineers, rfqs,
     supplierInquiries, supplierQuotes, rfqLineItems,
     getUserName, getClientName, getVendorName,
-    addClient, addProspect, addVendor, addOrder, addOrderEngineer,
-    convertProspect, updateOrderStatus, updateCommissioningStatus,
+    addProspect, addOrder, addOrderEngineer,
+    updateOrderStatus, updateCommissioningStatus,
     addRFQ, updateRFQStatus, updateRFQPriority, convertRFQToOrder,
     getNextOrderStatus,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateInquiryStatus, updateSupplierInquiry,
     getRFQMetrics, getRFQMetricsByDateRange,
-    updateClient, updateVendor, updateProspect, updateRFQ, updateOrder,
-    deleteRFQ, deleteOrder, deleteClient, deleteVendor, deleteProspect,
+    updateRFQ, updateOrder,
+    deleteRFQ, deleteOrder, deleteClient,
     invoices, expenses, paymentRecords, payables,
     orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
     costLines, saveCostLines, costingConfig, updateCostingConfig,

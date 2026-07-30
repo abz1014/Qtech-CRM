@@ -10,6 +10,7 @@ import { Plus, X, Search, ArrowRightCircle, Trash2, Download } from 'lucide-reac
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { ProspectStatus } from '@/types/crm';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useProspects, useConvertProspect, useDeleteProspect } from '@/hooks/useProspects';
 import { usePersistedNumber } from '@/hooks/useURLState';
 import { TableSkeleton } from '@/components/ui/skeleton';
 
@@ -21,7 +22,10 @@ const statusColors: Record<ProspectStatus, string> = {
 
 export default function ProspectsPage() {
   const navigate = useNavigate();
-  const { prospects, addProspect, convertProspect, deleteProspect, getUserName, loading } = useCRM();
+  const { addProspect, getUserName, loading } = useCRM();
+  const { data: prospects = [], isLoading: prospectsLoading } = useProspects();
+  const convertProspect = useConvertProspect();
+  const deleteProspect = useDeleteProspect();
   const { user, isAdmin } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
@@ -47,7 +51,7 @@ export default function ProspectsPage() {
     );
   }, [active, debouncedSearch]);
 
-  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Contact', 'Status', 'Follow Up', 'Assigned To']} />;
+  if (loading || prospectsLoading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Contact', 'Status', 'Follow Up', 'Assigned To']} />;
 
   const paginatedProspects = filtered.slice(
     (currentPage - 1) * itemsPerPage,
@@ -63,7 +67,7 @@ export default function ProspectsPage() {
 
   const handleDelete = async (prospectId: string) => {
     try {
-      await deleteProspect(prospectId);
+      await deleteProspect.mutateAsync(prospectId);
       setShowDeleteConfirm(null);
       toast.success('Prospect deleted successfully');
     } catch (error) {
@@ -130,7 +134,7 @@ export default function ProspectsPage() {
             <div className="flex items-center justify-between mt-2">
               <span className="text-xs text-muted-foreground">Follow up: {formatDate(p.follow_up_date)}</span>
               <button
-                onClick={(e) => { e.stopPropagation(); convertProspect(p.id, user?.id ?? ''); }}
+                onClick={(e) => { e.stopPropagation(); convertProspect.mutate({ prospectId: p.id, createdBy: user?.id ?? '' }); }}
                 className="flex items-center gap-1 text-xs font-semibold text-primary"
               >
                 <ArrowRightCircle className="w-3.5 h-3.5" /> Convert
@@ -163,7 +167,7 @@ export default function ProspectsPage() {
                 <td className="px-5 py-3 text-sm text-foreground">{getUserName(p.assigned_to)}</td>
                 <td className="px-5 py-3 flex gap-2">
                   <button
-                    onClick={(e) => { e.stopPropagation(); convertProspect(p.id, user?.id ?? ''); }}
+                    onClick={(e) => { e.stopPropagation(); convertProspect.mutate({ prospectId: p.id, createdBy: user?.id ?? '' }); }}
                     className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
                     title="Convert to Client"
                   >

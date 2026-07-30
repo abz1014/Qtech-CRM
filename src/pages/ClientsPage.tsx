@@ -3,6 +3,7 @@ import { businessToday } from '@/lib/dates';
 import { useState, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useClients, useAddClient } from '@/hooks/useClients';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -24,7 +25,9 @@ const rfqStatusColors: Record<RFQStatus, string> = {
 
 export default function ClientsPage() {
   const navigate = useNavigate();
-  const { clients, addClient, deleteClient, rfqs, loading } = useCRM();
+  const { deleteClient, rfqs, loading } = useCRM();
+  const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const addClient = useAddClient();
   const { user, isAdmin } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
@@ -49,7 +52,7 @@ export default function ClientsPage() {
     );
   }, [clients, debouncedSearch]);
 
-  if (loading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Industry', 'Contact Person', 'Phone', 'RFQs']} />;
+  if (loading || clientsLoading) return <TableSkeleton cols={5} rows={8} headers={['Company', 'Industry', 'Contact Person', 'Phone', 'RFQs']} />;
 
   const paginatedClients = filtered.slice(
     (currentPage - 1) * itemsPerPage,
@@ -58,7 +61,7 @@ export default function ClientsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addClient({ ...form, created_by: user?.id ?? '' });
+    addClient.mutate({ ...form, created_by: user?.id ?? '' });
     setForm({ company_name: '', industry: '', contact_person: '', phone: '', email: '', address: '' });
     setShowForm(false);
   };

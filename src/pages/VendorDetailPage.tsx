@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useVendors, useUpdateVendor, useDeleteVendor } from '@/hooks/useVendors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useState, useMemo } from 'react';
@@ -10,7 +11,10 @@ import { formatPKR, formatDate } from '@/lib/format';
 export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { vendors, supplierInquiries, supplierQuotes, orders, rfqs, updateVendor, deleteVendor } = useCRM();
+  const { supplierInquiries, supplierQuotes, orders, rfqs } = useCRM();
+  const { data: vendors = [] } = useVendors();
+  const updateVendor = useUpdateVendor();
+  const deleteVendor = useDeleteVendor();
   const { isAdmin } = useAuth();
   const confirm = useConfirm();
 
@@ -21,7 +25,7 @@ export default function VendorDetailPage() {
     const extra = oc ? ` ${oc} order(s) reference this vendor and will keep their record but lose the vendor link.` : '';
     if (!(await confirm({ title: 'Delete vendor?', message: `Delete vendor "${vendor?.name}"?${extra} This cannot be undone.`, confirmLabel: 'Delete vendor' }))) return;
     try {
-      await deleteVendor(id!);
+      await deleteVendor.mutateAsync(id!);
       toast.success('Vendor deleted');
       navigate('/vendors');
     } catch (err) {
@@ -99,14 +103,14 @@ export default function VendorDetailPage() {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateVendor(id!, {
+    await updateVendor.mutateAsync({ id: id!, updates: {
       name: editForm.name,
       country: editForm.country,
       contact_person: editForm.contact_person,
       phone: editForm.phone,
       email: editForm.email,
       products_supplied: editForm.products_supplied,
-    });
+    } });
     setShowEdit(false);
   };
 

@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useClients, useUpdateClient } from '@/hooks/useClients';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useState, useEffect, useMemo } from 'react';
@@ -27,7 +28,9 @@ const orderStatusColor: Record<string, string> = {
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { clients, rfqs, orders, updateClient, deleteClient } = useCRM();
+  const { rfqs, orders, deleteClient } = useCRM();
+  const { data: clients = [] } = useClients();
+  const updateClient = useUpdateClient();
   const { isAdmin, isSales } = useAuth();
   const confirm = useConfirm();
 
@@ -84,13 +87,16 @@ export default function ClientDetailPage() {
     e.preventDefault();
     setEditError('');
     try {
-      await updateClient(id!, {
-        company_name: editForm.company_name,
-        industry: editForm.industry,
-        contact_person: editForm.contact_person,
-        phone: editForm.phone,
-        email: editForm.email,
-        address: editForm.address,
+      await updateClient.mutateAsync({
+        id: id!,
+        updates: {
+          company_name: editForm.company_name,
+          industry: editForm.industry,
+          contact_person: editForm.contact_person,
+          phone: editForm.phone,
+          email: editForm.email,
+          address: editForm.address,
+        },
       });
       setShowEdit(false);
     } catch (err) {

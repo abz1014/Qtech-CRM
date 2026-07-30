@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePersistedNumber } from '@/hooks/useURLState';
 import { useCRM } from '@/contexts/CRMContext';
+import { useClients } from '@/hooks/useClients';
+import { useVendors, useAddVendor } from '@/hooks/useVendors';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR } from '@/lib/format';
@@ -33,7 +35,10 @@ const statusLabels: Record<string, string> = {
 const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
 
 export default function OrdersPage() {
-  const { orders, clients, vendors, addOrder, updateOrder, addVendor, deleteOrder, getClientName, getVendorName, getUserName, loading } = useCRM();
+  const { orders, addOrder, updateOrder, deleteOrder, getClientName, getVendorName, getUserName, loading } = useCRM();
+  const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const { data: vendors = [], isLoading: vendorsLoading } = useVendors();
+  const addVendorMutation = useAddVendor();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
@@ -79,7 +84,10 @@ export default function OrdersPage() {
     });
   }, [orders, debouncedSearch, fromDate, toDate, getClientName, sortDir]);
 
-  if (loading) return <TableSkeleton cols={6} rows={8} headers={['PO #', 'Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
+  // vendors also feeds handleSubmit's reuse-vs-create dedupe check, so the
+  // form must not be reachable until the vendors query has settled -- the
+  // pre-T2-2 context load gave that guarantee via `loading` alone.
+  if (loading || clientsLoading || vendorsLoading) return <TableSkeleton cols={6} rows={8} headers={['PO #', 'Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
 
   const paginatedOrders = filtered.slice(
     (currentPage - 1) * itemsPerPage,
@@ -131,7 +139,7 @@ export default function OrdersPage() {
       if (existing) {
         vendorId = existing.id;
       } else {
-        const newVendor = await addVendor({
+        const newVendor = await addVendorMutation.mutateAsync({
           name: vendorQuery.trim(),
           country: '',
           contact_person: '',

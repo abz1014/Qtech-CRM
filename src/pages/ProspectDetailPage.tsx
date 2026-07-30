@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useProspects, useUpdateProspect, useDeleteProspect } from '@/hooks/useProspects';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useState } from 'react';
@@ -11,7 +12,10 @@ import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 export default function ProspectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { prospects, users, updateProspect, deleteProspect, getUserName } = useCRM();
+  const { users, getUserName } = useCRM();
+  const { data: prospects = [] } = useProspects();
+  const updateProspect = useUpdateProspect();
+  const deleteProspect = useDeleteProspect();
   const { isAdmin } = useAuth();
   const confirm = useConfirm();
 
@@ -20,7 +24,7 @@ export default function ProspectDetailPage() {
   const handleDelete = async () => {
     if (!(await confirm({ title: 'Delete prospect?', message: `Delete prospect "${prospect?.company_name}"? This cannot be undone.`, confirmLabel: 'Delete prospect' }))) return;
     try {
-      await deleteProspect(id!);
+      await deleteProspect.mutateAsync(id!);
       toast.success('Prospect deleted');
       navigate('/prospects');
     } catch (err) {
@@ -50,17 +54,21 @@ export default function ProspectDetailPage() {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateProspect(id!, {
-      company_name: editForm.company_name,
-      contact_person: editForm.contact_person,
-      phone: editForm.phone,
-      email: editForm.email,
-      lead_source: editForm.lead_source,
-      status: editForm.status,
-      follow_up_date: editForm.follow_up_date,
-      assigned_to: editForm.assigned_to,
-    });
-    setShowEdit(false);
+    try {
+      await updateProspect.mutateAsync({ id: id!, updates: {
+        company_name: editForm.company_name,
+        contact_person: editForm.contact_person,
+        phone: editForm.phone,
+        email: editForm.email,
+        lead_source: editForm.lead_source,
+        status: editForm.status,
+        follow_up_date: editForm.follow_up_date,
+        assigned_to: editForm.assigned_to,
+      } });
+      setShowEdit(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update prospect');
+    }
   };
 
   const statusColors: Record<ProspectStatus, string> = {

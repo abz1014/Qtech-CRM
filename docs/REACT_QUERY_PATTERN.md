@@ -58,6 +58,23 @@ must stay in sync — typecheck catches a mismatch).
 Leave a one-line comment pointing to the new hook file so nobody reintroduces
 the state out of habit.
 
+## Additions from T2-2 (clients / prospects / vendors)
+
+- **Query-only variant for context-internal reads.** When CRMContext itself
+  still needs a migrated domain's data (name lookups, validation, follow-up
+  titles), it consumes a `useXQuery()` variant that has NO realtime channel —
+  otherwise mounting it in the app-lifetime provider would recreate the
+  always-on subscription the migration exists to remove. Freshness comes from
+  the shared cache (any mounted `useX()` keeps it live) plus refetch-on-focus.
+- **Cross-domain functions stay in the context** and invalidate the domain's
+  query key instead of setting removed state: `addProspect` (fires
+  autoFollowUp into context-held follow-up state) and `deleteClient` (unlinks
+  context-held RFQs/orders). They move out only when their other domain
+  migrates too.
+- **Truly cross-domain mutations between two MIGRATED domains** become a
+  hook invalidating both keys (`useConvertProspect` → prospects + clients),
+  and read their inputs fresh from the DB, not from a cached copy.
+
 ## What stays out of scope until later tickets
 
 - Server-side pagination/filtering: not needed for small tables (employees);

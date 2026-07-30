@@ -3,6 +3,7 @@ import { businessToday } from '@/lib/dates';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useVendors, useAddVendor, useUpdateVendor, useDeleteVendor } from '@/hooks/useVendors';
 import { Pagination } from '@/components/Pagination';
 import { Plus, X, Search, Trash2, Download, Pencil } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +14,11 @@ import { TableSkeleton } from '@/components/ui/skeleton';
 
 export default function VendorsPage() {
   const navigate = useNavigate();
-  const { vendors, addVendor, updateVendor, deleteVendor, orders, supplierInquiries, loading } = useCRM();
+  const { orders, supplierInquiries, loading } = useCRM();
+  const { data: vendors = [], isLoading: vendorsLoading } = useVendors();
+  const addVendor = useAddVendor();
+  const updateVendor = useUpdateVendor();
+  const deleteVendor = useDeleteVendor();
   const { isAdmin } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
@@ -39,7 +44,7 @@ export default function VendorsPage() {
     );
   }, [vendors, debouncedSearch]);
 
-  if (loading) return <TableSkeleton cols={4} rows={8} headers={['Vendor', 'Country', 'Contact', 'Products']} />;
+  if (loading || vendorsLoading) return <TableSkeleton cols={4} rows={8} headers={['Vendor', 'Country', 'Contact', 'Products']} />;
 
   const paginatedVendors = filtered.slice(
     (currentPage - 1) * itemsPerPage,
@@ -48,14 +53,14 @@ export default function VendorsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addVendor(form);
+    addVendor.mutate(form);
     setShowForm(false);
     setForm({ name: '', country: '', contact_person: '', phone: '', email: '', products_supplied: '' });
   };
 
   const handleDelete = async (vendorId: string) => {
     try {
-      await deleteVendor(vendorId);
+      await deleteVendor.mutateAsync(vendorId);
       setShowDeleteConfirm(null);
       toast.success('Vendor deleted successfully');
     } catch (error) {
@@ -67,14 +72,14 @@ export default function VendorsPage() {
     e.preventDefault();
     if (!editVendor) return;
     try {
-      await updateVendor(editVendor.id, {
+      await updateVendor.mutateAsync({ id: editVendor.id, updates: {
         name: editVendor.name,
         country: editVendor.country,
         contact_person: editVendor.contact_person,
         phone: editVendor.phone,
         email: editVendor.email,
         products_supplied: editVendor.products_supplied,
-      });
+      } });
       setEditVendor(null);
     } catch (error) {
       toast.error('Failed to update vendor: ' + (error instanceof Error ? error.message : 'Unknown error'));

@@ -1,5 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useClients } from '@/hooks/useClients';
+import { useProspects } from '@/hooks/useProspects';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Order } from '@/types/crm';
 import { formatPKR } from '@/lib/format';
@@ -11,7 +13,9 @@ import { supabase } from '@/lib/supabase';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
 
 export default function DashboardPage() {
-  const { clients, orders, prospects, rfqs, supplierInquiries, supplierQuotes, followUpActions, getClientName, getVendorName, getUserName, loading } = useCRM();
+  const { orders, rfqs, supplierInquiries, supplierQuotes, followUpActions, getClientName, getVendorName, getUserName, loading } = useCRM();
+  const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const { data: prospects = [], isLoading: prospectsLoading } = useProspects();
   const { user, isAdmin, isSales } = useAuth();
   const navigate = useNavigate();
 
@@ -264,7 +268,7 @@ export default function DashboardPage() {
   // ══════════════════════════════════════════════════════════════════════════
 
   if (!isAdmin && !isSales) return <Navigate to="/" replace />;
-  if (loading) return <DashboardSkeleton />;
+  if (loading || clientsLoading || prospectsLoading) return <DashboardSkeleton />;
 
   const todayKpis = [
     { label: 'RFQs Received', value: last10Metrics.received, icon: FileText, color: 'text-primary' },
