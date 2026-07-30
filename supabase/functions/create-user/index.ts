@@ -1,11 +1,34 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// This function's real access control is the admin bearer-token check below
+// (lines ~66-77) — that runs for every caller, browser or not, since CORS is
+// a browser-only enforcement mechanism. `Access-Control-Allow-Origin: '*'`
+// still mattered as defense-in-depth: it let ANY web page embed a call to
+// this user-creation endpoint using an admin's authenticated browser session
+// (a CSRF-adjacent vector) and actually read the response. Locking it to the
+// app's own origin closes that off without weakening the real check.
+//
+// ALLOWED_ORIGINS can be overridden by setting the ALLOWED_ORIGINS secret
+// (comma-separated) via `supabase secrets set` or the dashboard, e.g. when a
+// custom domain is added later — no code change needed for that case.
+const DEFAULT_ALLOWED_ORIGINS = ['https://qtech-crm.vercel.app'];
+const configuredOrigins = (Deno.env.get('ALLOWED_ORIGINS') ?? '')
+  .split(',').map((o) => o.trim()).filter(Boolean);
+const ALLOWED_ORIGINS = new Set(configuredOrigins.length ? configuredOrigins : DEFAULT_ALLOWED_ORIGINS);
+
+function corsHeadersFor(req: Request): HeadersInit {
+  const origin = req.headers.get('Origin');
+  const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : DEFAULT_ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allow,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Vary': 'Origin',
+  };
+}
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
