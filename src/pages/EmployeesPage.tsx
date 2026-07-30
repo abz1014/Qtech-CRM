@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useCRM } from '@/contexts/CRMContext';
+import { useEmployees, useAddEmployee, useUpdateEmployee, useDeleteEmployee } from '@/hooks/useEmployees';
+import { useAttendance, useMarkAttendance } from '@/hooks/useAttendance';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -34,7 +35,13 @@ const blankEmployee = () => ({
 });
 
 export default function EmployeesPage() {
-  const { employees, attendance, addEmployee, updateEmployee, deleteEmployee, markAttendance, loading } = useCRM();
+  const { data: employees = [], isLoading: employeesLoading } = useEmployees();
+  const { data: attendance = [], isLoading: attendanceLoading } = useAttendance();
+  const addEmployee = useAddEmployee();
+  const updateEmployee = useUpdateEmployee();
+  const deleteEmployee = useDeleteEmployee();
+  const markAttendance = useMarkAttendance();
+  const loading = employeesLoading || attendanceLoading;
   const { user } = useAuth();
   const confirm = useConfirm();
 
@@ -88,8 +95,8 @@ export default function EmployeesPage() {
     };
     setSavingEmp(true);
     try {
-      if (empModal.mode === 'add') await addEmployee(payload, user.id);
-      else if (empModal.id) await updateEmployee(empModal.id, payload);
+      if (empModal.mode === 'add') await addEmployee.mutateAsync({ input: payload, createdBy: user.id });
+      else if (empModal.id) await updateEmployee.mutateAsync({ id: empModal.id, updates: payload });
       toast.success(empModal.mode === 'add' ? 'Employee added' : 'Employee updated');
       setEmpModal(null);
     } catch (err) {
@@ -100,7 +107,7 @@ export default function EmployeesPage() {
   const handleDeleteEmp = async (e: Employee) => {
     if (!(await confirm({ title: 'Delete employee?', message: `Delete ${e.name}? Their attendance history will also be removed. This cannot be undone.`, confirmLabel: 'Delete employee' }))) return;
     try {
-      await deleteEmployee(e.id);
+      await deleteEmployee.mutateAsync(e.id);
       toast.success('Employee deleted');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete employee');
@@ -108,7 +115,7 @@ export default function EmployeesPage() {
   };
 
   const toggleActive = async (e: Employee) => {
-    try { await updateEmployee(e.id, { status: e.status === 'active' ? 'inactive' : 'active' }); }
+    try { await updateEmployee.mutateAsync({ id: e.id, updates: { status: e.status === 'active' ? 'inactive' : 'active' } }); }
     catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to update'); }
   };
 
@@ -121,7 +128,7 @@ export default function EmployeesPage() {
       status: ex?.status ?? 'present', late: ex?.late ?? false,
       check_in: ex?.check_in ?? '', check_out: ex?.check_out ?? '', notes: ex?.notes ?? null,
     };
-    try { await markAttendance({ ...base, ...patch }, user.id); }
+    try { await markAttendance.mutateAsync({ input: { ...base, ...patch }, createdBy: user.id }); }
     catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to mark attendance'); }
   };
 

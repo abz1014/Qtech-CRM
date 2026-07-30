@@ -17,10 +17,6 @@ import {
   RecurringExpense, CreateRecurringExpenseInput, UpdateRecurringExpenseInput,
   GstInvoice, CreateGstInvoiceInput, UpdateGstInvoiceInput,
 } from '@/types/bookkeeping';
-import {
-  Employee, CreateEmployeeInput, UpdateEmployeeInput,
-  AttendanceRecord, MarkAttendanceInput,
-} from '@/types/hr';
 
 // Narrow projection returned by getQuotesForRFQ/getRecommendedQuote -- NOT
 // `SupplierQuote`, since this select omits received_at/currency/is_selected.
@@ -147,14 +143,8 @@ interface CRMContextType {
   addGstInvoice: (input: CreateGstInvoiceInput, createdBy: string) => Promise<GstInvoice>;
   updateGstInvoice: (id: string, updates: UpdateGstInvoiceInput) => Promise<void>;
   deleteGstInvoice: (id: string) => Promise<void>;
-  // Employee management + attendance (admin-only)
-  employees: Employee[];
-  attendance: AttendanceRecord[];
-  addEmployee: (input: CreateEmployeeInput, createdBy: string) => Promise<Employee>;
-  updateEmployee: (id: string, updates: UpdateEmployeeInput) => Promise<void>;
-  deleteEmployee: (id: string) => Promise<void>;
-  markAttendance: (input: MarkAttendanceInput, createdBy: string) => Promise<AttendanceRecord>;
-  deleteAttendance: (id: string) => Promise<void>;
+  // Employee management + attendance moved to src/hooks/useEmployees.ts +
+  // useAttendance.ts (T2-1 React Query pilot) -- no longer in this context.
   recordPayment: (payment: CreatePaymentInput, recordedBy: string) => Promise<PaymentRecord>;
   addPayable: (payable: CreatePayableInput, createdBy: string) => Promise<Payable>;
   updatePayable: (payableId: string, updates: UpdatePayableInput) => Promise<void>;
@@ -255,8 +245,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
   const [gstInvoices, setGstInvoices] = useState<GstInvoice[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
   const [payables, setPayables] = useState<Payable[]>([]);
   const [orderPayments, setOrderPayments] = useState<OrderPayment[]>([]);
@@ -292,8 +280,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { data: costingConfigData },
         { data: recurringExpensesData },
         { data: gstInvoicesData },
-        { data: employeesData },
-        { data: attendanceData },
       ] = await Promise.all([
         supabase.from('users').select('*').order('name'),
         supabase.from('clients').select('*').order('company_name'),
@@ -318,8 +304,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         (isAdmin || isSales) ? supabase.from('costing_config').select('*').eq('id', 1).maybeSingle().then(res => res, () => ({ data: null })) : emptyResult,
         isAdmin ? supabase.from('recurring_expenses').select('*').order('label').then(res => res, () => ({ data: null })) : emptyResult,
         (isAdmin || isSales) ? supabase.from('gst_invoices').select('*').order('invoice_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('employees').select('*').order('name').then(res => res, () => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('attendance').select('*').order('date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as unknown as User[]);
       setClients((clientsData ?? []) as unknown as Client[]);
@@ -348,8 +332,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       setCostingConfig((costingConfigData ?? null) as unknown as CostingConfig | null);
       setRecurringExpenses((recurringExpensesData ?? []) as unknown as RecurringExpense[]);
       setGstInvoices((gstInvoicesData ?? []) as unknown as GstInvoice[]);
-      setEmployees((employeesData ?? []) as unknown as Employee[]);
-      setAttendance((attendanceData ?? []) as unknown as AttendanceRecord[]);
       setLoading(false);
 
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
@@ -553,35 +535,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         }
       );
 
-      // Subscribe to the employee roster
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'employees' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setEmployees(prev => addUnique(prev, payload.new as unknown as Employee, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setEmployees(prev => prev.map(e => e.id === payload.new.id ? payload.new as unknown as Employee : e));
-          } else if (payload.eventType === 'DELETE') {
-            setEmployees(prev => prev.filter(e => e.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to attendance records
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'attendance' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setAttendance(prev => addUnique(prev, payload.new as unknown as AttendanceRecord, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setAttendance(prev => prev.map(a => a.id === payload.new.id ? payload.new as unknown as AttendanceRecord : a));
-          } else if (payload.eventType === 'DELETE') {
-            setAttendance(prev => prev.filter(a => a.id !== payload.old.id));
-          }
-        }
-      );
+      // Employees + attendance realtime moved to src/hooks/useEmployees.ts /
+      // useAttendance.ts (T2-1) -- each subscribes only while its own hook
+      // is mounted, instead of always-on here.
 
       // Subscribe to payment_records changes
       channel.on(
@@ -1446,60 +1402,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setGstInvoices(prev => prev.filter(g => g.id !== id));
   }, []);
 
-  // ── Employees + attendance ──────────────────────────────────────────────────
-  const addEmployee = useCallback(async (input: CreateEmployeeInput, createdBy: string): Promise<Employee> => {
-    const { data, error } = await supabase
-      .from('employees')
-      .insert({ ...input, created_by: createdBy })
-      .select()
-      .single();
-    if (error || !data) throw new Error(`Failed to add employee: ${error?.message ?? 'unknown error'}`);
-    const emp = data as Employee;
-    setEmployees(prev => addUnique(prev, emp, 'id'));
-    return emp;
-  }, []);
-
-  const updateEmployee = useCallback(async (id: string, updates: UpdateEmployeeInput) => {
-    const { data, error } = await supabase
-      .from('employees')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-    if (error || !data) throw new Error(`Failed to update employee: ${error?.message ?? 'unknown error'}`);
-    setEmployees(prev => prev.map(e => e.id === id ? data as Employee : e));
-  }, []);
-
-  const deleteEmployee = useCallback(async (id: string) => {
-    // attendance rows cascade in the DB (ON DELETE CASCADE)
-    const { error } = await supabase.from('employees').delete().eq('id', id);
-    if (error) throw new Error(`Failed to delete employee: ${error.message}`);
-    setEmployees(prev => prev.filter(e => e.id !== id));
-    setAttendance(prev => prev.filter(a => a.employee_id !== id));
-  }, []);
-
-  // Mark a day for an employee. Upsert on (employee_id, date) so re-marking the
-  // same day updates it instead of creating a duplicate.
-  const markAttendance = useCallback(async (input: MarkAttendanceInput, createdBy: string): Promise<AttendanceRecord> => {
-    const { data, error } = await supabase
-      .from('attendance')
-      .upsert({ ...input, created_by: createdBy }, { onConflict: 'employee_id,date' })
-      .select()
-      .single();
-    if (error || !data) throw new Error(`Failed to mark attendance: ${error?.message ?? 'unknown error'}`);
-    const rec = data as AttendanceRecord;
-    setAttendance(prev => {
-      const without = prev.filter(a => !(a.employee_id === rec.employee_id && a.date === rec.date));
-      return [rec, ...without];
-    });
-    return rec;
-  }, []);
-
-  const deleteAttendance = useCallback(async (id: string) => {
-    const { error } = await supabase.from('attendance').delete().eq('id', id);
-    if (error) throw new Error(`Failed to delete attendance: ${error.message}`);
-    setAttendance(prev => prev.filter(a => a.id !== id));
-  }, []);
+  // Employees + attendance CRUD moved to src/hooks/useEmployees.ts +
+  // useAttendance.ts (T2-1 React Query pilot).
 
   const recordPayment = useCallback(async (payment: CreatePaymentInput, recordedBy: string): Promise<PaymentRecord> => {
     // T1-2 (part 2/3): insert + recompute amount_paid + status update happen
@@ -2415,7 +2319,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     addExpense, updateExpense, deleteExpense,
     recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
     gstInvoices, addGstInvoice, updateGstInvoice, deleteGstInvoice,
-    employees, attendance, addEmployee, updateEmployee, deleteEmployee, markAttendance, deleteAttendance,
     recordPayment,
     addPayable, updatePayable, deletePayable, recordPayablePayment,
     getDashboardMetrics, getMonthlySummary, getProjectProfitability,
@@ -2445,7 +2348,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     addExpense, updateExpense, deleteExpense,
     recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
     gstInvoices, addGstInvoice, updateGstInvoice, deleteGstInvoice,
-    employees, attendance, addEmployee, updateEmployee, deleteEmployee, markAttendance, deleteAttendance,
     recordPayment,
     addPayable, updatePayable, deletePayable, recordPayablePayment,
     getDashboardMetrics, getMonthlySummary, getProjectProfitability,
