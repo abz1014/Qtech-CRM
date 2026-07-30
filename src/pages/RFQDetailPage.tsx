@@ -12,6 +12,7 @@ import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { LossReasonModal } from '@/components/rfq/LossReasonModal';
 import { CostingEditor } from '@/components/costing/CostingEditor';
 import { cn } from '@/lib/utils';
+import { calculateLineItemsCost, calculateMargin, buildOrderConversionFields, rankSupplierQuotes } from '@/lib/rfq/orderConversion';
 
 const inquiryStatusColors: Record<SupplierInquiryStatus, string> = {
   pending: 'bg-warning/15 text-warning',
@@ -297,41 +298,17 @@ export default function RFQDetailPage() {
     try {
       setIsConverting(true);
 
-      // Build summary: products, vendors, total cost
-      const productLabel = lineItems
-        .filter(li => itemVendors[li.id]?.vendor_id)
-        .map(li => `${li.product_type} ×${li.quantity}`)
-        .join(', ');
-
-      const totalCost = lineItems.reduce((sum, li) => {
-        const cost = Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity;
-        return sum + cost;
-      }, 0);
-
-      // Primary vendor = vendor with most items (or first)
-      const vendorCounts: Record<string, number> = {};
-      lineItems.forEach(li => {
-        const v = itemVendors[li.id]?.vendor_id;
-        if (v) vendorCounts[v] = (vendorCounts[v] || 0) + 1;
+      const { productLabel, totalCost, primaryVendorId, notes } = buildOrderConversionFields({
+        lineItems, itemVendors, quotes, getVendorName, formatMoney: formatPKR, additionalNotes: convertForm.notes,
       });
-      const primaryVendor = Object.entries(vendorCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
-        || quotes[0]?.vendor_id || '';
-
-      // Build supplier breakdown for notes
-      const breakdown = lineItems
-        .filter(li => itemVendors[li.id]?.vendor_id)
-        .map(li => `• ${li.product_type} ×${li.quantity} — ${getVendorName(itemVendors[li.id].vendor_id)} @ ${formatPKR(Number(itemVendors[li.id].unit_cost || 0))}/unit`)
-        .join('\n');
-
-      const fullNotes = `Supplier breakdown:\n${breakdown}${convertForm.notes ? '\n\n' + convertForm.notes : ''}`;
 
       await convertRFQToOrder(rfq.id, {
         client_id: convertForm.client_id,
-        vendor_id: primaryVendor,
+        vendor_id: primaryVendorId,
         order_value: Number(convertForm.order_value),
         product_type: productLabel || 'Multiple Products',
         cost_value: totalCost,
-        notes: fullNotes,
+        notes,
         status: 'po_received',
         sales_person_id: convertForm.sales_person_id,
         confirmed_date: businessToday(),
@@ -356,17 +333,15 @@ export default function RFQDetailPage() {
     setShowLossModal(false);
   };
 
-  const cheapestQuote = quotes.length > 0
-    ? quotes.reduce((min, q) => q.unit_price < min.unit_price ? q : min)
-    : null;
-
   // Supplier comparison: value score per quote (price 50% / lead 30% / MOQ 20%),
-  // best-value quote, and the currently selected winner.
-  const quoteScores = quotes.map(q => ({ id: q.id, score: calculateValueScore(q.unit_price, q.lead_time_days, q.moq) }));
+  // best-value quote, and the cheapest by unit price.
+  const { ranked: quoteScores, bestValueId: bestScoreId, cheapestId: cheapestQuoteId } = rankSupplierQuotes(quotes, calculateValueScore);
   const scoreOf = (id: string) => quoteScores.find(s => s.id === id)?.score ?? 0;
-  const bestScore = quoteScores.length ? Math.max(...quoteScores.map(s => s.score)) : 0;
-  const bestScoreId = quoteScores.find(s => s.score === bestScore)?.id ?? null;
-  const selectedQuote = quotes.find(q => q.is_selected) ?? null;
+
+  // Total our-cost for the convert-to-order modal, and the margin against
+  // the customer-approved amount once entered.
+  const totalOurCost = calculateLineItemsCost(lineItems, itemVendors);
+  const margin = calculateMargin(Number(convertForm.order_value) || 0, totalOurCost);
 
   // Mark one quote as the chosen supplier; clears any previous selection.
   const handleSelectWinner = async (quoteId: string) => {
@@ -741,12 +716,12 @@ export default function RFQDetailPage() {
             <tbody>
               {quotes.map(sq => {
                 const isWinner = sq.is_selected;
-                const isBestValue = sq.id === bestScoreId && quotes.length > 1;
+                const isBestValue = sq.id === bestScoreId;
                 const rowClass = isWinner
                   ? 'border-l-4 border-l-primary bg-primary/10'
                   : isBestValue
                     ? 'border-l-4 border-l-success bg-success/5'
-                    : cheapestQuote?.id === sq.id ? 'bg-success/5' : '';
+                    : cheapestQuoteId === sq.id ? 'bg-success/5' : '';
                 return (
                 <tr key={sq.id} className={`border-b border-border/50 ${rowClass}`}>
                   <td className="py-2.5 font-medium">
@@ -758,7 +733,7 @@ export default function RFQDetailPage() {
                       {isBestValue && !isWinner && (
                         <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-success/15 text-success">★ BEST VALUE</span>
                       )}
-                      {cheapestQuote?.id === sq.id && !isWinner && !isBestValue && (
+                      {cheapestQuoteId === sq.id && !isWinner && !isBestValue && (
                         <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">lowest price</span>
                       )}
                     </div>
@@ -1178,7 +1153,7 @@ export default function RFQDetailPage() {
                         <tr className="bg-muted/30">
                           <td colSpan={4} className="px-3 py-2 text-xs font-semibold text-muted-foreground text-right">Total Our Cost</td>
                           <td className="px-3 py-2 text-right text-sm font-bold text-foreground">
-                            {formatPKR(lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0))}
+                            {formatPKR(totalOurCost)}
                           </td>
                         </tr>
                       </tbody>
@@ -1216,10 +1191,10 @@ export default function RFQDetailPage() {
                   className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   required
                 />
-                {convertForm.order_value && lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0) > 0 && (
-                  <p className={`text-xs mt-1 font-medium ${Number(convertForm.order_value) > lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0) ? 'text-success' : 'text-destructive'}`}>
-                    Margin: {formatPKR(Number(convertForm.order_value) - lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0))}
-                    {' '}({((Number(convertForm.order_value) - lineItems.reduce((s, li) => s + Number(itemVendors[li.id]?.unit_cost || 0) * li.quantity, 0)) / Number(convertForm.order_value) * 100).toFixed(1)}%)
+                {convertForm.order_value && totalOurCost > 0 && (
+                  <p className={`text-xs mt-1 font-medium ${margin.amount > 0 ? 'text-success' : 'text-destructive'}`}>
+                    Margin: {formatPKR(margin.amount)}
+                    {' '}({margin.percent.toFixed(1)}%)
                   </p>
                 )}
               </div>
