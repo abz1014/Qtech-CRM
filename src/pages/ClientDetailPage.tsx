@@ -101,7 +101,9 @@ export default function ClientDetailPage() {
   const handleDelete = async () => {
     const oc = orders.filter(o => o.client_id === id).length;
     const rc = rfqs.filter(r => r.client_id === id).length;
-    const extra = (oc || rc) ? ` This will ALSO delete ${oc} order(s) and ${rc} RFQ(s) for this client.` : '';
+    // Orders/RFQs are NOT deleted -- client_id is ON DELETE SET NULL, so
+    // they survive as unlinked historical records (T1-3).
+    const extra = (oc || rc) ? ` Its ${oc} order(s) and ${rc} RFQ(s) will remain, just unlinked from this client.` : '';
     if (!(await confirm({ title: 'Delete client?', message: `Delete client "${client?.company_name}"?${extra} This cannot be undone.`, confirmLabel: 'Delete client' }))) return;
     try {
       await deleteClient(id!);
