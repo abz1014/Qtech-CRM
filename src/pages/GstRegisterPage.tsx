@@ -9,7 +9,7 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { businessToday } from '@/lib/dates';
 import { toast } from 'sonner';
 import {
-  FileText, Plus, X, Search, Pencil, Trash2, AlertTriangle, CheckCircle,
+  FileText, Plus, X, Search, Pencil, Trash2, AlertTriangle,
   Link2, Download, Receipt, Landmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
-import { formatPKR, formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { Plus, X, Search, ArrowRightCircle, Trash2, Download, ArrowUp, ArrowDown, SlidersHorizontal } from 'lucide-react';
 import { RFQ, RFQStatus, RFQPriority } from '@/types/crm';
@@ -105,7 +105,8 @@ export default function RFQsPage() {
     ).length;
 
     // Avg response time: RFQ date → quote sent date (only for RFQs that have been quoted)
-    const quotedRfqs = rfqs.filter(r => r.quote_sent_date && r.rfq_date);
+    const quotedRfqs = rfqs.filter((r): r is typeof r & { quote_sent_date: string; rfq_date: string } =>
+      !!r.quote_sent_date && !!r.rfq_date);
     let avgResponseDays = 0;
     if (quotedRfqs.length > 0) {
       const totalDays = quotedRfqs.reduce((sum, r) => {
@@ -138,7 +139,6 @@ export default function RFQsPage() {
 
   if (loading || clientsLoading || rfqsLoading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Products', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
 
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedRFQs = filtered.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -770,7 +770,7 @@ function LostDealsView({ lostRFQs, metrics, search, setSearch, getUserName, navi
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground line-clamp-1">{r.loss_notes}</span>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setViewNote({ company: r.company_name, note: r.loss_notes }); }}
+                          onClick={(e) => { e.stopPropagation(); setViewNote({ company: r.company_name, note: r.loss_notes! }); }}
                           className="text-xs text-primary hover:underline flex-shrink-0 whitespace-nowrap"
                         >
                           Read

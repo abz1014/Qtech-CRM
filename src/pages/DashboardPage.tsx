@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
 
 export default function DashboardPage() {
-  const { followUpActions, getClientName, getVendorName, getUserName, loading } = useCRM();
+  const { followUpActions, getClientName, loading } = useCRM();
   const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { data: prospects = [], isLoading: prospectsLoading } = useProspects();
   const { data: orders = [], isLoading: ordersLoading } = useOrders();
@@ -150,9 +150,9 @@ export default function DashboardPage() {
   }, [rfqs, inquiredRfqIds, quotedRfqIds, today]);
 
   // Monthly pipeline
-  const { monthStart, monthlyPipeline } = useMemo(() => {
+  const monthlyPipeline = useMemo(() => {
     const start = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
-    return { monthStart: start, monthlyPipeline: getPipelineMetrics(start, today) };
+    return getPipelineMetrics(start, today);
   }, [currentYear, currentMonth, today, getPipelineMetrics]);
 
   // Quarterly pipeline
@@ -209,7 +209,7 @@ export default function DashboardPage() {
 
   const topRFQClients = useMemo(() => {
     const rfqCountByClient: Record<string, number> = {};
-    rfqs.forEach(r => { rfqCountByClient[r.client_id] = (rfqCountByClient[r.client_id] || 0) + 1; });
+    rfqs.forEach(r => { if (r.client_id) rfqCountByClient[r.client_id] = (rfqCountByClient[r.client_id] || 0) + 1; });
     return Object.entries(rfqCountByClient)
       .map(([clientId, count]) => ({ name: getClientName(clientId), count }))
       .filter(c => c.name !== 'Unknown') // don't show orphaned/deleted clients

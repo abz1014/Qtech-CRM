@@ -11,7 +11,7 @@ interface ProfitabilityBadgeProps {
 export function ProfitabilityBadge({
   profit,
   margin,
-  orderValue,
+  orderValue: _orderValue,
   size = 'md'
 }: ProfitabilityBadgeProps) {
 

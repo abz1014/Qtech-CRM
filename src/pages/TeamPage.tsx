@@ -54,7 +54,7 @@ export default function TeamPage() {
         // Reload the page after a moment so the new user appears in the list
         setTimeout(() => { window.location.reload(); }, 1500);
       }
-    } catch (err) {
+    } catch {
       setError('Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);

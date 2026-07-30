@@ -109,7 +109,7 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.due_date) {
+    if (!form.title.trim() || !form.due_date || !entityId) {
       toast.error('Please fill in Title and Due Date');
       return;
     }
@@ -117,16 +117,16 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
     setIsSubmitting(true);
     try {
       // Encode recurrence in description prefix if set
-      const descParts = [];
+      const descParts: string[] = [];
       if (recurrenceDays) descParts.push(`__recur:${recurrenceDays}__`);
       if (form.description.trim()) descParts.push(form.description.trim());
 
       await createFollowUp({
         action_type: form.action_type,
         entity_type: resolvedEntityType,
-        entity_id: entityId || null,
+        entity_id: entityId,
         title: form.title.trim(),
-        description: descParts.join(' ') || null,
+        description: descParts.join(' ') || undefined,
         due_date: form.due_date,
         priority: form.priority,
         assigned_to: user?.id,

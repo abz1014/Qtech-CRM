@@ -1,12 +1,10 @@
 import { useCRM } from '@/contexts/CRMContext';
 import { useOrders } from '@/hooks/useOrders';
-import { useVendors } from '@/hooks/useVendors';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export function SupplierPerformanceChart() {
   const { getVendorName } = useCRM();
   const { data: orders = [] } = useOrders();
-  const { data: vendors = [] } = useVendors();
 
   // Calculate vendor metrics
   const vendorMetrics = orders
@@ -14,7 +12,7 @@ export function SupplierPerformanceChart() {
       const vendorName = getVendorName(order.vendor_id);
       const existing = acc.find(item => item.vendor === vendorName);
       const profit = order.profit || (order.order_value - order.cost_value);
-      const margin = order.profit_margin !== undefined ? order.profit_margin : (order.order_value > 0 ? (profit / order.order_value) * 100 : 0);
+      const margin = order.profit_margin ?? (order.order_value > 0 ? (profit / order.order_value) * 100 : 0);
 
       if (existing) {
         existing.totalOrders += 1;

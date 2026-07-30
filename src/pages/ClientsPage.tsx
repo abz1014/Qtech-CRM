@@ -7,7 +7,7 @@ import { useClients, useAddClient } from '@/hooks/useClients';
 import { useRFQs } from '@/hooks/useRFQs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
-import { formatPKR, formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 
 import { Plus, X, Search, ChevronDown, ChevronUp, Trash2, Download } from 'lucide-react';
 import { generateCSV, downloadCSV } from '@/lib/csvExport';

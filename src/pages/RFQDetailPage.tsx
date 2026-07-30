@@ -13,12 +13,11 @@ import { useRFQLineItems } from '@/hooks/useRFQLineItems';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
-import { Plus, ArrowLeft, CheckCircle, Edit2, X, ShoppingCart, Calculator, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { Plus, ArrowLeft, Edit2, X, ShoppingCart, Calculator, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { SupplierInquiryStatus, RFQStatus, RFQPriority, LossReason, RFQ } from '@/types/crm';
 import { AddFollowUpButton } from '@/components/followup/AddFollowUpButton';
 import { LossReasonModal } from '@/components/rfq/LossReasonModal';
 import { CostingEditor } from '@/components/costing/CostingEditor';
-import { cn } from '@/lib/utils';
 import { calculateLineItemsCost, calculateMargin, buildOrderConversionFields, rankSupplierQuotes } from '@/lib/rfq/orderConversion';
 
 const inquiryStatusColors: Record<SupplierInquiryStatus, string> = {
@@ -35,7 +34,7 @@ export default function RFQDetailPage() {
   const {
     users,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateSupplierInquiry, updateInquiryStatus,
-    getVendorName, updateRFQStatus, updateRFQ, deleteRFQ, getClientName, convertRFQToOrder, getUserName,
+    getVendorName, updateRFQ, deleteRFQ, convertRFQToOrder,
     getFollowUpsForEntity, calculateValueScore,
   } = useCRM();
   const { data: vendors = [] } = useVendors();
@@ -1116,7 +1115,6 @@ export default function RFQDetailPage() {
                       <tbody>
                         {lineItems.map(li => {
                           const iv = itemVendors[li.id] || { quote_id: '', vendor_id: '', unit_cost: '' };
-                          const matchingQuote = quotes.find(q => q.id === iv.quote_id);
                           const lineTotal = Number(iv.unit_cost || 0) * li.quantity;
                           return (
                             <tr key={li.id} className="border-b border-border/50">

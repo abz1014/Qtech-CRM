@@ -1,7 +1,6 @@
 import { toBusinessDate } from '@/lib/dates';
 import { useState } from 'react';
 import { AlarmClock } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface SnoozePopoverProps {
   onSnooze: (date: string) => void;

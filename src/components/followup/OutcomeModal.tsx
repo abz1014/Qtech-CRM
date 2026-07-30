@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle, X, PhoneCall, PhoneMissed, MessageSquare, Plus } from 'lucide-react';
+import { CheckCircle, X, PhoneCall, PhoneMissed, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type OutcomeResult = 'reached' | 'no_answer' | 'left_message' | 'not_required';

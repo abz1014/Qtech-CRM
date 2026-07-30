@@ -1,4 +1,3 @@
-import { useCRM } from '@/contexts/CRMContext';
 import { useOrders } from '@/hooks/useOrders';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { OrderStatus } from '@/types/crm';

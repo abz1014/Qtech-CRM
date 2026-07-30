@@ -8,7 +8,6 @@ import { useConfirm } from '@/components/ui/ConfirmDialog';
 import {
   CheckCircle, AlertCircle, Clock, Trash2, Bell,
   RotateCcw, AlarmClock, Users, ChevronDown, ChevronUp,
-  ChevronLeft, ChevronRight, ExternalLink,
 } from 'lucide-react';
 import React from 'react';
 import { FollowUpAction, User } from '@/types/crm';
@@ -314,295 +313,17 @@ function TeamOverview({ allActions, users, onCompleteClick, onSnooze, onDelete, 
   );
 }
 
-// ─── Activity Feed ────────────────────────────────────────────────────────────
-
-const ACTION_TYPE_SHORT: Record<string, string> = {
-  rfq_followup: 'RFQ follow-up',
-  supplier_response: 'supplier follow-up',
-  order_status: 'order check',
-  overdue_invoice: 'invoice follow-up',
-  custom: 'custom action',
-};
-
-function timeAgo(ts: string): string {
-  const diff = Date.now() - new Date(ts).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function ActivityFeed({ activity, users, patterns }: {
-  activity: FollowUpAction[];
-  users: User[];
-  patterns: { actionType: string; avgDays: number; label: string }[];
-}) {
-  const getName = (uid: string) => users.find(u => u.id === uid)?.name?.split(' ')[0] || 'Someone';
-
-  return (
-    <div className="space-y-4">
-      {/* Pattern insights */}
-      {patterns.length > 0 && (
-        <div className="glass-card p-4 border border-border space-y-3">
-          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-            📊 Pattern Insights
-            <span className="text-xs font-normal text-muted-foreground">— based on your completed actions</span>
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {patterns.map(p => (
-              <div key={p.actionType} className="flex items-center justify-between px-3 py-2 bg-muted/50 rounded-lg">
-                <span className="text-sm text-foreground capitalize">{p.label}</span>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                  p.avgDays <= 2 ? 'bg-green-500/10 text-green-600' :
-                  p.avgDays <= 5 ? 'bg-yellow-500/10 text-yellow-600' :
-                  'bg-red-500/10 text-red-500'
-                }`}>
-                  avg {p.avgDays}d to complete
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Activity list */}
-      <div className="glass-card border border-border">
-        <div className="px-5 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold text-foreground">Recent Completions</h3>
-        </div>
-        {activity.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-sm">
-            No completed actions yet. Start completing actions to see the feed.
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {activity.map(a => {
-              // Strip recurrence tag from display
-              const desc = a.description?.replace(/__recur:\d+__\s*/g, '') || '';
-              const outcomeMatch = desc.match(/^(✅|📵|💬)[^—]+/);
-              const outcome = outcomeMatch ? outcomeMatch[0].trim() : null;
-
-              return (
-                <div key={a.id} className="flex items-start gap-3 px-5 py-3">
-                  <div className="w-8 h-8 rounded-full bg-green-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-xs font-bold text-green-600">
-                      {getName(a.assigned_to || '').slice(0, 2).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground">
-                      <span className="font-semibold">{getName(a.assigned_to || '')}</span>
-                      {' '}completed a{' '}
-                      <span className="font-medium">{ACTION_TYPE_SHORT[a.action_type] || 'action'}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">"{a.title}"</p>
-                    {outcome && (
-                      <p className="text-xs text-muted-foreground mt-0.5 italic">{outcome}</p>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground flex-shrink-0 mt-0.5">
-                    {a.completed_at ? timeAgo(a.completed_at) : ''}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Grouped Action List ──────────────────────────────────────────────────────
-
-const GROUPS_PER_PAGE = 5;
-
-interface GroupedActionListProps {
-  actions: FollowUpAction[];
-  users: User[];
-  resolveEntity: (action: FollowUpAction) => { label: string; path: string } | null;
-  onCompleteClick: (id: string, title: string) => void;
-  onSnooze: (id: string, date: string) => void;
-  onDelete: (id: string) => void;
-  completing: string | null;
-}
-
-function GroupedActionList({ actions, users, resolveEntity, onCompleteClick, onSnooze, onDelete, completing }: GroupedActionListProps) {
-  const navigate = useNavigate();
-  const [page, setPage] = useState(1);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-  // Build groups keyed by entity_id (or 'unlinked' for actions with no entity)
-  const groups = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; path: string | null; entityType: string | null; actions: FollowUpAction[] }>();
-
-    actions.forEach(action => {
-      const entity = resolveEntity(action);
-      const key = action.entity_id || 'unlinked';
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          label: entity?.label ?? 'General / No linked record',
-          path: entity?.path ?? null,
-          entityType: action.entity_type ?? null,
-          actions: [],
-        });
-      }
-      map.get(key)!.actions.push(action);
-    });
-
-    // Sort groups: most urgent action in group determines group order
-    return [...map.values()].sort((a, b) => {
-      const tierA = Math.max(...a.actions.map(x => getTier(x.due_date)));
-      const tierB = Math.max(...b.actions.map(x => getTier(x.due_date)));
-      if (tierA !== tierB) return tierB - tierA;
-      // Within same tier, sort by earliest due date
-      const minA = Math.min(...a.actions.map(x => new Date(x.due_date).getTime()));
-      const minB = Math.min(...b.actions.map(x => new Date(x.due_date).getTime()));
-      return minA - minB;
-    });
-  }, [actions]);
-
-  const totalPages = Math.ceil(groups.length / GROUPS_PER_PAGE);
-  const pagedGroups = groups.slice((page - 1) * GROUPS_PER_PAGE, page * GROUPS_PER_PAGE);
-
-  const toggleCollapse = (key: string) => {
-    setCollapsed(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
-
-  const entityIcon: Record<string, string> = { rfq: '📋', order: '📦', client: '🏢', prospect: '🎯', vendor: '🏭' };
-
-  return (
-    <div className="space-y-4">
-      {/* Group count */}
-      <p className="text-xs text-muted-foreground">
-        {groups.length} group{groups.length !== 1 ? 's' : ''} · {actions.length} action{actions.length !== 1 ? 's' : ''}
-        {totalPages > 1 && ` · Page ${page} of ${totalPages}`}
-      </p>
-
-      {pagedGroups.map(group => {
-        const isCollapsed = collapsed.has(group.key);
-        const maxTier = Math.max(...group.actions.map(a => getTier(a.due_date)));
-        const overdueCount = group.actions.filter(a => getTier(a.due_date) >= 2).length;
-        const groupBorder = maxTier >= 3 ? 'border-red-500/50' : maxTier >= 2 ? 'border-red-400/30' : maxTier === 1 ? 'border-yellow-500/30' : 'border-border';
-
-        return (
-          <div key={group.key} className={cn('glass-card border rounded-xl overflow-hidden', groupBorder)}>
-            {/* Group header */}
-            <button
-              onClick={() => toggleCollapse(group.key)}
-              className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors text-left"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-base flex-shrink-0">
-                  {group.entityType ? entityIcon[group.entityType] ?? '📌' : '📌'}
-                </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-foreground text-sm truncate">{group.label}</span>
-                    {group.path && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); navigate(group.path!); }}
-                        className="flex items-center gap-1 text-xs text-primary hover:underline flex-shrink-0"
-                      >
-                        <ExternalLink className="w-3 h-3" /> Open
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-muted-foreground capitalize">
-                      {group.entityType ? `${ENTITY_TYPE_LABELS[group.entityType] || group.entityType}` : 'General'}
-                    </span>
-                    <span className="text-xs text-muted-foreground">·</span>
-                    <span className="text-xs text-muted-foreground">{group.actions.length} action{group.actions.length !== 1 ? 's' : ''}</span>
-                    {overdueCount > 0 && (
-                      <span className="text-xs text-red-500 font-semibold">{overdueCount} overdue</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <ChevronDown className={cn('w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform', isCollapsed && '-rotate-90')} />
-            </button>
-
-            {/* Actions inside group */}
-            {!isCollapsed && (
-              <div className="px-4 pb-4 space-y-2 border-t border-border pt-3">
-                {group.actions.map(action => {
-                  const assignedUser = users.find((u) => u.id === action.assigned_to);
-                  return (
-                    <ActionCard
-                      key={action.id}
-                      action={action}
-                      assignedName={assignedUser?.name}
-                      onCompleteClick={onCompleteClick}
-                      onSnooze={onSnooze}
-                      onDelete={onDelete}
-                      completing={completing}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-2">
-          <p className="text-xs text-muted-foreground">
-            Showing {(page - 1) * GROUPS_PER_PAGE + 1}–{Math.min(page * GROUPS_PER_PAGE, groups.length)} of {groups.length} groups
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-40 transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={cn(
-                  'w-8 h-8 rounded-lg text-xs font-medium transition-colors',
-                  p === page ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                )}
-              >
-                {p}
-              </button>
-            ))}
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-40 transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ActionsPage() {
-  const { followUpActions, getAllFollowUps, completeFollowUp, snoozeFollowUp, deleteFollowUp, users, getClientName, getRecentActivity, getPatternInsights } = useCRM();
+  const { followUpActions, getAllFollowUps, completeFollowUp, snoozeFollowUp, deleteFollowUp, users, getClientName } = useCRM();
   const { data: rfqs = [] } = useRFQs();
   const { data: orders = [] } = useOrders();
   const { user, isAdmin } = useAuth();
   const confirm = useConfirm();
 
-  type Tab = 'all' | 'overdue' | 'today' | 'upcoming' | 'team' | 'activity';
-  const [tab, setTab]         = useState<Tab>('today');
+  type Tab = 'all' | 'team';
+  const [tab, setTab]         = useState<Tab>('all');
   const [allActions, setAllActions] = useState<FollowUpAction[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -619,48 +340,18 @@ export default function ActionsPage() {
   const [showNextForm, setShowNextForm] = useState(false);
   const [completing, setCompleting]     = useState<string | null>(null);
   const [outcomeAction, setOutcomeAction] = useState<{ id: string; title: string } | null>(null);
-  const [activity, setActivity]         = useState<FollowUpAction[]>([]);
 
-  const patterns = useMemo(() => getPatternInsights(), [getPatternInsights]);
-
-  // Only fetch team + activity feed; myActions comes from live state
+  // Only fetch the team view; myActions comes from live state
   const load = async () => {
     setLoading(true);
-    const [all, recent] = await Promise.all([
-      isAdmin ? getAllFollowUps() : Promise.resolve([]),
-      getRecentActivity(25),
-    ]);
+    const all = isAdmin ? await getAllFollowUps() : [];
     if (isAdmin) setAllActions(all);
-    setActivity(recent);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, [user?.id]);
 
   const todayStr = businessToday();
-
-  const overdueIds = useMemo(
-    () => new Set(myActions.filter(a => a.due_date < todayStr).map(a => a.id)),
-    [myActions, todayStr]
-  );
-
-  // Sort actions: overdue first, then today, then upcoming — within each group sort by date
-  const sortActions = (list: FollowUpAction[]) => [...list].sort((a, b) => {
-    const ta = getTier(a.due_date), tb = getTier(b.due_date);
-    if (ta !== tb) return tb - ta; // higher tier (more urgent) first
-    return a.due_date < b.due_date ? -1 : 1;
-  });
-
-  const filtered = useMemo(() => {
-    let list: FollowUpAction[];
-    switch (tab) {
-      case 'overdue':   list = myActions.filter(a => a.due_date < todayStr); break;
-      case 'today':     list = myActions.filter(a => a.due_date === todayStr); break;
-      case 'upcoming':  list = myActions.filter(a => a.due_date > todayStr); break;
-      default:          list = myActions;
-    }
-    return sortActions(list);
-  }, [myActions, tab, todayStr]);
 
   // Resolve a human-readable label + navigation path for an action's linked entity
   const resolveEntity = (action: FollowUpAction): { label: string; path: string } | null => {
@@ -676,15 +367,6 @@ export default function ActionsPage() {
       return { label: `${getClientName(order.client_id)} — ${order.product_type}`, path: `/orders/${order.id}` };
     }
     return null;
-  };
-
-  const counts = {
-    all:      myActions.length,
-    overdue:  myActions.filter(a => a.due_date < todayStr).length,
-    today:    myActions.filter(a => a.due_date === todayStr).length,
-    upcoming: myActions.filter(a => a.due_date > todayStr).length,
-    team:     allActions.length,
-    activity: activity.length,
   };
 
   const handleCompleteClick = (id: string, title: string) => setOutcomeAction({ id, title });
@@ -712,15 +394,6 @@ export default function ActionsPage() {
     await deleteFollowUp(id);
     setAllActions(prev => prev.filter(a => a.id !== id));
   };
-
-  const TABS: { key: Tab; label: string; adminOnly?: boolean }[] = [
-    { key: 'today',    label: 'Today' },
-    { key: 'overdue',  label: 'Overdue' },
-    { key: 'all',      label: 'All Mine' },
-    { key: 'upcoming', label: 'Upcoming' },
-    { key: 'team',     label: '👥 Team', adminOnly: true },
-    { key: 'activity', label: '📣 Activity' },
-  ];
 
   const overdue  = myActions.filter(a => a.due_date < todayStr);
   const dueToday = myActions.filter(a => a.due_date === todayStr);

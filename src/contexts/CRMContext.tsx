@@ -23,11 +23,11 @@ import { useCostingConfigQuery, COSTING_CONFIG_QUERY_KEY } from '@/hooks/useCost
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  Client, Prospect, Vendor, Order, OrderEngineer, RFQ, User,
+  Prospect, Order, OrderEngineer, RFQ, User,
   OrderStatus, CommissioningStatus, RFQStatus, RFQPriority,
   SupplierInquiry, SupplierQuote, RFQLineItem, SupplierInquiryStatus,
   FollowUpAction, RealtimePayload, OrderPayment, SupplierPayment, CostLine,
-  CostingConfig, CostingConfigValues,
+  CostingConfigValues,
 } from '@/types/crm';
 import {
   Invoice, Expense, PaymentRecord, Payable, CreateInvoiceInput, UpdateInvoiceInput,
@@ -255,11 +255,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // client cross-refs, RFQ->order conversion) to move out cleanly. See
   // docs/REACT_QUERY_PATTERN.md.
   const { data: orders = [], isLoading: ordersLoading } = useOrdersQuery();
-  const { data: orderEngineers = [], isLoading: oeLoading } = useOrderEngineersQuery();
+  const { isLoading: oeLoading } = useOrderEngineersQuery();
   const { data: rfqs = [], isLoading: rfqsLoading } = useRFQsQuery();
   const { data: supplierInquiries = [], isLoading: inquiriesLoading } = useSupplierInquiriesQuery();
   const { data: supplierQuotes = [], isLoading: quotesLoading } = useSupplierQuotesQuery();
-  const { data: rfqLineItems = [], isLoading: lineItemsLoading } = useRFQLineItemsQuery();
+  const { isLoading: lineItemsLoading } = useRFQLineItemsQuery();
   // `loading` used to cover these six domains via the single Promise.all
   // below; now it's an aggregate of that plus their independent queries, so
   // every existing `if (loading) return <Skeleton />` consumer keeps working
@@ -272,13 +272,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const { data: invoices = [], isLoading: invoicesLoading } = useInvoicesQuery();
   const { data: expenses = [], isLoading: expensesLoading } = useExpensesQuery();
   const { data: recurringExpenses = [], isLoading: recurringExpensesLoading } = useRecurringExpensesQuery();
-  const { data: gstInvoices = [], isLoading: gstInvoicesLoading } = useGstInvoicesQuery();
+  const { isLoading: gstInvoicesLoading } = useGstInvoicesQuery();
   const { data: paymentRecords = [], isLoading: paymentRecordsLoading } = usePaymentRecordsQuery();
   const { data: payables = [], isLoading: payablesLoading } = usePayablesQuery();
-  const { data: orderPayments = [], isLoading: orderPaymentsLoading } = useOrderPaymentsQuery();
-  const { data: supplierPayments = [], isLoading: supplierPaymentsLoading } = useSupplierPaymentsQuery();
-  const { data: costLines = [], isLoading: costLinesLoading } = useCostLinesQuery();
-  const { data: costingConfig = null, isLoading: costingConfigLoading } = useCostingConfigQuery();
+  const { isLoading: orderPaymentsLoading } = useOrderPaymentsQuery();
+  const { isLoading: supplierPaymentsLoading } = useSupplierPaymentsQuery();
+  const { isLoading: costLinesLoading } = useCostLinesQuery();
+  const { isLoading: costingConfigLoading } = useCostingConfigQuery();
   // `loading` used to cover these sixteen domains via the single Promise.all
   // below; now it's an aggregate of that plus their independent queries, so
   // every existing `if (loading) return <Skeleton />` consumer keeps working
@@ -1823,8 +1823,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
   // Pattern insights — average days to completion per action type
   const getPatternInsights = useCallback((): { actionType: string; avgDays: number; label: string }[] => {
-    const completed = followUpActions.filter(a =>
-      a.status === 'completed' && a.completed_at && a.created_at
+    const completed = followUpActions.filter((a): a is typeof a & { completed_at: string; created_at: string } =>
+      a.status === 'completed' && !!a.completed_at && !!a.created_at
     );
     const byType: Record<string, number[]> = {};
     completed.forEach(a => {

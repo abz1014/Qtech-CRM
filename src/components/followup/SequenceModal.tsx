@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { X, Zap, ChevronDown, ChevronUp, CheckCircle, Clock } from 'lucide-react';
-import { SEQUENCES, getSequencesForEntity, Sequence } from '@/lib/sequences';
+import { getSequencesForEntity, Sequence } from '@/lib/sequences';
 import { EntityType } from './FollowUpForm';
 import { cn } from '@/lib/utils';
 

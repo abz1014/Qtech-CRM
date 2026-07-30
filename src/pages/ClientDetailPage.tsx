@@ -54,7 +54,6 @@ export default function ClientDetailPage() {
 
   const client = clients.find(c => c.id === id);
   const [showEdit, setShowEdit] = useState(false);
-  const [editError, setEditError] = useState('');
   const [editForm, setEditForm] = useState({
     company_name: client?.company_name || '',
     industry: client?.industry || '',
@@ -89,7 +88,6 @@ export default function ClientDetailPage() {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setEditError('');
     try {
       await updateClient.mutateAsync({
         id: id!,
@@ -103,8 +101,9 @@ export default function ClientDetailPage() {
         },
       });
       setShowEdit(false);
+      toast.success('Client updated');
     } catch (err) {
-      setEditError('Failed to update client. Please try again.');
+      toast.error(err instanceof Error ? err.message : 'Failed to update client');
     }
   };
 

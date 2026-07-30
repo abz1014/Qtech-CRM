@@ -6,8 +6,8 @@ import { useRFQs } from '@/hooks/useRFQs';
 import { useOrders } from '@/hooks/useOrders';
 import { useSupplierInquiries } from '@/hooks/useSupplierInquiries';
 import { useSupplierQuotes } from '@/hooks/useSupplierQuotes';
-import { BarChart3, Calendar, Download, Filter, ChevronRight } from 'lucide-react';
-import { formatDate, formatPKR } from '@/lib/format';
+import { BarChart3, Download, Filter, ChevronRight } from 'lucide-react';
+import { formatPKR } from '@/lib/format';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
 import { RFQ } from '@/types/crm';
 
@@ -90,7 +90,7 @@ export function DailyRFQReportPage() {
 
   // Get unique clients for filter dropdown
   const uniqueClients = useMemo(() => {
-    return Array.from(new Set(rfqs.map(r => r.client_id)))
+    return Array.from(new Set(rfqs.map(r => r.client_id).filter((id): id is string => !!id)))
       .map(id => ({ id, name: getClientName(id) }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rfqs, getClientName]);

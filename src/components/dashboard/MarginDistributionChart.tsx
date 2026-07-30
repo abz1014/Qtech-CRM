@@ -1,6 +1,5 @@
-import { useCRM } from '@/contexts/CRMContext';
 import { useOrders } from '@/hooks/useOrders';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export function MarginDistributionChart() {
   const { data: orders = [] } = useOrders();
@@ -8,8 +7,8 @@ export function MarginDistributionChart() {
   // Calculate margin distribution
   const margins = orders
     .map(o => {
-      const profit = o.profit !== undefined ? o.profit : o.order_value - (o.cost_value || 0);
-      const margin = o.profit_margin !== undefined ? o.profit_margin : (o.order_value > 0 ? (profit / o.order_value) * 100 : 0);
+      const profit = o.profit ?? (o.order_value - (o.cost_value || 0));
+      const margin = o.profit_margin ?? (o.order_value > 0 ? (profit / o.order_value) * 100 : 0);
       return margin;
     });
 
