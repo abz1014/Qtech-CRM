@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { calcSingleItem, DEFAULT_CONFIG, type SingleItemInput } from './qtech-costing';
-import { singleDistribution } from './single-distribution';
+import { singleDistribution, type SingleDistribution } from './single-distribution';
 
-const sum = (d: Record<string, number>) => Object.values(d).reduce((s, v) => s + v, 0);
+const sum = (d: SingleDistribution) => Object.values(d).reduce((s, v) => s + v, 0);
 
 // A representative single-item quote: 10 units, 2 kg each, RMB priced, air freight.
 const SAMPLE: SingleItemInput = {

@@ -81,6 +81,10 @@ export interface Order {
   order_gst_amount?: number | null;
   // Admin hid this order's overdue payment from the Operations tab.
   ops_dismissed?: boolean;
+  // Costing-engine outputs, live on the orders table (confirmed via
+  // information_schema, T1-4) but historically missing from this type.
+  profit?: number | null;
+  profit_margin?: number | null;
 }
 
 /** A saved costing line (engine INPUTS only). Attaches to an RFQ or an order. */

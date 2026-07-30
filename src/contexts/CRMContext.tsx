@@ -22,6 +22,43 @@ import {
   AttendanceRecord, MarkAttendanceInput,
 } from '@/types/hr';
 
+// Narrow projection returned by getQuotesForRFQ/getRecommendedQuote -- NOT
+// `SupplierQuote`, since this select omits received_at/currency/is_selected.
+interface RFQQuote {
+  id: string;
+  rfq_id: string;
+  vendor_id: string;
+  unit_price: number;
+  lead_time_days: number;
+  moq: number;
+  validity_days: number;
+  notes: string | null;
+  is_recommended: boolean;
+  value_score: number | null;
+  vendors: unknown;
+  inquiry_id: string;
+}
+
+// Narrow projection returned by getOrderWithProfitability/getOrdersWithProfitability
+// -- deliberately NOT `Order`, since these select only the costing-relevant
+// columns, not a full order row.
+interface OrderProfitability {
+  id: string;
+  order_value: number;
+  status: OrderStatus;
+  product_type: string;
+  material_cost: number | null;
+  engineering_cost: number | null;
+  logistics_cost: number | null;
+  overhead_cost: number | null;
+  total_cost: number | null;
+  profit: number | null;
+  profit_margin: number | null;
+  vendor_id: string;
+  vendors: unknown;
+  created_at?: string;
+}
+
 // Realtime INSERT events echo back our own optimistic inserts (Supabase
 // broadcasts postgres_changes to the originating client too). Only add the
 // row if it isn't already in state, otherwise every created row appears twice.
@@ -141,21 +178,21 @@ interface CRMContextType {
       overhead_cost?: number;
     }
   ) => Promise<{ success: boolean; error?: unknown }>;
-  getOrderWithProfitability: (orderId: string) => Promise<Order | null>;
-  getOrdersWithProfitability: () => Promise<Order[]>;
+  getOrderWithProfitability: (orderId: string) => Promise<OrderProfitability | null>;
+  getOrdersWithProfitability: () => Promise<OrderProfitability[]>;
   getProfitabilityMetrics: () => Promise<{
     totalProfit: number;
     avgMargin: number;
-    topProfitable: Order[];
+    topProfitable: Pick<OrderProfitability, 'order_value' | 'total_cost' | 'profit' | 'profit_margin' | 'status'>[];
     totalOrders: number;
     lowMarginOrders: number;
   }>;
 
   // Supplier Comparison Methods
-  getQuotesForRFQ: (rfqId: string) => Promise<SupplierQuote[]>;
+  getQuotesForRFQ: (rfqId: string) => Promise<RFQQuote[]>;
   calculateValueScore: (unitPrice: number, leadTime: number, moq: number) => number;
   updateQuoteRecommendation: (quoteId: string, isRecommended: boolean) => Promise<void>;
-  getRecommendedQuote: (rfqId: string) => Promise<SupplierQuote | null>;
+  getRecommendedQuote: (rfqId: string) => Promise<RFQQuote | null>;
 
   // Live action state (pre-loaded, reactive)
   followUpActions: FollowUpAction[];
@@ -174,7 +211,7 @@ interface CRMContextType {
 
   // Follow-Up Automation Methods
   createFollowUp: (followUp: {
-    action_type: 'rfq_followup' | 'supplier_response' | 'overdue_invoice' | 'order_status';
+    action_type: 'rfq_followup' | 'supplier_response' | 'overdue_invoice' | 'order_status' | 'custom';
     entity_type: string;
     entity_id: string;
     title: string;
@@ -271,48 +308,48 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         // Load ALL actions (not just pending) — completed ones feed
         // getPatternInsights; every UI consumer filters status itself.
         supabase.from('follow_up_actions').select('*').order('due_date', { ascending: true }),
-        isAdmin ? supabase.from('invoices').select('*').order('issued_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('expenses').select('*').order('date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('payment_records').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('payables').select('*').order('due_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('order_payments').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('supplier_payments').select('*').order('payment_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
-        (isAdmin || isSales) ? supabase.from('cost_lines').select('*').order('sort_order', { ascending: true }).then(res => res).catch(() => ({ data: null })) : emptyResult,
-        (isAdmin || isSales) ? supabase.from('costing_config').select('*').eq('id', 1).maybeSingle().then(res => res).catch(() => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('recurring_expenses').select('*').order('label').then(res => res).catch(() => ({ data: null })) : emptyResult,
-        (isAdmin || isSales) ? supabase.from('gst_invoices').select('*').order('invoice_date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('employees').select('*').order('name').then(res => res).catch(() => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('attendance').select('*').order('date', { ascending: false }).then(res => res).catch(() => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('invoices').select('*').order('issued_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('expenses').select('*').order('date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('payment_records').select('*').order('payment_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('payables').select('*').order('due_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('order_payments').select('*').order('payment_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('supplier_payments').select('*').order('payment_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
+        (isAdmin || isSales) ? supabase.from('cost_lines').select('*').order('sort_order', { ascending: true }).then(res => res, () => ({ data: null })) : emptyResult,
+        (isAdmin || isSales) ? supabase.from('costing_config').select('*').eq('id', 1).maybeSingle().then(res => res, () => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('recurring_expenses').select('*').order('label').then(res => res, () => ({ data: null })) : emptyResult,
+        (isAdmin || isSales) ? supabase.from('gst_invoices').select('*').order('invoice_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('employees').select('*').order('name').then(res => res, () => ({ data: null })) : emptyResult,
+        isAdmin ? supabase.from('attendance').select('*').order('date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
       ]);
-      setUsers((usersData ?? []) as User[]);
-      setClients((clientsData ?? []) as Client[]);
-      setProspects((prospectsData ?? []) as Prospect[]);
-      setVendors((vendorsData ?? []) as Vendor[]);
+      setUsers((usersData ?? []) as unknown as User[]);
+      setClients((clientsData ?? []) as unknown as Client[]);
+      setProspects((prospectsData ?? []) as unknown as Prospect[]);
+      setVendors((vendorsData ?? []) as unknown as Vendor[]);
       // Safety net: the historical import used a legacy status 'completed'
       // (settled orders) that isn't in the app lifecycle. Normalize it to
       // 'payment_received' on load so it isn't counted as payment-pending.
       // No-op once the 20260711_fix_legacy_order_statuses migration has run.
-      setOrders(((ordersData ?? []) as Order[]).map(o =>
+      setOrders(((ordersData ?? []) as unknown as Order[]).map(o =>
         (o.status as string) === 'completed' ? { ...o, status: 'payment_received' as OrderStatus } : o
       ));
-      setOrderEngineers((oeData ?? []) as OrderEngineer[]);
-      setRFQs((rfqsData ?? []) as RFQ[]);
-      setSupplierInquiries((inquiriesData ?? []) as SupplierInquiry[]);
-      setSupplierQuotes((quotesData ?? []) as SupplierQuote[]);
-      setRFQLineItems((lineItemsData ?? []) as RFQLineItem[]);
-      setFollowUpActions((actionsData ?? []) as FollowUpAction[]);
-      setInvoices((invoicesData ?? []) as Invoice[]);
-      setExpenses((expensesData ?? []) as Expense[]);
-      setPaymentRecords((paymentsData ?? []) as PaymentRecord[]);
-      setPayables((payablesData ?? []) as Payable[]);
-      setOrderPayments((orderPaymentsData ?? []) as OrderPayment[]);
-      setSupplierPayments((supplierPaymentsData ?? []) as SupplierPayment[]);
-      setCostLines((costLinesData ?? []) as CostLine[]);
-      setCostingConfig((costingConfigData ?? null) as CostingConfig | null);
-      setRecurringExpenses((recurringExpensesData ?? []) as RecurringExpense[]);
-      setGstInvoices((gstInvoicesData ?? []) as GstInvoice[]);
-      setEmployees((employeesData ?? []) as Employee[]);
-      setAttendance((attendanceData ?? []) as AttendanceRecord[]);
+      setOrderEngineers((oeData ?? []) as unknown as OrderEngineer[]);
+      setRFQs((rfqsData ?? []) as unknown as RFQ[]);
+      setSupplierInquiries((inquiriesData ?? []) as unknown as SupplierInquiry[]);
+      setSupplierQuotes((quotesData ?? []) as unknown as SupplierQuote[]);
+      setRFQLineItems((lineItemsData ?? []) as unknown as RFQLineItem[]);
+      setFollowUpActions((actionsData ?? []) as unknown as FollowUpAction[]);
+      setInvoices((invoicesData ?? []) as unknown as Invoice[]);
+      setExpenses((expensesData ?? []) as unknown as Expense[]);
+      setPaymentRecords((paymentsData ?? []) as unknown as PaymentRecord[]);
+      setPayables((payablesData ?? []) as unknown as Payable[]);
+      setOrderPayments((orderPaymentsData ?? []) as unknown as OrderPayment[]);
+      setSupplierPayments((supplierPaymentsData ?? []) as unknown as SupplierPayment[]);
+      setCostLines((costLinesData ?? []) as unknown as CostLine[]);
+      setCostingConfig((costingConfigData ?? null) as unknown as CostingConfig | null);
+      setRecurringExpenses((recurringExpensesData ?? []) as unknown as RecurringExpense[]);
+      setGstInvoices((gstInvoicesData ?? []) as unknown as GstInvoice[]);
+      setEmployees((employeesData ?? []) as unknown as Employee[]);
+      setAttendance((attendanceData ?? []) as unknown as AttendanceRecord[]);
       setLoading(false);
 
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
@@ -324,9 +361,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'clients' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setClients(prev => addUnique(prev, payload.new as Client, 'id'));
+            setClients(prev => addUnique(prev, payload.new as unknown as Client, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setClients(prev => prev.map(c => c.id === payload.new.id ? payload.new as Client : c));
+            setClients(prev => prev.map(c => c.id === payload.new.id ? payload.new as unknown as Client : c));
           } else if (payload.eventType === 'DELETE') {
             setClients(prev => prev.filter(c => c.id !== payload.old.id));
           }
@@ -339,9 +376,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'prospects' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setProspects(prev => addUnique(prev, payload.new as Prospect, 'id'));
+            setProspects(prev => addUnique(prev, payload.new as unknown as Prospect, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setProspects(prev => prev.map(p => p.id === payload.new.id ? payload.new as Prospect : p));
+            setProspects(prev => prev.map(p => p.id === payload.new.id ? payload.new as unknown as Prospect : p));
           } else if (payload.eventType === 'DELETE') {
             setProspects(prev => prev.filter(p => p.id !== payload.old.id));
           }
@@ -354,9 +391,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'vendors' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setVendors(prev => addUnique(prev, payload.new as Vendor, 'id'));
+            setVendors(prev => addUnique(prev, payload.new as unknown as Vendor, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setVendors(prev => prev.map(v => v.id === payload.new.id ? payload.new as Vendor : v));
+            setVendors(prev => prev.map(v => v.id === payload.new.id ? payload.new as unknown as Vendor : v));
           } else if (payload.eventType === 'DELETE') {
             setVendors(prev => prev.filter(v => v.id !== payload.old.id));
           }
@@ -369,9 +406,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'orders' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setOrders(prev => addUnique(prev, payload.new as Order, 'id', true));
+            setOrders(prev => addUnique(prev, payload.new as unknown as Order, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new as Order : o));
+            setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new as unknown as Order : o));
           } else if (payload.eventType === 'DELETE') {
             setOrders(prev => prev.filter(o => o.id !== payload.old.id));
           }
@@ -384,9 +421,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'order_engineers' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setOrderEngineers(prev => addUnique(prev, payload.new as OrderEngineer, 'id'));
+            setOrderEngineers(prev => addUnique(prev, payload.new as unknown as OrderEngineer, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setOrderEngineers(prev => prev.map(oe => oe.id === payload.new.id ? payload.new as OrderEngineer : oe));
+            setOrderEngineers(prev => prev.map(oe => oe.id === payload.new.id ? payload.new as unknown as OrderEngineer : oe));
           } else if (payload.eventType === 'DELETE') {
             setOrderEngineers(prev => prev.filter(oe => oe.id !== payload.old.id));
           }
@@ -399,9 +436,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'rfqs' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setRFQs(prev => addUnique(prev, payload.new as RFQ, 'id', true));
+            setRFQs(prev => addUnique(prev, payload.new as unknown as RFQ, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setRFQs(prev => prev.map(r => r.id === payload.new.id ? payload.new as RFQ : r));
+            setRFQs(prev => prev.map(r => r.id === payload.new.id ? payload.new as unknown as RFQ : r));
           } else if (payload.eventType === 'DELETE') {
             setRFQs(prev => prev.filter(r => r.id !== payload.old.id));
           }
@@ -414,9 +451,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'supplier_inquiries' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setSupplierInquiries(prev => addUnique(prev, payload.new as SupplierInquiry, 'id', true));
+            setSupplierInquiries(prev => addUnique(prev, payload.new as unknown as SupplierInquiry, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setSupplierInquiries(prev => prev.map(si => si.id === payload.new.id ? payload.new as SupplierInquiry : si));
+            setSupplierInquiries(prev => prev.map(si => si.id === payload.new.id ? payload.new as unknown as SupplierInquiry : si));
           } else if (payload.eventType === 'DELETE') {
             setSupplierInquiries(prev => prev.filter(si => si.id !== payload.old.id));
           }
@@ -429,9 +466,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'supplier_quotes' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setSupplierQuotes(prev => addUnique(prev, payload.new as SupplierQuote, 'id', true));
+            setSupplierQuotes(prev => addUnique(prev, payload.new as unknown as SupplierQuote, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setSupplierQuotes(prev => prev.map(sq => sq.id === payload.new.id ? payload.new as SupplierQuote : sq));
+            setSupplierQuotes(prev => prev.map(sq => sq.id === payload.new.id ? payload.new as unknown as SupplierQuote : sq));
           } else if (payload.eventType === 'DELETE') {
             setSupplierQuotes(prev => prev.filter(sq => sq.id !== payload.old.id));
           }
@@ -444,9 +481,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'rfq_line_items' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setRFQLineItems(prev => addUnique(prev, payload.new as RFQLineItem, 'id'));
+            setRFQLineItems(prev => addUnique(prev, payload.new as unknown as RFQLineItem, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setRFQLineItems(prev => prev.map(li => li.id === payload.new.id ? payload.new as RFQLineItem : li));
+            setRFQLineItems(prev => prev.map(li => li.id === payload.new.id ? payload.new as unknown as RFQLineItem : li));
           } else if (payload.eventType === 'DELETE') {
             setRFQLineItems(prev => prev.filter(li => li.id !== payload.old.id));
           }
@@ -459,9 +496,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'follow_up_actions' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setFollowUpActions(prev => addUnique(prev, payload.new, 'id', true));
+            setFollowUpActions(prev => addUnique(prev, payload.new as unknown as FollowUpAction, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setFollowUpActions(prev => prev.map(fa => fa.id === payload.new.id ? payload.new : fa));
+            setFollowUpActions(prev => prev.map(fa => fa.id === payload.new.id ? payload.new as unknown as FollowUpAction : fa));
           } else if (payload.eventType === 'DELETE') {
             setFollowUpActions(prev => prev.filter(fa => fa.id !== payload.old.id));
           }
@@ -477,9 +514,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'invoices' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setInvoices(prev => addUnique(prev, payload.new as Invoice, 'invoice_id', true));
+            setInvoices(prev => addUnique(prev, payload.new as unknown as Invoice, 'invoice_id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setInvoices(prev => prev.map(inv => inv.invoice_id === payload.new.invoice_id ? payload.new as Invoice : inv));
+            setInvoices(prev => prev.map(inv => inv.invoice_id === payload.new.invoice_id ? payload.new as unknown as Invoice : inv));
           } else if (payload.eventType === 'DELETE') {
             setInvoices(prev => prev.filter(inv => inv.invoice_id !== payload.old.invoice_id));
           }
@@ -492,9 +529,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'expenses' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setExpenses(prev => addUnique(prev, payload.new as Expense, 'expense_id', true));
+            setExpenses(prev => addUnique(prev, payload.new as unknown as Expense, 'expense_id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setExpenses(prev => prev.map(exp => exp.expense_id === payload.new.expense_id ? payload.new as Expense : exp));
+            setExpenses(prev => prev.map(exp => exp.expense_id === payload.new.expense_id ? payload.new as unknown as Expense : exp));
           } else if (payload.eventType === 'DELETE') {
             setExpenses(prev => prev.filter(exp => exp.expense_id !== payload.old.expense_id));
           }
@@ -507,9 +544,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'recurring_expenses' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setRecurringExpenses(prev => addUnique(prev, payload.new as RecurringExpense, 'id'));
+            setRecurringExpenses(prev => addUnique(prev, payload.new as unknown as RecurringExpense, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setRecurringExpenses(prev => prev.map(r => r.id === payload.new.id ? payload.new as RecurringExpense : r));
+            setRecurringExpenses(prev => prev.map(r => r.id === payload.new.id ? payload.new as unknown as RecurringExpense : r));
           } else if (payload.eventType === 'DELETE') {
             setRecurringExpenses(prev => prev.filter(r => r.id !== payload.old.id));
           }
@@ -522,9 +559,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'employees' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setEmployees(prev => addUnique(prev, payload.new as Employee, 'id'));
+            setEmployees(prev => addUnique(prev, payload.new as unknown as Employee, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setEmployees(prev => prev.map(e => e.id === payload.new.id ? payload.new as Employee : e));
+            setEmployees(prev => prev.map(e => e.id === payload.new.id ? payload.new as unknown as Employee : e));
           } else if (payload.eventType === 'DELETE') {
             setEmployees(prev => prev.filter(e => e.id !== payload.old.id));
           }
@@ -537,9 +574,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'attendance' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setAttendance(prev => addUnique(prev, payload.new as AttendanceRecord, 'id'));
+            setAttendance(prev => addUnique(prev, payload.new as unknown as AttendanceRecord, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setAttendance(prev => prev.map(a => a.id === payload.new.id ? payload.new as AttendanceRecord : a));
+            setAttendance(prev => prev.map(a => a.id === payload.new.id ? payload.new as unknown as AttendanceRecord : a));
           } else if (payload.eventType === 'DELETE') {
             setAttendance(prev => prev.filter(a => a.id !== payload.old.id));
           }
@@ -552,9 +589,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'payment_records' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setPaymentRecords(prev => addUnique(prev, payload.new as PaymentRecord, 'payment_id', true));
+            setPaymentRecords(prev => addUnique(prev, payload.new as unknown as PaymentRecord, 'payment_id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setPaymentRecords(prev => prev.map(pr => pr.payment_id === payload.new.payment_id ? payload.new as PaymentRecord : pr));
+            setPaymentRecords(prev => prev.map(pr => pr.payment_id === payload.new.payment_id ? payload.new as unknown as PaymentRecord : pr));
           } else if (payload.eventType === 'DELETE') {
             setPaymentRecords(prev => prev.filter(pr => pr.payment_id !== payload.old.payment_id));
           }
@@ -567,9 +604,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'payables' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setPayables(prev => addUnique(prev, payload.new as Payable, 'payable_id', true));
+            setPayables(prev => addUnique(prev, payload.new as unknown as Payable, 'payable_id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setPayables(prev => prev.map(p => p.payable_id === payload.new.payable_id ? payload.new as Payable : p));
+            setPayables(prev => prev.map(p => p.payable_id === payload.new.payable_id ? payload.new as unknown as Payable : p));
           } else if (payload.eventType === 'DELETE') {
             setPayables(prev => prev.filter(p => p.payable_id !== payload.old.payable_id));
           }
@@ -582,9 +619,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'order_payments' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setOrderPayments(prev => addUnique(prev, payload.new as OrderPayment, 'id', true));
+            setOrderPayments(prev => addUnique(prev, payload.new as unknown as OrderPayment, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setOrderPayments(prev => prev.map(p => p.id === payload.new.id ? payload.new as OrderPayment : p));
+            setOrderPayments(prev => prev.map(p => p.id === payload.new.id ? payload.new as unknown as OrderPayment : p));
           } else if (payload.eventType === 'DELETE') {
             setOrderPayments(prev => prev.filter(p => p.id !== payload.old.id));
           }
@@ -597,9 +634,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'supplier_payments' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setSupplierPayments(prev => addUnique(prev, payload.new as SupplierPayment, 'id', true));
+            setSupplierPayments(prev => addUnique(prev, payload.new as unknown as SupplierPayment, 'id', true));
           } else if (payload.eventType === 'UPDATE') {
-            setSupplierPayments(prev => prev.map(p => p.id === payload.new.id ? payload.new as SupplierPayment : p));
+            setSupplierPayments(prev => prev.map(p => p.id === payload.new.id ? payload.new as unknown as SupplierPayment : p));
           } else if (payload.eventType === 'DELETE') {
             setSupplierPayments(prev => prev.filter(p => p.id !== payload.old.id));
           }
@@ -614,9 +651,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'cost_lines' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setCostLines(prev => addUnique(prev, payload.new as CostLine, 'id'));
+            setCostLines(prev => addUnique(prev, payload.new as unknown as CostLine, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setCostLines(prev => prev.map(c => c.id === payload.new.id ? payload.new as CostLine : c));
+            setCostLines(prev => prev.map(c => c.id === payload.new.id ? payload.new as unknown as CostLine : c));
           } else if (payload.eventType === 'DELETE') {
             setCostLines(prev => prev.filter(c => c.id !== payload.old.id));
           }
@@ -631,7 +668,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           if (payload.eventType === 'DELETE') {
             setCostingConfig(null);
           } else {
-            setCostingConfig(payload.new as CostingConfig);
+            setCostingConfig(payload.new as unknown as CostingConfig);
           }
         }
       );
@@ -642,9 +679,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { event: '*', schema: 'public', table: 'gst_invoices' },
         (payload: RealtimePayload) => {
           if (payload.eventType === 'INSERT') {
-            setGstInvoices(prev => addUnique(prev, payload.new as GstInvoice, 'id'));
+            setGstInvoices(prev => addUnique(prev, payload.new as unknown as GstInvoice, 'id'));
           } else if (payload.eventType === 'UPDATE') {
-            setGstInvoices(prev => prev.map(g => g.id === payload.new.id ? payload.new as GstInvoice : g));
+            setGstInvoices(prev => prev.map(g => g.id === payload.new.id ? payload.new as unknown as GstInvoice : g));
           } else if (payload.eventType === 'DELETE') {
             setGstInvoices(prev => prev.filter(g => g.id !== payload.old.id));
           }
@@ -963,15 +1000,16 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       p_payment_due_date: orderData.payment_due_date,
     }).single();
     if (orderError || !newOrder) throw new Error(orderError?.message || 'Failed to create order');
-    setOrders(prev => [newOrder as Order, ...prev]);
-    setRFQs(prev => prev.map(r => r.id === rfqId ? { ...r, status: 'converted' as const, converted_order_id: newOrder.id } : r));
+    const order = newOrder as unknown as Order;
+    setOrders(prev => [order, ...prev]);
+    setRFQs(prev => prev.map(r => r.id === rfqId ? { ...r, status: 'converted' as const, converted_order_id: order.id } : r));
     // Auto-trigger: order created → pay supplier within 5 days to move to procurement
     const vendor = vendors.find(v => v.id === orderData.vendor_id);
     autoFollowUp({
-      title: `Pay supplier ${vendor?.name ?? 'vendor'} to initiate procurement — ${newOrder.product_type}`,
+      title: `Pay supplier ${vendor?.name ?? 'vendor'} to initiate procurement — ${order.product_type}`,
       action_type: 'order_status',
       entity_type: 'order',
-      entity_id: newOrder.id,
+      entity_id: order.id,
       assigned_to: orderData.sales_person_id ?? null,
       priority: 'high',
       daysFromNow: 5,
@@ -1522,7 +1560,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
     // AP metrics — real outstanding payables (was hardcoded 0)
     const outstandingAP = payables
-      .filter(p => p.status !== 'Paid')
+      .filter(p => p.payment_status !== 'Paid')
       .reduce((sum, p) => sum + (p.amount - p.amount_paid), 0);
 
     return {
@@ -1910,7 +1948,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as unknown as OrderProfitability;
     } catch (error) {
       console.error('Error fetching order with profitability:', error);
       return null;
@@ -1940,7 +1978,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data ?? []) as unknown as OrderProfitability[];
     } catch (error) {
       console.error('Error fetching orders with profitability:', error);
       return [];
@@ -2011,7 +2049,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         .order('unit_price', { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      return (data ?? []) as unknown as RFQQuote[];
     } catch (error) {
       console.error('Error fetching quotes for RFQ:', error);
       return [];

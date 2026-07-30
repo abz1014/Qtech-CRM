@@ -6,7 +6,6 @@ export function MarginDistributionChart() {
 
   // Calculate margin distribution
   const margins = orders
-    .filter(o => o.status !== 'quotation')
     .map(o => {
       const profit = o.profit !== undefined ? o.profit : o.order_value - (o.cost_value || 0);
       const margin = o.profit_margin !== undefined ? o.profit_margin : (o.order_value > 0 ? (profit / o.order_value) * 100 : 0);

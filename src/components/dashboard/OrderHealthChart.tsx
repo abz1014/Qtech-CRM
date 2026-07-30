@@ -3,11 +3,11 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 import { OrderStatus } from '@/types/crm';
 
 const statusColors: Record<OrderStatus, string> = {
-  quotation: '#9CA3AF',
-  confirmed: '#3B82F6',
-  procurement: '#F59E0B',
-  installation: '#8B5CF6',
-  completed: '#10B981',
+  po_received: '#9CA3AF',
+  procurement: '#3B82F6',
+  in_transit: '#F59E0B',
+  delivered: '#8B5CF6',
+  payment_received: '#10B981',
 };
 
 export function OrderHealthChart() {

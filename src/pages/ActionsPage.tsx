@@ -385,12 +385,12 @@ function ActivityFeed({ activity, users, patterns }: {
                 <div key={a.id} className="flex items-start gap-3 px-5 py-3">
                   <div className="w-8 h-8 rounded-full bg-green-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-xs font-bold text-green-600">
-                      {getName(a.assigned_to || a.created_by || '').slice(0, 2).toUpperCase()}
+                      {getName(a.assigned_to || '').slice(0, 2).toUpperCase()}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground">
-                      <span className="font-semibold">{getName(a.assigned_to || a.created_by || '')}</span>
+                      <span className="font-semibold">{getName(a.assigned_to || '')}</span>
                       {' '}completed a{' '}
                       <span className="font-medium">{ACTION_TYPE_SHORT[a.action_type] || 'action'}</span>
                     </p>

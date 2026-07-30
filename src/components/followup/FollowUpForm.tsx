@@ -15,7 +15,9 @@ interface FollowUpFormProps {
   entityLabel?: string; // human-readable name shown in the form
 }
 
-const ACTION_TYPES_BY_ENTITY: Record<EntityType, { value: string; label: string }[]> = {
+type FollowUpActionType = 'rfq_followup' | 'supplier_response' | 'overdue_invoice' | 'order_status' | 'custom';
+
+const ACTION_TYPES_BY_ENTITY: Record<EntityType, { value: FollowUpActionType; label: string }[]> = {
   rfq: [
     { value: 'rfq_followup', label: '📋 Client Follow-up on RFQ' },
     { value: 'supplier_response', label: '📬 Supplier Response Follow-up' },
@@ -100,7 +102,7 @@ export function FollowUpForm({ onClose, entityType, entityId, entityLabel }: Fol
   const handleActionTypeChange = (value: string) => {
     setForm(prev => ({
       ...prev,
-      action_type: value,
+      action_type: value as FollowUpActionType,
       title: DEFAULT_TITLES[value] || prev.title,
     }));
   };

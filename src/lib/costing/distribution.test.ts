@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { calcRfq, SAMPLE_RFQ } from './qtech-costing';
-import { distribution } from './distribution';
+import { distribution, type Distribution } from './distribution';
 
-const sum = (d: Record<string, number>) => Object.values(d).reduce((s, v) => s + v, 0);
+const sum = (d: Distribution) => Object.values(d).reduce((s, v) => s + v, 0);
 
 describe('costing distribution (Where the money goes)', () => {
   const dist = distribution(SAMPLE_RFQ);

@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import type { Order } from '@/types/crm';
 import { formatPKR } from '@/lib/format';
 import { Users, ShoppingCart, Wrench, Target, TrendingUp, ArrowRight, FileText, CheckCircle, Send, MessageSquare, AlertTriangle, Clock, Zap, Edit2, X } from 'lucide-react';
 import { useMemo, useState, useEffect, useCallback } from 'react';

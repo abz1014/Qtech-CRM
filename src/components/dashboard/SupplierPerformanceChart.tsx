@@ -6,7 +6,6 @@ export function SupplierPerformanceChart() {
 
   // Calculate vendor metrics
   const vendorMetrics = orders
-    .filter(o => o.status !== 'quotation')
     .reduce((acc, order) => {
       const vendorName = getVendorName(order.vendor_id);
       const existing = acc.find(item => item.vendor === vendorName);

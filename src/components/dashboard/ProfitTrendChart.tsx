@@ -6,7 +6,7 @@ export function ProfitTrendChart() {
 
   // Group profits by date
   const profitByDate = orders
-    .filter(o => o.status !== 'quotation' && o.confirmed_date)
+    .filter(o => o.confirmed_date)
     .reduce((acc, order) => {
       const date = order.confirmed_date!.split('T')[0];
       const existing = acc.find(item => item.date === date);
