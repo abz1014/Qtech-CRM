@@ -22,5 +22,18 @@ jobs:
         run: npx tsc --noEmit
       - name: Unit tests
         run: npm run test
+        env:
+          # T0-3 RLS regression suite (src/test/rls.integration.test.ts) reads
+          # these; it self-skips (not fails) when they're unset, so CI stays
+          # green with no setup. The Supabase URL/anon key are the same public
+          # values already shipped in the browser bundle (safe as repo
+          # *variables*, not secrets). The sales test-account credentials are
+          # a DEDICATED, low-privilege account created for this purpose only
+          # — never a real staff login — and belong in repo *secrets*.
+          # See src/test/rls.integration.test.ts for full setup instructions.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_RLS_TEST_SALES_EMAIL: ${{ secrets.RLS_TEST_SALES_EMAIL }}
+          VITE_RLS_TEST_SALES_PASSWORD: ${{ secrets.RLS_TEST_SALES_PASSWORD }}
       - name: Build
         run: npm run build
