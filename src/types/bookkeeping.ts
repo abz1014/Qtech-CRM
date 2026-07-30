@@ -307,7 +307,9 @@ export interface ARAgingBucket {
 
 // ── Audit log (T2-6) ────────────────────────────────────────────────────────
 
-export type AuditAction = 'INSERT' | 'UPDATE' | 'DELETE';
+// Lowercase to match audit_log's CHECK constraint (audit_log_action_check),
+// confirmed live -- not the uppercase Postgres TG_OP values.
+export type AuditAction = 'insert' | 'update' | 'delete';
 
 /** One row written by a Postgres trigger on a financial/GST table (append-only). */
 export interface AuditLogEntry {

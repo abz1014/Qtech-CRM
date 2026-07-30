@@ -18,10 +18,12 @@ const TABLE_LABELS: Record<string, string> = {
 };
 
 const ACTION_BADGE: Record<AuditAction, string> = {
-  INSERT: 'bg-success/15 text-success',
-  UPDATE: 'bg-info/15 text-info',
-  DELETE: 'bg-destructive/15 text-destructive',
+  insert: 'bg-success/15 text-success',
+  update: 'bg-info/15 text-info',
+  delete: 'bg-destructive/15 text-destructive',
 };
+
+const ACTION_LABEL: Record<AuditAction, string> = { insert: 'CREATED', update: 'UPDATED', delete: 'DELETED' };
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`);
@@ -37,12 +39,12 @@ function formatValue(v: unknown): string {
 
 // Fields changed by an UPDATE, or every non-empty field for INSERT/DELETE.
 function diffEntry(e: AuditLogEntry): { key: string; before: unknown; after: unknown }[] {
-  if (e.action === 'INSERT') {
+  if (e.action === 'insert') {
     return Object.entries(e.new_value ?? {})
       .filter(([, v]) => v !== null && v !== '' && v !== 0)
       .map(([key, v]) => ({ key, before: undefined, after: v }));
   }
-  if (e.action === 'DELETE') {
+  if (e.action === 'delete') {
     return Object.entries(e.old_value ?? {})
       .filter(([, v]) => v !== null && v !== '' && v !== 0)
       .map(([key, v]) => ({ key, before: v, after: undefined }));
@@ -125,9 +127,9 @@ export default function AuditLogPage() {
         </select>
         <select value={actionFilter} onChange={e => { setActionFilter(e.target.value as 'all' | AuditAction); setPage(1); }} className={inputCls}>
           <option value="all">All actions</option>
-          <option value="INSERT">Created</option>
-          <option value="UPDATE">Updated</option>
-          <option value="DELETE">Deleted</option>
+          <option value="insert">Created</option>
+          <option value="update">Updated</option>
+          <option value="delete">Deleted</option>
         </select>
         <div className="relative">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -163,7 +165,7 @@ export default function AuditLogPage() {
                     <td className="px-4 py-2.5 text-foreground whitespace-nowrap">{formatDateTime(e.changed_at)}</td>
                     <td className="px-4 py-2.5 text-foreground whitespace-nowrap">{TABLE_LABELS[e.table_name] ?? e.table_name}</td>
                     <td className="px-4 py-2.5">
-                      <span className={cn('text-[11px] font-bold px-1.5 py-0.5 rounded', ACTION_BADGE[e.action])}>{e.action}</span>
+                      <span className={cn('text-[11px] font-bold px-1.5 py-0.5 rounded', ACTION_BADGE[e.action])}>{ACTION_LABEL[e.action]}</span>
                     </td>
                     <td className="px-4 py-2.5 text-foreground whitespace-nowrap">{getUserName(e.changed_by ?? '')}</td>
                     <td className="px-4 py-2.5">

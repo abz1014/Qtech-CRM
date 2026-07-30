@@ -32,6 +32,13 @@
 --     trigger argument so one function serves both shapes.
 --   * public.current_user_role() exists, SECURITY DEFINER, STABLE -- reused
 --     for the admin-only read policy (same helper T0-2 introduced).
+--   * audit_log has a CHECK constraint (audit_log_action_check) requiring
+--     action to be lowercase 'insert'/'update'/'delete'. Found the hard way:
+--     a first version of this trigger inserted raw TG_OP (uppercase) and
+--     every audited INSERT/UPDATE/DELETE on the target tables failed with a
+--     constraint violation, rolling back the triggering transaction --
+--     verified live via a direct test insert into expenses before this was
+--     pushed. Fixed with lower(TG_OP) below.
 --
 -- APPEND-ONLY BY DESIGN: no UPDATE/DELETE policy is created for audit_log,
 -- and no role is granted UPDATE/DELETE on it. The only writer is the
@@ -89,11 +96,14 @@ BEGIN
     v_record_id := (to_jsonb(NEW) ->> v_pk_col)::uuid;
   END IF;
 
+  -- audit_log_action_check requires lowercase ('insert'/'update'/'delete');
+  -- TG_OP is uppercase. Confirmed live: an uncast insert here rolls back the
+  -- whole triggering transaction with a check-constraint violation.
   INSERT INTO public.audit_log (table_name, record_id, action, changed_by, old_value, new_value)
   VALUES (
     TG_TABLE_NAME,
     v_record_id,
-    TG_OP,
+    lower(TG_OP),
     auth.uid(),
     CASE WHEN TG_OP IN ('UPDATE', 'DELETE') THEN to_jsonb(OLD) ELSE NULL END,
     CASE WHEN TG_OP IN ('UPDATE', 'INSERT') THEN to_jsonb(NEW) ELSE NULL END
