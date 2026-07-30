@@ -1669,26 +1669,31 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   /** Record a payment received FROM the customer. If it completes a delivered
    *  order's full value, the order auto-advances to payment_received. */
   const addOrderPayment = useCallback(async (payment: Omit<OrderPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string): Promise<OrderPayment> => {
-    const { data, error } = await supabase
-      .from('order_payments')
-      .insert({ ...payment, recorded_by: recordedBy })
-      .select()
-      .single();
+    // T1-2: insert + recompute total + conditional status advance happen
+    // atomically in one Postgres function (record_order_payment), which also
+    // locks the order row first so two concurrent payments on the same order
+    // can't race on the status-advance decision. Previously three separate
+    // calls; a failure between them could record the payment but leave a
+    // fully-paid order stuck at 'delivered' with no advance and no error.
+    // See supabase/migrations/20260730_t1_record_order_payment_rpc.sql.
+    const { data, error } = await supabase.rpc('record_order_payment', {
+      p_order_id: payment.order_id,
+      p_amount: payment.amount,
+      p_payment_date: payment.payment_date,
+      p_payment_method: payment.payment_method,
+      p_reference: payment.reference,
+      p_notes: payment.notes,
+      p_recorded_by: recordedBy,
+    }).single();
     if (error || !data) throw new Error(`Failed to record payment: ${error?.message ?? 'unknown error'}`);
     const rec = data as OrderPayment;
     setOrderPayments(prev => addUnique(prev, rec, 'id', true));
-
-    // Recompute total paid from the DB (race-safe) and auto-complete the order
-    const { data: all } = await supabase.from('order_payments').select('amount').eq('order_id', payment.order_id);
-    const totalPaid = (all ?? []).reduce((s, p) => s + p.amount, 0);
-    const order = orders.find(o => o.id === payment.order_id);
-    if (order && order.status === 'delivered' &&
-        Math.round(totalPaid * 100) >= Math.round(order.order_value * 100)) {
-      const { data: upd } = await supabase.from('orders').update({ status: 'payment_received' }).eq('id', order.id).select().single();
-      if (upd) setOrders(prev => prev.map(o => o.id === order.id ? upd as Order : o));
-    }
+    // If the RPC advanced the order to 'payment_received', the existing
+    // `orders` realtime subscription (unconditional UPDATE handler, not
+    // admin-gated — see the channel setup above) picks up the authoritative
+    // new row and updates local state — no need to guess it here.
     return rec;
-  }, [orders]);
+  }, []);
 
   const deleteOrderPayment = useCallback(async (paymentId: string) => {
     const { error } = await supabase.from('order_payments').delete().eq('id', paymentId);
