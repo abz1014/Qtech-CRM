@@ -29,7 +29,12 @@ const MyJobsPage           = lazy(() => import("@/pages/MyJobsPage"));
 const RFQsPage             = lazy(() => import("@/pages/RFQsPage"));
 const RFQDetailPage        = lazy(() => import("@/pages/RFQDetailPage"));
 const DailyRFQReportPage   = lazy(() => import("@/pages/DailyRFQReportPage").then(m => ({ default: m.DailyRFQReportPage })));
-const FinancePage          = lazy(() => import("@/pages/FinancePage"));
+const FinanceLayout             = lazy(() => import("@/pages/finance/FinanceLayout"));
+const FinanceOverviewPage       = lazy(() => import("@/pages/finance/FinanceOverviewPage"));
+const FinanceReceivablesPage    = lazy(() => import("@/pages/finance/FinanceReceivablesPage"));
+const FinanceExpensesPage       = lazy(() => import("@/pages/finance/FinanceExpensesPage"));
+const FinanceCashflowPage       = lazy(() => import("@/pages/finance/FinanceCashflowPage"));
+const FinanceReconciliationPage = lazy(() => import("@/pages/finance/FinanceReconciliationPage"));
 const CostingPage          = lazy(() => import("@/pages/CostingPage"));
 const GstRegisterPage      = lazy(() => import("@/pages/GstRegisterPage"));
 const EmployeesPage        = lazy(() => import("@/pages/EmployeesPage"));
@@ -104,7 +109,13 @@ const App = () => (
                   <Route path="/vendors"          element={<VendorsPage />} />
                   <Route path="/vendors/:id"      element={<VendorDetailPage />} />
                   <Route path="/team"             element={<RequireRole roles={['admin']}><TeamPage /></RequireRole>} />
-                  <Route path="/finance"          element={<RequireRole roles={['admin']}><FinancePage /></RequireRole>} />
+                  <Route path="/finance" element={<RequireRole roles={['admin']}><FinanceLayout /></RequireRole>}>
+                    <Route index                   element={<FinanceOverviewPage />} />
+                    <Route path="receivables"      element={<FinanceReceivablesPage />} />
+                    <Route path="expenses"         element={<FinanceExpensesPage />} />
+                    <Route path="cashflow"         element={<FinanceCashflowPage />} />
+                    <Route path="reconciliation"   element={<FinanceReconciliationPage />} />
+                  </Route>
                   <Route path="/employees"        element={<RequireRole roles={['admin']}><EmployeesPage /></RequireRole>} />
                   <Route path="/audit-log"        element={<RequireRole roles={['admin']}><AuditLogPage /></RequireRole>} />
                   <Route path="/costing"          element={<RequireRole roles={['admin', 'sales']}><CostingPage /></RequireRole>} />
