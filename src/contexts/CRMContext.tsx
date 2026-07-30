@@ -1784,56 +1784,22 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const recordPayablePayment = useCallback(async (payment: CreatePayablePaymentInput, recordedBy: string) => {
-    const payable = payables.find(p => p.payable_id === payment.payable_id);
-    if (!payable) throw new Error('Payable not found');
+    const { data: updatedPayable, error } = await supabase.rpc('record_payable_payment', {
+      p_payable_id: payment.payable_id,
+      p_amount: payment.amount,
+      p_payment_date: payment.payment_date,
+      p_payment_method: payment.payment_method ?? null,
+      p_reference_number: payment.reference_number ?? null,
+      p_notes: payment.notes ?? null,
+      p_recorded_by: recordedBy,
+    }).single();
 
-    const newAmountPaid = payable.amount_paid + payment.amount;
-    // Compare in paisa — float === on decimal amounts could strand a fully
-    // paid payable at 'Partial' forever.
-    const paidCents = Math.round(newAmountPaid * 100);
-    const totalCents = Math.round(payable.amount * 100);
-    if (paidCents > totalCents) throw new Error('Payment amount exceeds payable amount');
-
-    const paymentStatus = paidCents >= totalCents ? 'Paid' : 'Partial';
-
-    const { error } = await supabase
-      .from('payables')
-      .update({
-        amount_paid: newAmountPaid,
-        payment_status: paymentStatus,
-        payment_date: payment.payment_date,
-        payment_method: payment.payment_method,
-      })
-      .eq('payable_id', payment.payable_id);
-
-    if (error) throw new Error('Failed to record payment');
-
-    // Persist AP payment history (best-effort — table added in the
-    // 20260710_data_integrity_fks migration; ignore if it doesn't exist yet)
-    await supabase.from('payable_payments').insert({
-      payable_id: payment.payable_id,
-      amount: payment.amount,
-      payment_date: payment.payment_date,
-      payment_method: payment.payment_method ?? '',
-      reference_number: payment.reference_number ?? '',
-      notes: payment.notes ?? '',
-      recorded_by: recordedBy,
-    });
+    if (error || !updatedPayable) throw new Error(error?.message || 'Failed to record payment');
 
     setPayables(prev =>
-      prev.map(p =>
-        p.payable_id === payment.payable_id
-          ? {
-              ...p,
-              amount_paid: newAmountPaid,
-              payment_status: paymentStatus,
-              payment_date: payment.payment_date,
-              payment_method: payment.payment_method,
-            }
-          : p
-      )
+      prev.map(p => (p.payable_id === payment.payable_id ? (updatedPayable as Payable) : p))
     );
-  }, [payables]);
+  }, []);
 
   const getAPAgingBuckets = useCallback((): ARAgingBucket[] => {
     const now = new Date();
