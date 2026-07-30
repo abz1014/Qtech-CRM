@@ -57,7 +57,10 @@ export interface Vendor {
 
 export interface Order {
   id: string;
-  client_id: string;
+  // Nullable: ON DELETE SET NULL on clients -- an order survives its
+  // client being deleted (T1-3), just unlinked, rather than being
+  // destroyed along with it.
+  client_id: string | null;
   vendor_id: string;
   sales_person_id: string;
   product_type: ProductType | string;
@@ -180,7 +183,9 @@ export type LossReason =
 export interface RFQ {
   id: string;
   rfq_number: string | null;   // user-assigned e.g. "RFQ-2026-001"
-  client_id: string;
+  // Nullable: ON DELETE SET NULL on clients -- an RFQ survives its
+  // client being deleted (T1-3), just unlinked.
+  client_id: string | null;
   company_name: string;
   contact_person: string;
   phone: string;

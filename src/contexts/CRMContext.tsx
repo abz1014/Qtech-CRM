@@ -88,7 +88,7 @@ interface CRMContextType {
   supplierQuotes: SupplierQuote[];
   rfqLineItems: RFQLineItem[];
   getUserName: (userId: string) => string;
-  getClientName: (clientId: string) => string;
+  getClientName: (clientId: string | null) => string;
   getVendorName: (vendorId: string) => string;
   addClient: (client: Omit<Client, 'id'>) => Promise<void>;
   addProspect: (prospect: Omit<Prospect, 'id' | 'converted_client_id'>) => Promise<void>;
@@ -710,7 +710,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const vendorMap = useMemo(() => new Map(vendors.map(v => [v.id, v.name])),               [vendors]);
 
   const getUserName   = useCallback((id: string) => userMap.get(id)   ?? 'Unknown', [userMap]);
-  const getClientName = useCallback((id: string) => clientMap.get(id) ?? 'Unknown', [clientMap]);
+  const getClientName = useCallback((id: string | null) => (id ? clientMap.get(id) : undefined) ?? 'Unknown', [clientMap]);
   const getVendorName = useCallback((id: string) => vendorMap.get(id) ?? 'Unknown', [vendorMap]);
 
   const addClient = useCallback(async (c: Omit<Client, 'id'>) => {
@@ -1196,36 +1196,35 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, [orders]);
 
   const deleteClient = useCallback(async (clientId: string) => {
-    // Get IDs before deleting
-    const clientRFQIds = rfqs.filter(r => r.client_id === clientId).map(r => r.id);
-    const clientOrderIds = orders.filter(o => o.client_id === clientId).map(o => o.id);
+    // RFQs/orders are NOT deleted here -- orders.client_id and rfqs.client_id
+    // are ON DELETE SET NULL (verified live, T1-3), so the DB preserves them
+    // as unlinked historical records when the client row goes away. Only
+    // follow-up actions attached directly to the client entity itself need
+    // manual cleanup, since entity_id has no real FK (polymorphic across
+    // entity_type) for the DB to cascade on its own.
+    const { error: faError } = await supabase.from('follow_up_actions').delete().eq('entity_id', clientId).eq('entity_type', 'client');
+    if (faError) throw new Error(`Failed to delete client follow-ups: ${faError.message}`);
 
-    // Delete cascade: follow-up actions → RFQs, orders → client (batched)
-    const relatedIds = [...clientRFQIds, ...clientOrderIds];
-    if (relatedIds.length > 0) {
-      const { error: faError } = await supabase.from('follow_up_actions').delete().in('entity_id', relatedIds);
-      if (faError) throw new Error(`Failed to delete client follow-ups: ${faError.message}`);
-    }
-
-    const { error: rfqError } = await supabase.from('rfqs').delete().eq('client_id', clientId);
-    if (rfqError) throw new Error(`Failed to delete client RFQs: ${rfqError.message}`);
-    const { error: orderError } = await supabase.from('orders').delete().eq('client_id', clientId);
-    if (orderError) throw new Error(`Failed to delete client orders: ${orderError.message}`);
     const { error } = await supabase.from('clients').delete().eq('id', clientId);
     if (error) throw new Error(`Failed to delete client: ${error.message}`);
 
-    // Update local state only after every DB delete succeeded
     setClients(prev => prev.filter(c => c.id !== clientId));
-    setRFQs(prev => prev.filter(r => r.client_id !== clientId));
-    setOrders(prev => prev.filter(o => o.client_id !== clientId));
-    setFollowUpActions(prev => prev.filter(a =>
-      !(clientRFQIds.includes(a.entity_id) || clientOrderIds.includes(a.entity_id))
-    ));
-  }, [rfqs, orders]);
+    setRFQs(prev => prev.map(r => r.client_id === clientId ? { ...r, client_id: null } : r));
+    setOrders(prev => prev.map(o => o.client_id === clientId ? { ...o, client_id: null } : o));
+    setFollowUpActions(prev => prev.filter(a => !(a.entity_id === clientId && a.entity_type === 'client')));
+  }, []);
 
   const deleteVendor = useCallback(async (vendorId: string) => {
     const { error } = await supabase.from('vendors').delete().eq('id', vendorId);
-    if (error) throw new Error(`Failed to delete vendor: ${error.message}`);
+    if (error) {
+      // 23503 = foreign_key_violation. orders.vendor_id is NO ACTION and
+      // payables.vendor_id is RESTRICT, so a vendor with either can't be
+      // deleted -- surface that plainly instead of the raw Postgres error.
+      if (error.code === '23503') {
+        throw new Error('Cannot delete vendor: it still has orders or payables on record.');
+      }
+      throw new Error(`Failed to delete vendor: ${error.message}`);
+    }
     setVendors(prev => prev.filter(v => v.id !== vendorId));
   }, []);
 
