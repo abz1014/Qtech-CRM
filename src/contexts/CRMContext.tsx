@@ -420,39 +420,56 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (loading || stallScanned.current || !authUser || authUser.role === 'engineer') return;
     stallScanned.current = true;
 
-    const today = businessToday();
-    const daysSince = (d?: string | null): number | null =>
-      d ? Math.floor((new Date(today).getTime() - new Date(String(d).slice(0, 10)).getTime()) / 86400000) : null;
-    const inquired = new Set(supplierInquiries.map(i => i.rfq_id));
-    const quoted = new Set(supplierQuotes.map(q => q.rfq_id));
+    (async () => {
+      const today = businessToday();
+      const daysSince = (d?: string | null): number | null =>
+        d ? Math.floor((new Date(today).getTime() - new Date(String(d).slice(0, 10)).getTime()) / 86400000) : null;
+      const inquired = new Set(supplierInquiries.map(i => i.rfq_id));
+      const quoted = new Set(supplierQuotes.map(q => q.rfq_id));
 
-    rfqs.forEach(r => {
-      if (r.status === 'converted' || r.status === 'lost') return;
-      // Floated but no supplier response after 7 days
-      if (inquired.has(r.id) && !quoted.has(r.id)) {
-        const age = daysSince(r.rfq_date);
-        if (age !== null && age > 7) {
-          autoFollowUp({ title: `Chase supplier response — ${r.company_name}${r.rfq_number ? ` · ${r.rfq_number}` : ''}`, action_type: 'supplier_response', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
-        }
-      }
-      // Quote sent to customer but no decision after 7 days
-      if (r.status === 'quoted') {
-        const age = daysSince(r.quote_sent_date ?? r.rfq_date);
-        if (age !== null && age > 7) {
-          autoFollowUp({ title: `Follow up on quote — ${r.company_name}${r.rfq_number ? ` · ${r.rfq_number}` : ''}`, action_type: 'rfq_followup', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
-        }
-      }
-    });
+      // Bulk-fetch every existing pending action once, instead of the N
+      // individual dedup SELECTs autoFollowUp would otherwise issue per
+      // candidate (measured: 67 near-simultaneous round-trips on a single
+      // dashboard load with today's data -- the dominant contributor to a
+      // real, measured page-load slowdown). autoFollowUp's own per-call
+      // dedup check stays as-is for its other call sites (single-entity
+      // user actions), where one query is the right cost.
+      const { data: pending } = await supabase
+        .from('follow_up_actions')
+        .select('entity_id, entity_type, action_type')
+        .eq('status', 'pending')
+        .in('action_type', ['supplier_response', 'rfq_followup', 'order_status']);
+      const dedupKey = (entityType: string, entityId: string, actionType: string) => `${entityType}|${entityId}|${actionType}`;
+      const existing = new Set((pending ?? []).map(p => dedupKey(p.entity_type, p.entity_id, p.action_type)));
 
-    // Order stuck in an early stage more than 30 days since its PO
-    orders.forEach(o => {
-      if (o.status === 'po_received' || o.status === 'procurement' || o.status === 'in_transit') {
-        const age = daysSince(o.customer_po_date ?? o.confirmed_date);
-        if (age !== null && age > 30) {
-          autoFollowUp({ title: `Stalled order — check ${getClientName(o.client_id)}${o.product_type ? ` · ${o.product_type}` : ''}`, action_type: 'order_status', entity_type: 'order', entity_id: o.id, assigned_to: o.sales_person_id ?? null, priority: 'medium', daysFromNow: 0 });
+      rfqs.forEach(r => {
+        if (r.status === 'converted' || r.status === 'lost') return;
+        // Floated but no supplier response after 7 days
+        if (inquired.has(r.id) && !quoted.has(r.id)) {
+          const age = daysSince(r.rfq_date);
+          if (age !== null && age > 7 && !existing.has(dedupKey('rfq', r.id, 'supplier_response'))) {
+            autoFollowUp({ title: `Chase supplier response — ${r.company_name}${r.rfq_number ? ` · ${r.rfq_number}` : ''}`, action_type: 'supplier_response', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
+          }
         }
-      }
-    });
+        // Quote sent to customer but no decision after 7 days
+        if (r.status === 'quoted') {
+          const age = daysSince(r.quote_sent_date ?? r.rfq_date);
+          if (age !== null && age > 7 && !existing.has(dedupKey('rfq', r.id, 'rfq_followup'))) {
+            autoFollowUp({ title: `Follow up on quote — ${r.company_name}${r.rfq_number ? ` · ${r.rfq_number}` : ''}`, action_type: 'rfq_followup', entity_type: 'rfq', entity_id: r.id, assigned_to: r.assigned_to ?? null, priority: 'high', daysFromNow: 0 });
+          }
+        }
+      });
+
+      // Order stuck in an early stage more than 30 days since its PO
+      orders.forEach(o => {
+        if (o.status === 'po_received' || o.status === 'procurement' || o.status === 'in_transit') {
+          const age = daysSince(o.customer_po_date ?? o.confirmed_date);
+          if (age !== null && age > 30 && !existing.has(dedupKey('order', o.id, 'order_status'))) {
+            autoFollowUp({ title: `Stalled order — check ${getClientName(o.client_id)}${o.product_type ? ` · ${o.product_type}` : ''}`, action_type: 'order_status', entity_type: 'order', entity_id: o.id, assigned_to: o.sales_person_id ?? null, priority: 'medium', daysFromNow: 0 });
+          }
+        }
+      });
+    })();
   }, [loading, authUser, rfqs, orders, supplierInquiries, supplierQuotes, autoFollowUp, getClientName]);
 
   // addProspect stays in the context (not the T2-2 prospects hook) because it
