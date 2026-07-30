@@ -1,0 +1,44 @@
+name: E2E (manual)
+
+# Deliberately NOT triggered on push/pull_request, unlike ci.yml. There is no
+# staging environment for this project — these specs run against the SAME
+# live production database as the deployed app, and several of them create
+# and delete real records (RFQs, orders, GST invoices) even though they clean
+# up after themselves. Running that on every push/PR — including from any
+# future contributor — is a materially different risk than the rest of CI.
+# Trigger this manually (Actions tab -> E2E (manual) -> Run workflow) when
+# you actually want to exercise it, e.g. before a release.
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: E2E tests
+        run: npm run test:e2e
+        env:
+          # Same public values as the Unit tests job in ci.yml.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          # Dedicated test accounts — see e2e/README.md. NEVER real staff
+          # credentials. Specs self-skip (not fail) for any role left unset.
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_SALES_EMAIL: ${{ secrets.E2E_SALES_EMAIL }}
+          E2E_SALES_PASSWORD: ${{ secrets.E2E_SALES_PASSWORD }}
+          E2E_ENGINEER_EMAIL: ${{ secrets.E2E_ENGINEER_EMAIL }}
+          E2E_ENGINEER_PASSWORD: ${{ secrets.E2E_ENGINEER_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
