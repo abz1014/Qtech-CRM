@@ -5,6 +5,8 @@ import { useOrderPayments } from '@/hooks/useOrderPayments';
 import { useSupplierPayments } from '@/hooks/useSupplierPayments';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useRecurringExpenses } from '@/hooks/useRecurringExpenses';
+import { useGstInvoices } from '@/hooks/useGstInvoices';
+import { computeReconciliationExceptions } from '@/lib/finance/reconciliation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -12,9 +14,9 @@ import { generateCSV, downloadCSV } from '@/lib/csvExport';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
-  TrendingUp, AlertCircle, CheckCircle, Download,
+  TrendingUp, AlertCircle, AlertTriangle, CheckCircle, Download,
   Wallet, Receipt, X, Plus, ArrowDownCircle,
-  Repeat, Pencil, Trash2, PieChart, CalendarClock, ChevronDown, ChevronUp,
+  Repeat, Pencil, Trash2, PieChart, CalendarClock, ChevronDown, ChevronUp, ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { businessToday } from '@/lib/dates';
@@ -120,6 +122,7 @@ export default function FinancePage() {
   const { data: supplierPayments = [] } = useSupplierPayments();
   const { data: expenses = [] } = useExpenses();
   const { data: recurringExpenses = [] } = useRecurringExpenses();
+  const { data: gstInvoices = [] } = useGstInvoices();
   const { user, isAdmin } = useAuth();
   const confirm = useConfirm();
   const navigate = useNavigate();
@@ -244,6 +247,14 @@ export default function FinancePage() {
   const overdueList = receivables.filter(r =>
     r.o.payment_due_date && String(r.o.payment_due_date).slice(0, 10) < todayStr);
   const overdueTotal = overdueList.reduce((s, r) => s + r.balance, 0);
+
+  // ── Reconciliation exceptions (order/payments/GST cross-checks) ────────────
+  const [showReconciliation, setShowReconciliation] = useState(true);
+  const exceptions = useMemo(
+    () => computeReconciliationExceptions(orders, orderPayments, supplierPayments, gstInvoices),
+    [orders, orderPayments, supplierPayments, gstInvoices]);
+  const criticalCount = exceptions.filter(e => e.severity === 'critical').length;
+  const warningCount = exceptions.filter(e => e.severity === 'warning').length;
 
   // ── Cash flow + P&L by month (within range) ─────────────────────────────────
   const months = useMemo(() => monthKeys(range.from, range.to), [range]);
@@ -434,6 +445,9 @@ export default function FinancePage() {
     rows.push([]);
     rows.push(['CASH FLOW BY MONTH', 'In', 'Out', 'Net', 'Running']);
     cashflow.forEach(r => rows.push([monthLabel(r.key), r.cashIn, r.cashOut, r.net, r.running]));
+    rows.push([]);
+    rows.push(['RECONCILIATION EXCEPTIONS', 'Severity', 'Category', 'Message', 'Order ID', 'GST Invoice ID']);
+    exceptions.forEach(e => rows.push([e.severity, e.category, e.message, e.orderId ?? '', e.gstInvoiceId ?? '']));
     downloadCSV(generateCSV([`Q-Tech Finance (generated ${businessToday()})`], rows), `Finance_${businessToday()}.csv`);
   };
 
@@ -577,6 +591,51 @@ export default function FinancePage() {
           })}
         </div>
         )}
+      </div>
+
+      {/* ── Reconciliation exceptions ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <button onClick={() => setShowReconciliation(v => !v)} className="section-title flex items-center gap-1.5 hover:text-foreground transition-colors">
+            <ShieldAlert className="w-4 h-4 text-warning" /> Reconciliation — Exceptions
+            {exceptions.length > 0 && <span className="normal-case tracking-normal font-normal text-muted-foreground">({exceptions.length})</span>}
+            {showReconciliation ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          <div className="flex gap-2 text-xs">
+            {criticalCount > 0 && <span className="px-2 py-1 rounded-lg bg-destructive/10 text-destructive font-semibold tabular-nums">{criticalCount} critical</span>}
+            {warningCount > 0 && <span className="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold tabular-nums">{warningCount} warning</span>}
+          </div>
+        </div>
+        {showReconciliation && (
+        <div className="glass-card p-4 space-y-1.5">
+          {exceptions.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2 flex items-center gap-2"><CheckCircle className="w-4 h-4 text-success" /> No exceptions — orders, payments, and GST invoices are all in balance and in sequence.</p>
+          ) : exceptions.map(e => (
+            <div key={e.key} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
+              {e.severity === 'critical'
+                ? <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                : <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground flex-shrink-0">{e.category}</span>
+                  {e.orderId && (
+                    <button onClick={() => navigate(`/orders/${e.orderId}`)} className="text-[11px] text-primary hover:underline flex-shrink-0">
+                      view order
+                    </button>
+                  )}
+                  {e.gstInvoiceId && (
+                    <button onClick={() => navigate('/gst-register')} className="text-[11px] text-primary hover:underline flex-shrink-0">
+                      view GST register
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm text-foreground mt-0.5">{e.message}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        )}
+        <p className="text-[12px] text-muted-foreground mt-1.5">Cross-checks orders, customer/supplier payments, and the GST register — not a data quality score, just what needs a human look.</p>
       </div>
 
       {/* ── Expenses ── */}
