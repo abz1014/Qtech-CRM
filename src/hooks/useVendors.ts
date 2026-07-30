@@ -27,7 +27,7 @@ export function useVendors() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('vendors-changes')
+      .channel(`vendors-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vendors' }, () => {
         queryClient.invalidateQueries({ queryKey: VENDORS_QUERY_KEY });
       })

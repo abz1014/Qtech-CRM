@@ -23,7 +23,7 @@ export function useCostLines() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('cost-lines-changes')
+      .channel(`cost-lines-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cost_lines' }, () => {
         queryClient.invalidateQueries({ queryKey: COST_LINES_QUERY_KEY });
       })

@@ -23,7 +23,7 @@ export function useGstInvoices() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('gst-invoices-changes')
+      .channel(`gst-invoices-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'gst_invoices' }, () => {
         queryClient.invalidateQueries({ queryKey: GST_INVOICES_QUERY_KEY });
       })

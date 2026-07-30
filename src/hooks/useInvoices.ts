@@ -32,7 +32,7 @@ export function useInvoices() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('invoices-changes')
+      .channel(`invoices-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => {
         queryClient.invalidateQueries({ queryKey: INVOICES_QUERY_KEY });
       })

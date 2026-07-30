@@ -23,7 +23,7 @@ export function useAttendance() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('attendance-changes')
+      .channel(`attendance-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
         queryClient.invalidateQueries({ queryKey: ATTENDANCE_QUERY_KEY });
       })

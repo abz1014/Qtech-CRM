@@ -23,7 +23,7 @@ export function useOrderEngineers() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('order-engineers-changes')
+      .channel(`order-engineers-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_engineers' }, () => {
         queryClient.invalidateQueries({ queryKey: ORDER_ENGINEERS_QUERY_KEY });
       })

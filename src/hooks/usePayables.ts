@@ -23,7 +23,7 @@ export function usePayables() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('payables-changes')
+      .channel(`payables-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payables' }, () => {
         queryClient.invalidateQueries({ queryKey: PAYABLES_QUERY_KEY });
       })

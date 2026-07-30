@@ -23,7 +23,7 @@ export function useSupplierQuotes() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('supplier-quotes-changes')
+      .channel(`supplier-quotes-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'supplier_quotes' }, () => {
         queryClient.invalidateQueries({ queryKey: SUPPLIER_QUOTES_QUERY_KEY });
       })

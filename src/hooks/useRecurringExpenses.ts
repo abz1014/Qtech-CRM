@@ -23,7 +23,7 @@ export function useRecurringExpenses() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('recurring-expenses-changes')
+      .channel(`recurring-expenses-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_expenses' }, () => {
         queryClient.invalidateQueries({ queryKey: RECURRING_EXPENSES_QUERY_KEY });
       })

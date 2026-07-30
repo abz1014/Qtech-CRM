@@ -23,7 +23,7 @@ export function useExpenses() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('expenses-changes')
+      .channel(`expenses-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
         queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
       })

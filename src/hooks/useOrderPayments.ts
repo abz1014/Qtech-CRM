@@ -23,7 +23,7 @@ export function useOrderPayments() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('order-payments-changes')
+      .channel(`order-payments-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_payments' }, () => {
         queryClient.invalidateQueries({ queryKey: ORDER_PAYMENTS_QUERY_KEY });
       })

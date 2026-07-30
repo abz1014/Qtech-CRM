@@ -23,7 +23,7 @@ export function useCostingConfig() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('costing-config-changes')
+      .channel(`costing-config-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'costing_config' }, () => {
         queryClient.invalidateQueries({ queryKey: COSTING_CONFIG_QUERY_KEY });
       })

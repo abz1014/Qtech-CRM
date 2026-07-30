@@ -36,7 +36,7 @@ export function useOrders() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('orders-changes')
+      .channel(`orders-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
         queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
       })

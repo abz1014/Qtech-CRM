@@ -24,7 +24,7 @@ export function useProspects() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('prospects-changes')
+      .channel(`prospects-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prospects' }, () => {
         queryClient.invalidateQueries({ queryKey: PROSPECTS_QUERY_KEY });
       })

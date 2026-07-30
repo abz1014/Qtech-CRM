@@ -23,7 +23,7 @@ export function useRFQLineItems() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('rfq-line-items-changes')
+      .channel(`rfq-line-items-changes-${crypto.randomUUID()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rfq_line_items' }, () => {
         queryClient.invalidateQueries({ queryKey: RFQ_LINE_ITEMS_QUERY_KEY });
       })
