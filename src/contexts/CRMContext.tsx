@@ -940,21 +940,31 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     rfqId: string,
     orderData: Omit<Order, 'id' | 'rfq_id'>,
   ) => {
-    const { data: newOrder, error: orderError } = await supabase
-      .from('orders')
-      .insert({ ...orderData, rfq_id: rfqId, confirmed_date: null })
-      .select()
-      .single();
+    // T1-1: order insert + RFQ status update happen atomically in one
+    // Postgres function (convert_rfq_to_order) instead of two separate
+    // network calls — previously, a failure between the two left a real
+    // order in the database whose RFQ still showed as 'quoted', letting a
+    // second order get created from the same RFQ. See
+    // supabase/migrations/20260730_t1_convert_rfq_to_order_rpc.sql.
+    const { data: newOrder, error: orderError } = await supabase.rpc('convert_rfq_to_order', {
+      p_rfq_id: rfqId,
+      p_client_id: orderData.client_id,
+      p_vendor_id: orderData.vendor_id,
+      p_sales_person_id: orderData.sales_person_id,
+      p_product_type: orderData.product_type,
+      p_order_value: orderData.order_value,
+      p_cost_value: orderData.cost_value,
+      p_status: orderData.status,
+      p_notes: orderData.notes,
+      p_customer_po_number: orderData.customer_po_number,
+      p_customer_po_date: orderData.customer_po_date,
+      p_payment_terms_days: orderData.payment_terms_days,
+      p_delivery_date: orderData.delivery_date,
+      p_payment_due_date: orderData.payment_due_date,
+    }).single();
     if (orderError || !newOrder) throw new Error(orderError?.message || 'Failed to create order');
     setOrders(prev => [newOrder as Order, ...prev]);
-    const { data: updatedRFQ, error: rfqError } = await supabase
-      .from('rfqs')
-      .update({ status: 'converted', converted_order_id: newOrder.id })
-      .eq('id', rfqId)
-      .select()
-      .single();
-    if (rfqError) throw new Error(rfqError.message);
-    if (updatedRFQ) setRFQs(prev => prev.map(r => r.id === rfqId ? updatedRFQ as RFQ : r));
+    setRFQs(prev => prev.map(r => r.id === rfqId ? { ...r, status: 'converted' as const, converted_order_id: newOrder.id } : r));
     // Auto-trigger: order created → pay supplier within 5 days to move to procurement
     const vendor = vendors.find(v => v.id === orderData.vendor_id);
     autoFollowUp({
