@@ -1,6 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useOrders } from '@/hooks/useOrders';
+import { useOrderPayments } from '@/hooks/useOrderPayments';
+import { useSupplierPayments } from '@/hooks/useSupplierPayments';
+import { useExpenses } from '@/hooks/useExpenses';
+import { useRecurringExpenses } from '@/hooks/useRecurringExpenses';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -107,12 +111,15 @@ const monthLabel = (key: string) => {
 
 export default function FinancePage() {
   const {
-    orderPayments, supplierPayments, expenses,
     addOrderPayment, addSupplierPayment, addExpense, deleteExpense,
-    recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
+    addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
     getClientName, getVendorName,
   } = useCRM();
   const { data: orders = [] } = useOrders();
+  const { data: orderPayments = [] } = useOrderPayments();
+  const { data: supplierPayments = [] } = useSupplierPayments();
+  const { data: expenses = [] } = useExpenses();
+  const { data: recurringExpenses = [] } = useRecurringExpenses();
   const { user, isAdmin } = useAuth();
   const confirm = useConfirm();
   const navigate = useNavigate();

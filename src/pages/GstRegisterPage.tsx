@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useOrders } from '@/hooks/useOrders';
+import { useGstInvoices } from '@/hooks/useGstInvoices';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -76,8 +77,9 @@ const toInput = (f: FormState): CreateGstInvoiceInput => ({
 });
 
 export default function GstRegisterPage() {
-  const { gstInvoices, addGstInvoice, updateGstInvoice, deleteGstInvoice, getClientName, getVendorName, loading } = useCRM();
+  const { addGstInvoice, updateGstInvoice, deleteGstInvoice, getClientName, getVendorName, loading } = useCRM();
   const { data: orders = [] } = useOrders();
+  const { data: gstInvoices = [], isLoading: gstInvoicesLoading } = useGstInvoices();
   const { user } = useAuth();
   const confirm = useConfirm();
 
@@ -223,7 +225,7 @@ export default function GstRegisterPage() {
   const th = 'text-left px-3 py-2.5 text-[12px] font-semibold text-muted-foreground whitespace-nowrap';
   const td = 'px-3 py-2.5 text-sm text-foreground whitespace-nowrap';
 
-  if (loading) return <TableSkeleton cols={9} rows={8} headers={['GST Inv #', 'Client / PO', 'Supplier / Item', 'DC #', 'Amount', 'TCS', 'Client rcvd', 'FBR', 'PSID / Deposit']} />;
+  if (loading || gstInvoicesLoading) return <TableSkeleton cols={9} rows={8} headers={['GST Inv #', 'Client / PO', 'Supplier / Item', 'DC #', 'Amount', 'TCS', 'Client rcvd', 'FBR', 'PSID / Deposit']} />;
 
   return (
     <div className="space-y-6">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
+import { useCostingConfig } from '@/hooks/useCostingConfig';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Save, Settings2 } from 'lucide-react';
@@ -24,7 +25,8 @@ const s = (n: number | undefined) => (n === undefined || n === null ? '' : Strin
 
 /** Admin-managed default freight rates, fixed charges and tax % for the single-item model. */
 export function CostingConfigPanel() {
-  const { costingConfig, updateCostingConfig } = useCRM();
+  const { updateCostingConfig } = useCRM();
+  const { data: costingConfig = null } = useCostingConfig();
   const { isAdmin } = useAuth();
 
   const seed = (): CostingConfigValues => {

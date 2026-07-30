@@ -10,6 +10,16 @@ import { useOrderEngineersQuery, ORDER_ENGINEERS_QUERY_KEY } from '@/hooks/useOr
 import { useSupplierInquiriesQuery, SUPPLIER_INQUIRIES_QUERY_KEY } from '@/hooks/useSupplierInquiries';
 import { useSupplierQuotesQuery, SUPPLIER_QUOTES_QUERY_KEY } from '@/hooks/useSupplierQuotes';
 import { useRFQLineItemsQuery, RFQ_LINE_ITEMS_QUERY_KEY } from '@/hooks/useRFQLineItems';
+import { useInvoicesQuery, INVOICES_QUERY_KEY } from '@/hooks/useInvoices';
+import { useExpensesQuery, EXPENSES_QUERY_KEY } from '@/hooks/useExpenses';
+import { useRecurringExpensesQuery, RECURRING_EXPENSES_QUERY_KEY } from '@/hooks/useRecurringExpenses';
+import { useGstInvoicesQuery, GST_INVOICES_QUERY_KEY } from '@/hooks/useGstInvoices';
+import { usePaymentRecordsQuery, PAYMENT_RECORDS_QUERY_KEY } from '@/hooks/usePaymentRecords';
+import { usePayablesQuery, PAYABLES_QUERY_KEY } from '@/hooks/usePayables';
+import { useOrderPaymentsQuery, ORDER_PAYMENTS_QUERY_KEY } from '@/hooks/useOrderPayments';
+import { useSupplierPaymentsQuery, SUPPLIER_PAYMENTS_QUERY_KEY } from '@/hooks/useSupplierPayments';
+import { useCostLinesQuery, COST_LINES_QUERY_KEY } from '@/hooks/useCostLines';
+import { useCostingConfigQuery, COSTING_CONFIG_QUERY_KEY } from '@/hooks/useCostingConfig';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -125,10 +135,14 @@ interface CRMContextType {
   deleteClient: (clientId: string) => Promise<void>;
 
   // Bookkeeping Methods
-  invoices: Invoice[];
-  expenses: Expense[];
-  paymentRecords: PaymentRecord[];
-  payables: Payable[];
+  // invoices/expenses/recurringExpenses/gstInvoices/paymentRecords/payables/
+  // orderPayments/supplierPayments/costLines/costingConfig arrays moved to
+  // src/hooks/useInvoices.ts / useExpenses.ts / useRecurringExpenses.ts /
+  // useGstInvoices.ts / usePaymentRecords.ts / usePayables.ts /
+  // useOrderPayments.ts / useSupplierPayments.ts / useCostLines.ts /
+  // useCostingConfig.ts (T2-4) -- mutations stay here (same reason as
+  // T2-3's rfqs/orders: the reporting functions below read across all of
+  // them together).
   addInvoice: (invoice: CreateInvoiceInput, createdBy: string) => Promise<Invoice>;
   updateInvoice: (invoiceId: string, updates: UpdateInvoiceInput) => Promise<void>;
   deleteInvoice: (invoiceId: string) => Promise<void>;
@@ -136,14 +150,12 @@ interface CRMContextType {
   updateExpense: (expenseId: string, updates: UpdateExpenseInput) => Promise<void>;
   deleteExpense: (expenseId: string) => Promise<void>;
   // Recurring monthly expenses (admin-only)
-  recurringExpenses: RecurringExpense[];
   addRecurringExpense: (input: CreateRecurringExpenseInput, createdBy: string) => Promise<RecurringExpense>;
   updateRecurringExpense: (id: string, updates: UpdateRecurringExpenseInput) => Promise<void>;
   deleteRecurringExpense: (id: string) => Promise<void>;
   /** Post the given templates into `expenses` for a YYYY-MM period. Idempotent. Returns count posted. */
   postRecurringExpenses: (period: string, items: { id: string; amount: number }[], createdBy: string) => Promise<number>;
   // GST invoice register (admin + sales)
-  gstInvoices: GstInvoice[];
   addGstInvoice: (input: CreateGstInvoiceInput, createdBy: string) => Promise<GstInvoice>;
   updateGstInvoice: (id: string, updates: UpdateGstInvoiceInput) => Promise<void>;
   deleteGstInvoice: (id: string) => Promise<void>;
@@ -192,12 +204,8 @@ interface CRMContextType {
   followUpActions: FollowUpAction[];
 
   // Finance rebuild (admin-only)
-  orderPayments: OrderPayment[];
-  costLines: CostLine[];
   saveCostLines: (parent: { rfq_id: string } | { order_id: string }, lines: Omit<CostLine, 'id' | 'created_at' | 'rfq_id' | 'order_id'>[]) => Promise<void>;
-  costingConfig: CostingConfig | null;
   updateCostingConfig: (values: CostingConfigValues) => Promise<void>;
-  supplierPayments: SupplierPayment[];
   addOrderPayment: (payment: Omit<OrderPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string) => Promise<OrderPayment>;
   deleteOrderPayment: (paymentId: string) => Promise<void>;
   addSupplierPayment: (payment: Omit<SupplierPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string) => Promise<SupplierPayment>;
@@ -256,71 +264,50 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // below; now it's an aggregate of that plus their independent queries, so
   // every existing `if (loading) return <Skeleton />` consumer keeps working
   // unchanged instead of flashing an empty rfqs/orders list.
-  const loading = baseLoading || ordersLoading || oeLoading || rfqsLoading || inquiriesLoading || quotesLoading || lineItemsLoading;
+  // Bookkeeping state (T2-4): same query-only pattern as above. The
+  // reporting functions below (getDashboardMetrics, getCashflowStatement,
+  // getARAgingBuckets, etc.) read across ALL of these together, so -- like
+  // T2-3's rfqs/orders -- every mutation stays in this context; only state +
+  // realtime moved to hooks.
+  const { data: invoices = [], isLoading: invoicesLoading } = useInvoicesQuery();
+  const { data: expenses = [], isLoading: expensesLoading } = useExpensesQuery();
+  const { data: recurringExpenses = [], isLoading: recurringExpensesLoading } = useRecurringExpensesQuery();
+  const { data: gstInvoices = [], isLoading: gstInvoicesLoading } = useGstInvoicesQuery();
+  const { data: paymentRecords = [], isLoading: paymentRecordsLoading } = usePaymentRecordsQuery();
+  const { data: payables = [], isLoading: payablesLoading } = usePayablesQuery();
+  const { data: orderPayments = [], isLoading: orderPaymentsLoading } = useOrderPaymentsQuery();
+  const { data: supplierPayments = [], isLoading: supplierPaymentsLoading } = useSupplierPaymentsQuery();
+  const { data: costLines = [], isLoading: costLinesLoading } = useCostLinesQuery();
+  const { data: costingConfig = null, isLoading: costingConfigLoading } = useCostingConfigQuery();
+  // `loading` used to cover these sixteen domains via the single Promise.all
+  // below; now it's an aggregate of that plus their independent queries, so
+  // every existing `if (loading) return <Skeleton />` consumer keeps working
+  // unchanged instead of flashing an empty list.
+  const loading = baseLoading || ordersLoading || oeLoading || rfqsLoading || inquiriesLoading || quotesLoading || lineItemsLoading
+    || invoicesLoading || expensesLoading || recurringExpensesLoading || gstInvoicesLoading || paymentRecordsLoading
+    || payablesLoading || orderPaymentsLoading || supplierPaymentsLoading || costLinesLoading || costingConfigLoading;
   const [followUpActions, setFollowUpActions] = useState<FollowUpAction[]>([]);
 
-  // Bookkeeping state
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
-  const [gstInvoices, setGstInvoices] = useState<GstInvoice[]>([]);
-  const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
-  const [payables, setPayables] = useState<Payable[]>([]);
-  const [orderPayments, setOrderPayments] = useState<OrderPayment[]>([]);
-  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
-  const [costLines, setCostLines] = useState<CostLine[]>([]);
-  const [costingConfig, setCostingConfig] = useState<CostingConfig | null>(null);
-
   useEffect(() => {
-    // Don't load anything until a user is logged in; financial tables load
-    // only for admins (sales/engineer sessions never receive that data).
+    // Don't load anything until a user is logged in.
     if (!authUser) return;
-    const emptyResult = Promise.resolve({ data: null });
     const load = async () => {
       const [
         { data: usersData },
         { data: actionsData },
-        { data: invoicesData },
-        { data: expensesData },
-        { data: paymentsData },
-        { data: payablesData },
-        { data: orderPaymentsData },
-        { data: supplierPaymentsData },
-        { data: costLinesData },
-        { data: costingConfigData },
-        { data: recurringExpensesData },
-        { data: gstInvoicesData },
       ] = await Promise.all([
         supabase.from('users').select('*').order('name'),
         // clients/prospects/vendors/orders/rfqs/orderEngineers/
-        // supplierInquiries/supplierQuotes/rfqLineItems load via their
-        // T2-2/T2-3 React Query hooks
+        // supplierInquiries/supplierQuotes/rfqLineItems/invoices/expenses/
+        // recurringExpenses/gstInvoices/paymentRecords/payables/
+        // orderPayments/supplierPayments/costLines/costingConfig load via
+        // their T2-2/T2-3/T2-4 React Query hooks
         // Load ALL actions (not just pending) — completed ones feed
         // getPatternInsights; every UI consumer filters status itself.
         supabase.from('follow_up_actions').select('*').order('due_date', { ascending: true }),
-        isAdmin ? supabase.from('invoices').select('*').order('issued_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('expenses').select('*').order('date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('payment_records').select('*').order('payment_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('payables').select('*').order('due_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('order_payments').select('*').order('payment_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('supplier_payments').select('*').order('payment_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
-        (isAdmin || isSales) ? supabase.from('cost_lines').select('*').order('sort_order', { ascending: true }).then(res => res, () => ({ data: null })) : emptyResult,
-        (isAdmin || isSales) ? supabase.from('costing_config').select('*').eq('id', 1).maybeSingle().then(res => res, () => ({ data: null })) : emptyResult,
-        isAdmin ? supabase.from('recurring_expenses').select('*').order('label').then(res => res, () => ({ data: null })) : emptyResult,
-        (isAdmin || isSales) ? supabase.from('gst_invoices').select('*').order('invoice_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as unknown as User[]);
       setFollowUpActions((actionsData ?? []) as unknown as FollowUpAction[]);
-      setInvoices((invoicesData ?? []) as unknown as Invoice[]);
-      setExpenses((expensesData ?? []) as unknown as Expense[]);
-      setPaymentRecords((paymentsData ?? []) as unknown as PaymentRecord[]);
-      setPayables((payablesData ?? []) as unknown as Payable[]);
-      setOrderPayments((orderPaymentsData ?? []) as unknown as OrderPayment[]);
-      setSupplierPayments((supplierPaymentsData ?? []) as unknown as SupplierPayment[]);
-      setCostLines((costLinesData ?? []) as unknown as CostLine[]);
-      setCostingConfig((costingConfigData ?? null) as unknown as CostingConfig | null);
-      setRecurringExpenses((recurringExpensesData ?? []) as unknown as RecurringExpense[]);
-      setGstInvoices((gstInvoicesData ?? []) as unknown as GstInvoice[]);
       setLoading(false);
 
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
@@ -346,162 +333,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         }
       );
 
-      // Financial tables: subscribe only for admins (matching the load gate)
-      if (isAdmin) {
-
-      // Subscribe to invoices changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'invoices' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setInvoices(prev => addUnique(prev, payload.new as unknown as Invoice, 'invoice_id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setInvoices(prev => prev.map(inv => inv.invoice_id === payload.new.invoice_id ? payload.new as unknown as Invoice : inv));
-          } else if (payload.eventType === 'DELETE') {
-            setInvoices(prev => prev.filter(inv => inv.invoice_id !== payload.old.invoice_id));
-          }
-        }
-      );
-
-      // Subscribe to expenses changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'expenses' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setExpenses(prev => addUnique(prev, payload.new as unknown as Expense, 'expense_id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setExpenses(prev => prev.map(exp => exp.expense_id === payload.new.expense_id ? payload.new as unknown as Expense : exp));
-          } else if (payload.eventType === 'DELETE') {
-            setExpenses(prev => prev.filter(exp => exp.expense_id !== payload.old.expense_id));
-          }
-        }
-      );
-
-      // Subscribe to recurring expense templates
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'recurring_expenses' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setRecurringExpenses(prev => addUnique(prev, payload.new as unknown as RecurringExpense, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setRecurringExpenses(prev => prev.map(r => r.id === payload.new.id ? payload.new as unknown as RecurringExpense : r));
-          } else if (payload.eventType === 'DELETE') {
-            setRecurringExpenses(prev => prev.filter(r => r.id !== payload.old.id));
-          }
-        }
-      );
-
       // Employees + attendance realtime moved to src/hooks/useEmployees.ts /
-      // useAttendance.ts (T2-1) -- each subscribes only while its own hook
-      // is mounted, instead of always-on here.
-
-      // Subscribe to payment_records changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'payment_records' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setPaymentRecords(prev => addUnique(prev, payload.new as unknown as PaymentRecord, 'payment_id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setPaymentRecords(prev => prev.map(pr => pr.payment_id === payload.new.payment_id ? payload.new as unknown as PaymentRecord : pr));
-          } else if (payload.eventType === 'DELETE') {
-            setPaymentRecords(prev => prev.filter(pr => pr.payment_id !== payload.old.payment_id));
-          }
-        }
-      );
-
-      // Subscribe to payables changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'payables' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setPayables(prev => addUnique(prev, payload.new as unknown as Payable, 'payable_id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setPayables(prev => prev.map(p => p.payable_id === payload.new.payable_id ? payload.new as unknown as Payable : p));
-          } else if (payload.eventType === 'DELETE') {
-            setPayables(prev => prev.filter(p => p.payable_id !== payload.old.payable_id));
-          }
-        }
-      );
-
-      // Subscribe to customer payments (finance rebuild)
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_payments' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setOrderPayments(prev => addUnique(prev, payload.new as unknown as OrderPayment, 'id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setOrderPayments(prev => prev.map(p => p.id === payload.new.id ? payload.new as unknown as OrderPayment : p));
-          } else if (payload.eventType === 'DELETE') {
-            setOrderPayments(prev => prev.filter(p => p.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to supplier payments (finance rebuild)
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'supplier_payments' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setSupplierPayments(prev => addUnique(prev, payload.new as unknown as SupplierPayment, 'id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setSupplierPayments(prev => prev.map(p => p.id === payload.new.id ? payload.new as unknown as SupplierPayment : p));
-          } else if (payload.eventType === 'DELETE') {
-            setSupplierPayments(prev => prev.filter(p => p.id !== payload.old.id));
-          }
-        }
-      );
-
-      } // end isAdmin financial subscriptions
-
-      // Subscribe to costing lines (admin + sales; RLS enforces access)
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'cost_lines' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setCostLines(prev => addUnique(prev, payload.new as unknown as CostLine, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setCostLines(prev => prev.map(c => c.id === payload.new.id ? payload.new as unknown as CostLine : c));
-          } else if (payload.eventType === 'DELETE') {
-            setCostLines(prev => prev.filter(c => c.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to the shared costing config (singleton row; admin + sales read)
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'costing_config' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'DELETE') {
-            setCostingConfig(null);
-          } else {
-            setCostingConfig(payload.new as unknown as CostingConfig);
-          }
-        }
-      );
-
-      // Subscribe to GST invoice register (admin + sales; RLS enforces access)
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'gst_invoices' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setGstInvoices(prev => addUnique(prev, payload.new as unknown as GstInvoice, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setGstInvoices(prev => prev.map(g => g.id === payload.new.id ? payload.new as unknown as GstInvoice : g));
-          } else if (payload.eventType === 'DELETE') {
-            setGstInvoices(prev => prev.filter(g => g.id !== payload.old.id));
-          }
-        }
-      );
+      // useAttendance.ts (T2-1); invoices/expenses/recurringExpenses/
+      // paymentRecords/payables/orderPayments/supplierPayments/costLines/
+      // costingConfig/gstInvoices moved to their T2-4 hooks -- each
+      // subscribes only while a page using the domain is mounted.
 
       // Subscribe to the channel
       await channel.subscribe();
@@ -1010,7 +846,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         .single();
       if (!error && data) {
         const invoice = data as Invoice;
-        setInvoices(prev => addUnique(prev, invoice, 'invoice_id', true));
+        queryClient.invalidateQueries({ queryKey: INVOICES_QUERY_KEY });
         return invoice;
       }
       if (error?.code === '23505' && attempt === 0) {
@@ -1021,23 +857,23 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Failed to create invoice: ${error?.message ?? 'unknown error'}`);
     }
     throw new Error('Failed to create invoice after retry');
-  }, [getNextInvoiceNumber]);
+  }, [getNextInvoiceNumber, queryClient]);
 
   const updateInvoice = useCallback(async (invoiceId: string, updates: UpdateInvoiceInput) => {
-    const { data } = await supabase
+    const { error } = await supabase
       .from('invoices')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('invoice_id', invoiceId)
       .select()
       .single();
-    if (data) setInvoices(prev => prev.map(inv => inv.invoice_id === invoiceId ? data as Invoice : inv));
-  }, []);
+    if (!error) queryClient.invalidateQueries({ queryKey: INVOICES_QUERY_KEY });
+  }, [queryClient]);
 
   const deleteInvoice = useCallback(async (invoiceId: string) => {
     const { error } = await supabase.from('invoices').delete().eq('invoice_id', invoiceId);
     if (error) throw new Error(`Failed to delete invoice: ${error.message}`);
-    setInvoices(prev => prev.filter(inv => inv.invoice_id !== invoiceId));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: INVOICES_QUERY_KEY });
+  }, [queryClient]);
 
   const addExpense = useCallback(async (exp: CreateExpenseInput, createdBy: string): Promise<Expense> => {
     const { data, error } = await supabase
@@ -1052,25 +888,25 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       .single();
     if (error || !data) throw new Error('Failed to create expense');
     const expense = data as Expense;
-    setExpenses(prev => [expense, ...prev]);
+    queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
     return expense;
-  }, []);
+  }, [queryClient]);
 
   const updateExpense = useCallback(async (expenseId: string, updates: UpdateExpenseInput) => {
-    const { data } = await supabase
+    const { error } = await supabase
       .from('expenses')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('expense_id', expenseId)
       .select()
       .single();
-    if (data) setExpenses(prev => prev.map(exp => exp.expense_id === expenseId ? data as Expense : exp));
-  }, []);
+    if (!error) queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
+  }, [queryClient]);
 
   const deleteExpense = useCallback(async (expenseId: string) => {
     const { error } = await supabase.from('expenses').delete().eq('expense_id', expenseId);
     if (error) throw new Error(`Failed to delete expense: ${error.message}`);
-    setExpenses(prev => prev.filter(exp => exp.expense_id !== expenseId));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
+  }, [queryClient]);
 
   // ── Recurring monthly expense templates ─────────────────────────────────────
   const addRecurringExpense = useCallback(async (input: CreateRecurringExpenseInput, createdBy: string): Promise<RecurringExpense> => {
@@ -1090,9 +926,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       .single();
     if (error || !data) throw new Error(`Failed to create recurring expense: ${error?.message ?? 'unknown error'}`);
     const rec = data as RecurringExpense;
-    setRecurringExpenses(prev => addUnique(prev, rec, 'id'));
+    queryClient.invalidateQueries({ queryKey: RECURRING_EXPENSES_QUERY_KEY });
     return rec;
-  }, []);
+  }, [queryClient]);
 
   const updateRecurringExpense = useCallback(async (id: string, updates: UpdateRecurringExpenseInput) => {
     const { data, error } = await supabase
@@ -1102,14 +938,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       .select()
       .single();
     if (error || !data) throw new Error(`Failed to update recurring expense: ${error?.message ?? 'unknown error'}`);
-    setRecurringExpenses(prev => prev.map(r => r.id === id ? data as RecurringExpense : r));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: RECURRING_EXPENSES_QUERY_KEY });
+  }, [queryClient]);
 
   const deleteRecurringExpense = useCallback(async (id: string) => {
     const { error } = await supabase.from('recurring_expenses').delete().eq('id', id);
     if (error) throw new Error(`Failed to delete recurring expense: ${error.message}`);
-    setRecurringExpenses(prev => prev.filter(r => r.id !== id));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: RECURRING_EXPENSES_QUERY_KEY });
+  }, [queryClient]);
 
   // Post the given templates into `expenses` for a YYYY-MM period. Idempotent:
   // the (recurring_id, period) unique index guarantees at most one per month, so
@@ -1149,9 +985,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (error) throw new Error(`Failed to post recurring expenses: ${error.message}`);
 
     const inserted = (data ?? []) as Expense[];
-    if (inserted.length) setExpenses(prev => [...inserted, ...prev]);
+    if (inserted.length) queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
     return inserted.length;
-  }, [recurringExpenses]);
+  }, [recurringExpenses, queryClient]);
 
   // ── GST invoice register ────────────────────────────────────────────────────
   const addGstInvoice = useCallback(async (input: CreateGstInvoiceInput, createdBy: string): Promise<GstInvoice> => {
@@ -1162,9 +998,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       .single();
     if (error || !data) throw new Error(`Failed to create GST invoice: ${error?.message ?? 'unknown error'}`);
     const gi = data as GstInvoice;
-    setGstInvoices(prev => addUnique(prev, gi, 'id'));
+    queryClient.invalidateQueries({ queryKey: GST_INVOICES_QUERY_KEY });
     return gi;
-  }, []);
+  }, [queryClient]);
 
   const updateGstInvoice = useCallback(async (id: string, updates: UpdateGstInvoiceInput) => {
     const { data, error } = await supabase
@@ -1174,14 +1010,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       .select()
       .single();
     if (error || !data) throw new Error(`Failed to update GST invoice: ${error?.message ?? 'unknown error'}`);
-    setGstInvoices(prev => prev.map(g => g.id === id ? data as GstInvoice : g));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: GST_INVOICES_QUERY_KEY });
+  }, [queryClient]);
 
   const deleteGstInvoice = useCallback(async (id: string) => {
     const { error } = await supabase.from('gst_invoices').delete().eq('id', id);
     if (error) throw new Error(`Failed to delete GST invoice: ${error.message}`);
-    setGstInvoices(prev => prev.filter(g => g.id !== id));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: GST_INVOICES_QUERY_KEY });
+  }, [queryClient]);
 
   // Employees + attendance CRUD moved to src/hooks/useEmployees.ts +
   // useAttendance.ts (T2-1 React Query pilot).
@@ -1204,13 +1040,15 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }).single();
     if (error || !data) throw new Error(`Failed to record payment: ${error?.message ?? 'unknown error'}`);
     const paymentRecord = data as PaymentRecord;
-    setPaymentRecords(prev => addUnique(prev, paymentRecord, 'payment_id', true));
-    // The invoice's amount_paid/payment_status update is reflected via the
-    // existing `invoices` realtime subscription (isAdmin-gated, but the only
-    // caller of recordPayment is FinancePage, which is itself
-    // RequireRole ['admin'] — so the calling session is always subscribed).
+    queryClient.invalidateQueries({ queryKey: PAYMENT_RECORDS_QUERY_KEY });
+    // The invoice's amount_paid/payment_status update is reflected via
+    // useInvoices()'s own realtime subscription (T2-4) -- the only caller of
+    // recordPayment is FinancePage, which uses useInvoices() (not the
+    // query-only variant) and is itself RequireRole ['admin'], so the
+    // calling session is always subscribed.
+    queryClient.invalidateQueries({ queryKey: INVOICES_QUERY_KEY });
     return paymentRecord;
-  }, []);
+  }, [queryClient]);
 
   const getDashboardMetrics = useCallback((): DashboardMetrics => {
     const todayStr = businessToday();
@@ -1396,19 +1234,18 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }).single();
     if (error || !data) throw new Error(`Failed to record payment: ${error?.message ?? 'unknown error'}`);
     const rec = data as OrderPayment;
-    setOrderPayments(prev => addUnique(prev, rec, 'id', true));
-    // If the RPC advanced the order to 'payment_received', the existing
-    // `orders` realtime subscription (unconditional UPDATE handler, not
-    // admin-gated — see the channel setup above) picks up the authoritative
-    // new row and updates local state — no need to guess it here.
+    queryClient.invalidateQueries({ queryKey: ORDER_PAYMENTS_QUERY_KEY });
+    // If the RPC advanced the order to 'payment_received', useOrders()'s own
+    // realtime subscription (T2-3) picks up the authoritative new row.
+    queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
     return rec;
-  }, []);
+  }, [queryClient]);
 
   const deleteOrderPayment = useCallback(async (paymentId: string) => {
     const { error } = await supabase.from('order_payments').delete().eq('id', paymentId);
     if (error) throw new Error(`Failed to delete payment: ${error.message}`);
-    setOrderPayments(prev => prev.filter(p => p.id !== paymentId));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: ORDER_PAYMENTS_QUERY_KEY });
+  }, [queryClient]);
 
   /** Record a payment made TO the supplier against an order (incl. advances). */
   const addSupplierPayment = useCallback(async (payment: Omit<SupplierPayment, 'id' | 'created_at' | 'recorded_by'>, recordedBy: string): Promise<SupplierPayment> => {
@@ -1419,15 +1256,15 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       .single();
     if (error || !data) throw new Error(`Failed to record supplier payment: ${error?.message ?? 'unknown error'}`);
     const rec = data as SupplierPayment;
-    setSupplierPayments(prev => addUnique(prev, rec, 'id', true));
+    queryClient.invalidateQueries({ queryKey: SUPPLIER_PAYMENTS_QUERY_KEY });
     return rec;
-  }, []);
+  }, [queryClient]);
 
   const deleteSupplierPayment = useCallback(async (paymentId: string) => {
     const { error } = await supabase.from('supplier_payments').delete().eq('id', paymentId);
     if (error) throw new Error(`Failed to delete supplier payment: ${error.message}`);
-    setSupplierPayments(prev => prev.filter(p => p.id !== paymentId));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: SUPPLIER_PAYMENTS_QUERY_KEY });
+  }, [queryClient]);
 
   // Save a full costing for an RFQ or order — replaces all its existing lines.
   const saveCostLines = useCallback(async (
@@ -1440,30 +1277,25 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const { error: delErr } = await supabase.from('cost_lines').delete().eq(parentCol, parentId);
     if (delErr) throw new Error(`Failed to update costing: ${delErr.message}`);
 
-    let inserted: CostLine[] = [];
     if (lines.length > 0) {
       const rows = lines.map((l, i) => ({ ...l, [parentCol]: parentId, sort_order: i }));
-      const { data, error } = await supabase.from('cost_lines').insert(rows).select();
+      const { error } = await supabase.from('cost_lines').insert(rows).select();
       if (error) throw new Error(`Failed to save costing: ${error.message}`);
-      inserted = (data ?? []) as CostLine[];
     }
-    setCostLines(prev => [
-      ...prev.filter(c => c[parentCol] !== parentId),
-      ...inserted,
-    ]);
-  }, []);
+    queryClient.invalidateQueries({ queryKey: COST_LINES_QUERY_KEY });
+  }, [queryClient]);
 
   // Update the shared costing config (singleton row id=1). Admin only (RLS).
   const updateCostingConfig = useCallback(async (values: CostingConfigValues) => {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('costing_config')
       .update({ ...values, updated_at: new Date().toISOString() })
       .eq('id', 1)
       .select()
       .single();
-    if (error || !data) throw new Error(`Failed to save costing settings: ${error?.message ?? 'unknown error'}`);
-    setCostingConfig(data as CostingConfig);
-  }, []);
+    if (error) throw new Error(`Failed to save costing settings: ${error.message}`);
+    queryClient.invalidateQueries({ queryKey: COSTING_CONFIG_QUERY_KEY });
+  }, [queryClient]);
 
   const addPayable = useCallback(async (payable: CreatePayableInput, createdBy: string): Promise<Payable> => {
     const { data, error } = await supabase
@@ -1479,21 +1311,21 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
     if (error || !data) throw new Error('Failed to create payable');
     const newPayable = data as Payable;
-    setPayables(prev => [newPayable, ...prev]);
+    queryClient.invalidateQueries({ queryKey: PAYABLES_QUERY_KEY });
     return newPayable;
-  }, []);
+  }, [queryClient]);
 
   const updatePayable = useCallback(async (payableId: string, updates: UpdatePayableInput) => {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('payables')
       .update(updates)
       .eq('payable_id', payableId)
       .select()
       .single();
 
-    if (error || !data) throw new Error('Failed to update payable');
-    setPayables(prev => prev.map(p => p.payable_id === payableId ? data as Payable : p));
-  }, []);
+    if (error) throw new Error('Failed to update payable');
+    queryClient.invalidateQueries({ queryKey: PAYABLES_QUERY_KEY });
+  }, [queryClient]);
 
   const deletePayable = useCallback(async (payableId: string) => {
     const { error } = await supabase
@@ -1502,8 +1334,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       .eq('payable_id', payableId);
 
     if (error) throw new Error('Failed to delete payable');
-    setPayables(prev => prev.filter(p => p.payable_id !== payableId));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: PAYABLES_QUERY_KEY });
+  }, [queryClient]);
 
   const recordPayablePayment = useCallback(async (payment: CreatePayablePaymentInput, recordedBy: string) => {
     const { data: updatedPayable, error } = await supabase.rpc('record_payable_payment', {
@@ -1518,10 +1350,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
     if (error || !updatedPayable) throw new Error(error?.message || 'Failed to record payment');
 
-    setPayables(prev =>
-      prev.map(p => (p.payable_id === payment.payable_id ? (updatedPayable as Payable) : p))
-    );
-  }, []);
+    queryClient.invalidateQueries({ queryKey: PAYABLES_QUERY_KEY });
+  }, [queryClient]);
 
   const getAPAgingBuckets = useCallback((): ARAgingBucket[] => {
     const now = new Date();
@@ -2085,13 +1915,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     getRFQMetrics, getRFQMetricsByDateRange,
     updateRFQ, updateOrder,
     deleteRFQ, deleteOrder, deleteClient,
-    invoices, expenses, paymentRecords, payables,
-    orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
-    costLines, saveCostLines, costingConfig, updateCostingConfig,
+    addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
+    saveCostLines, updateCostingConfig,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
-    recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
-    gstInvoices, addGstInvoice, updateGstInvoice, deleteGstInvoice,
+    addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
+    addGstInvoice, updateGstInvoice, deleteGstInvoice,
     recordPayment,
     addPayable, updatePayable, deletePayable, recordPayablePayment,
     getDashboardMetrics, getMonthlySummary, getProjectProfitability,
@@ -2113,13 +1942,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     getRFQMetrics, getRFQMetricsByDateRange,
     updateRFQ, updateOrder,
     deleteRFQ, deleteOrder, deleteClient,
-    invoices, expenses, paymentRecords, payables,
-    orderPayments, supplierPayments, addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
-    costLines, saveCostLines, costingConfig, updateCostingConfig,
+    addOrderPayment, deleteOrderPayment, addSupplierPayment, deleteSupplierPayment,
+    saveCostLines, updateCostingConfig,
     addInvoice, updateInvoice, deleteInvoice,
     addExpense, updateExpense, deleteExpense,
-    recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
-    gstInvoices, addGstInvoice, updateGstInvoice, deleteGstInvoice,
+    addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
+    addGstInvoice, updateGstInvoice, deleteGstInvoice,
     recordPayment,
     addPayable, updatePayable, deletePayable, recordPayablePayment,
     getDashboardMetrics, getMonthlySummary, getProjectProfitability,

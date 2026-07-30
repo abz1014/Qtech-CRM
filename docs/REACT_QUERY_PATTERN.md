@@ -118,6 +118,29 @@ side lookup just delays the page for no user benefit. Get this wrong and
 either the page flashes empty/zero data it used to load synchronously, or a
 required dropdown briefly renders with no options.
 
+## Additions from T2-4 (invoices / expenses / recurringExpenses / gstInvoices / paymentRecords / payables / orderPayments / supplierPayments / costLines / costingConfig)
+
+Same shape as T2-3: query-only + view-scoped-realtime hooks only, **every
+mutation stayed in `CRMContext`**. The reporting functions
+(`getDashboardMetrics`, `getCashflowStatement`, `getARAgingBuckets`,
+`getAPAgingBuckets`, `getMonthlySummary`, `getProjectProfitability`) read
+across all ten of these arrays together, so splitting mutations into
+per-domain hooks would just move the coupling, not remove it -- same
+reasoning as T2-3's rfqs/orders.
+
+One new wrinkle: these ten domains used to load conditionally
+(`isAdmin ? query : Promise.resolve({data: null})`) as a client-side perf
+optimization -- skip a query RLS would deny anyway. The new hooks fire
+unconditionally, like every other T2 hook; RLS still enforces the real
+access boundary (a denied SELECT returns 0 rows, not an error), and route-
+level `RequireRole` guards mean only appropriate roles ever mount the pages
+that use these hooks. The unconditional query is not new *exposure*, just a
+handful of extra empty-result network round-trips for roles that can't see
+the data -- acceptable at this app's scale.
+
+`costingConfig` is the one singleton (not an array) in this batch: its hook
+returns `CostingConfig | null` from `.maybeSingle()`, same as before.
+
 ## What stays out of scope until later tickets
 
 - Server-side pagination/filtering: not needed for small tables (employees);

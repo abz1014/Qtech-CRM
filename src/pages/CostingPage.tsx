@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useCRM } from '@/contexts/CRMContext';
+import { useCostingConfig } from '@/hooks/useCostingConfig';
 import { Layers, Package, Calculator } from 'lucide-react';
 import { MultiItemEditor } from '@/components/costing/CostingEditor';
 import { SingleItemEditor } from '@/components/costing/SingleItemEditor';
@@ -12,7 +12,7 @@ import type { CostingConfigValues } from '@/types/crm';
  * to persist a costing. Admin + sales only (route-gated).
  */
 export default function CostingPage() {
-  const { costingConfig } = useCRM();
+  const { data: costingConfig = null } = useCostingConfig();
   const [mode, setMode] = useState<'multi' | 'single'>('single');
 
   const baseConfig: CostingConfigValues | null = useMemo(() => {

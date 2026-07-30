@@ -1,5 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
+import { useCostLines } from '@/hooks/useCostLines';
+import { useCostingConfig } from '@/hooks/useCostingConfig';
 import { formatPKR } from '@/lib/format';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save, CheckCircle, Calculator, Layers, Package } from 'lucide-react';
@@ -74,7 +76,8 @@ interface MultiItemEditorProps {
 }
 
 export function MultiItemEditor({ parent, onApply, applyLabel = 'Apply totals' }: MultiItemEditorProps) {
-  const { costLines, saveCostLines } = useCRM();
+  const { saveCostLines } = useCRM();
+  const { data: costLines = [] } = useCostLines();
 
   const saved = useMemo(() => {
     if (!parent) return [];
@@ -267,7 +270,8 @@ interface CostingEditorProps {
 }
 
 export function CostingEditor({ parent, onApply, applyLabel = 'Apply totals' }: CostingEditorProps) {
-  const { costLines, costingConfig } = useCRM();
+  const { data: costLines = [] } = useCostLines();
+  const { data: costingConfig = null } = useCostingConfig();
   const parentKey = 'rfq_id' in parent ? 'rfq_id' : 'order_id';
   const parentId = 'rfq_id' in parent ? parent.rfq_id : parent.order_id;
 
