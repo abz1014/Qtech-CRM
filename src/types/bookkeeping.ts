@@ -305,6 +305,22 @@ export interface ARAgingBucket {
   invoices: Invoice[];
 }
 
+// ── Audit log (T2-6) ────────────────────────────────────────────────────────
+
+export type AuditAction = 'INSERT' | 'UPDATE' | 'DELETE';
+
+/** One row written by a Postgres trigger on a financial/GST table (append-only). */
+export interface AuditLogEntry {
+  id: string;
+  table_name: string;
+  record_id: string | null;
+  action: AuditAction;
+  changed_by: string | null;
+  changed_at: string; // ISO timestamp
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+}
+
 export interface DashboardMetrics {
   mtd_revenue: number;
   mtd_expenses: number;

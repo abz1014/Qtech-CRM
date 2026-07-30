@@ -5,7 +5,7 @@ import { useCRM } from '@/contexts/CRMContext';
 import {
   LayoutDashboard, Users, Target, ShoppingCart,
   Factory, UserCog, Wrench, LogOut, Zap, FileText,
-  BarChart3, DollarSign, X, Bell, Sun, Moon, Activity, Calculator, ReceiptText, UserSquare,
+  BarChart3, DollarSign, X, Bell, Sun, Moon, Activity, Calculator, ReceiptText, UserSquare, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { businessToday } from '@/lib/dates';
@@ -35,6 +35,7 @@ const navItems = [
   { label: 'GST Register',     path: '/gst-register',     icon: ReceiptText,     roles: ['admin', 'sales'] },
   { label: 'Finance',          path: '/finance',          icon: DollarSign,      roles: ['admin'] },
   { label: 'Employees',        path: '/employees',        icon: UserSquare,      roles: ['admin'] },
+  { label: 'Audit Log',        path: '/audit-log',        icon: ShieldCheck,     roles: ['admin'] },
   { label: 'Team',             path: '/team',             icon: UserCog,         roles: ['admin'] },
   { label: 'My Jobs',          path: '/my-jobs',          icon: Wrench,          roles: ['engineer'] },
 ];
@@ -42,7 +43,7 @@ const navItems = [
 const groups = [
   { label: 'Main',   paths: ['/dashboard', '/operations', '/clients', '/prospects'] },
   { label: 'Sales',  paths: ['/rfqs', '/daily-rfq-report', '/orders', '/actions'] },
-  { label: 'Manage', paths: ['/vendors', '/costing', '/gst-register', '/finance', '/employees', '/team', '/my-jobs'] },
+  { label: 'Manage', paths: ['/vendors', '/costing', '/gst-register', '/finance', '/employees', '/audit-log', '/team', '/my-jobs'] },
 ];
 
 interface AppSidebarProps { open: boolean; onClose: () => void; }
