@@ -1,8 +1,9 @@
 import { useCRM } from '@/contexts/CRMContext';
+import { useOrders } from '@/hooks/useOrders';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
 export function MarginDistributionChart() {
-  const { orders } = useCRM();
+  const { data: orders = [] } = useOrders();
 
   // Calculate margin distribution
   const margins = orders

@@ -1,8 +1,9 @@
 import { useCRM } from '@/contexts/CRMContext';
+import { useOrders } from '@/hooks/useOrders';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export function ProfitTrendChart() {
-  const { orders } = useCRM();
+  const { data: orders = [] } = useOrders();
 
   // Group profits by date
   const profitByDate = orders

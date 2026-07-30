@@ -2,6 +2,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useClients } from '@/hooks/useClients';
 import { useVendors } from '@/hooks/useVendors';
+import { useOrders } from '@/hooks/useOrders';
+import { useOrderEngineers } from '@/hooks/useOrderEngineers';
+import { useRFQs } from '@/hooks/useRFQs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -39,9 +42,12 @@ const commColors: Record<CommissioningStatus, string> = {
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, orderEngineers, rfqs, users, updateOrderStatus, addOrderEngineer, getNextOrderStatus, getClientName, getVendorName, getUserName, updateOrder, deleteOrder } = useCRM();
+  const { users, updateOrderStatus, addOrderEngineer, getNextOrderStatus, getClientName, getVendorName, getUserName, updateOrder, deleteOrder } = useCRM();
   const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { data: vendors = [], isLoading: vendorsLoading } = useVendors();
+  const { data: orders = [] } = useOrders();
+  const { data: orderEngineers = [] } = useOrderEngineers();
+  const { data: rfqs = [] } = useRFQs();
   const { isAdmin, isSales } = useAuth();
   const confirm = useConfirm();
 

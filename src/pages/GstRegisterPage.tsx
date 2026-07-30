@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
+import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -75,7 +76,8 @@ const toInput = (f: FormState): CreateGstInvoiceInput => ({
 });
 
 export default function GstRegisterPage() {
-  const { gstInvoices, orders, addGstInvoice, updateGstInvoice, deleteGstInvoice, getClientName, getVendorName, loading } = useCRM();
+  const { gstInvoices, addGstInvoice, updateGstInvoice, deleteGstInvoice, getClientName, getVendorName, loading } = useCRM();
+  const { data: orders = [] } = useOrders();
   const { user } = useAuth();
   const confirm = useConfirm();
 

@@ -4,6 +4,12 @@ import { supabase } from '@/lib/supabase';
 import { useClientsQuery, CLIENTS_QUERY_KEY } from '@/hooks/useClients';
 import { useVendorsQuery } from '@/hooks/useVendors';
 import { PROSPECTS_QUERY_KEY } from '@/hooks/useProspects';
+import { useOrdersQuery, ORDERS_QUERY_KEY } from '@/hooks/useOrders';
+import { useRFQsQuery, RFQS_QUERY_KEY } from '@/hooks/useRFQs';
+import { useOrderEngineersQuery, ORDER_ENGINEERS_QUERY_KEY } from '@/hooks/useOrderEngineers';
+import { useSupplierInquiriesQuery, SUPPLIER_INQUIRIES_QUERY_KEY } from '@/hooks/useSupplierInquiries';
+import { useSupplierQuotesQuery, SUPPLIER_QUOTES_QUERY_KEY } from '@/hooks/useSupplierQuotes';
+import { useRFQLineItemsQuery, RFQ_LINE_ITEMS_QUERY_KEY } from '@/hooks/useRFQLineItems';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -83,12 +89,12 @@ interface CRMContextType {
   // getClientName/getVendorName stay here (12+ consumers), backed by the
   // same React Query cache. addProspect stays (fires autoFollowUp);
   // deleteClient stays (unlinks context-held RFQs/orders/follow-ups).
-  orders: Order[];
-  orderEngineers: OrderEngineer[];
-  rfqs: RFQ[];
-  supplierInquiries: SupplierInquiry[];
-  supplierQuotes: SupplierQuote[];
-  rfqLineItems: RFQLineItem[];
+  // orders/orderEngineers/rfqs/supplierInquiries/supplierQuotes/rfqLineItems
+  // arrays moved to src/hooks/useOrders.ts / useRFQs.ts / useOrderEngineers.ts
+  // / useSupplierInquiries.ts / useSupplierQuotes.ts / useRFQLineItems.ts
+  // (T2-3) -- but unlike T2-2, ALL of this domain's mutations stay here
+  // (below) since they're too cross-coupled with autoFollowUp/vendors/
+  // clients/RFQ<->order conversion to move out cleanly.
   getUserName: (userId: string) => string;
   getClientName: (clientId: string | null) => string;
   getVendorName: (vendorId: string) => string;
@@ -225,7 +231,7 @@ const CRMContext = createContext<CRMContextType | null>(null);
 
 export function CRMProvider({ children }: { children: React.ReactNode }) {
   const { user: authUser, isAdmin, isSales } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const [baseLoading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
   // clients/vendors are READ here from the shared React Query cache (query-only
   // variants: no app-lifetime realtime channel) for getClientName/getVendorName,
@@ -234,12 +240,23 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const { data: clients = [] } = useClientsQuery();
   const { data: vendors = [] } = useVendorsQuery();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [orderEngineers, setOrderEngineers] = useState<OrderEngineer[]>([]);
-  const [rfqs, setRFQs] = useState<RFQ[]>([]);
-  const [supplierInquiries, setSupplierInquiries] = useState<SupplierInquiry[]>([]);
-  const [supplierQuotes, setSupplierQuotes] = useState<SupplierQuote[]>([]);
-  const [rfqLineItems, setRFQLineItems] = useState<RFQLineItem[]>([]);
+  // orders/rfqs/orderEngineers/supplierInquiries/supplierQuotes/rfqLineItems:
+  // same query-only pattern as clients/vendors above (T2-3). Unlike T2-2,
+  // ALL of this domain's mutations stay here too -- addOrder/updateRFQStatus/
+  // convertRFQToOrder/etc. are too deeply cross-coupled (autoFollowUp, vendor/
+  // client cross-refs, RFQ->order conversion) to move out cleanly. See
+  // docs/REACT_QUERY_PATTERN.md.
+  const { data: orders = [], isLoading: ordersLoading } = useOrdersQuery();
+  const { data: orderEngineers = [], isLoading: oeLoading } = useOrderEngineersQuery();
+  const { data: rfqs = [], isLoading: rfqsLoading } = useRFQsQuery();
+  const { data: supplierInquiries = [], isLoading: inquiriesLoading } = useSupplierInquiriesQuery();
+  const { data: supplierQuotes = [], isLoading: quotesLoading } = useSupplierQuotesQuery();
+  const { data: rfqLineItems = [], isLoading: lineItemsLoading } = useRFQLineItemsQuery();
+  // `loading` used to cover these six domains via the single Promise.all
+  // below; now it's an aggregate of that plus their independent queries, so
+  // every existing `if (loading) return <Skeleton />` consumer keeps working
+  // unchanged instead of flashing an empty rfqs/orders list.
+  const loading = baseLoading || ordersLoading || oeLoading || rfqsLoading || inquiriesLoading || quotesLoading || lineItemsLoading;
   const [followUpActions, setFollowUpActions] = useState<FollowUpAction[]>([]);
 
   // Bookkeeping state
@@ -262,12 +279,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const load = async () => {
       const [
         { data: usersData },
-        { data: ordersData },
-        { data: oeData },
-        { data: rfqsData },
-        { data: inquiriesData },
-        { data: quotesData },
-        { data: lineItemsData },
         { data: actionsData },
         { data: invoicesData },
         { data: expensesData },
@@ -281,13 +292,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         { data: gstInvoicesData },
       ] = await Promise.all([
         supabase.from('users').select('*').order('name'),
-        // clients/prospects/vendors load via their T2-2 React Query hooks
-        supabase.from('orders').select('*').order('created_at', { ascending: false }),
-        supabase.from('order_engineers').select('*'),
-        supabase.from('rfqs').select('*').order('created_at', { ascending: false }),
-        supabase.from('supplier_inquiries').select('*').order('sent_at', { ascending: false }),
-        supabase.from('supplier_quotes').select('*').order('received_at', { ascending: false }),
-        supabase.from('rfq_line_items').select('*'),
+        // clients/prospects/vendors/orders/rfqs/orderEngineers/
+        // supplierInquiries/supplierQuotes/rfqLineItems load via their
+        // T2-2/T2-3 React Query hooks
         // Load ALL actions (not just pending) — completed ones feed
         // getPatternInsights; every UI consumer filters status itself.
         supabase.from('follow_up_actions').select('*').order('due_date', { ascending: true }),
@@ -303,18 +310,6 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         (isAdmin || isSales) ? supabase.from('gst_invoices').select('*').order('invoice_date', { ascending: false }).then(res => res, () => ({ data: null })) : emptyResult,
       ]);
       setUsers((usersData ?? []) as unknown as User[]);
-      // Safety net: the historical import used a legacy status 'completed'
-      // (settled orders) that isn't in the app lifecycle. Normalize it to
-      // 'payment_received' on load so it isn't counted as payment-pending.
-      // No-op once the 20260711_fix_legacy_order_statuses migration has run.
-      setOrders(((ordersData ?? []) as unknown as Order[]).map(o =>
-        (o.status as string) === 'completed' ? { ...o, status: 'payment_received' as OrderStatus } : o
-      ));
-      setOrderEngineers((oeData ?? []) as unknown as OrderEngineer[]);
-      setRFQs((rfqsData ?? []) as unknown as RFQ[]);
-      setSupplierInquiries((inquiriesData ?? []) as unknown as SupplierInquiry[]);
-      setSupplierQuotes((quotesData ?? []) as unknown as SupplierQuote[]);
-      setRFQLineItems((lineItemsData ?? []) as unknown as RFQLineItem[]);
       setFollowUpActions((actionsData ?? []) as unknown as FollowUpAction[]);
       setInvoices((invoicesData ?? []) as unknown as Invoice[]);
       setExpenses((expensesData ?? []) as unknown as Expense[]);
@@ -331,98 +326,10 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       // ===== SUPABASE REALTIME SUBSCRIPTIONS =====
       const channel = supabase.channel('crm-changes');
 
-      // clients/prospects/vendors realtime moved to their T2-2 hooks --
-      // each subscribes only while a page using the domain is mounted.
-
-      // Subscribe to orders changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setOrders(prev => addUnique(prev, payload.new as unknown as Order, 'id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new as unknown as Order : o));
-          } else if (payload.eventType === 'DELETE') {
-            setOrders(prev => prev.filter(o => o.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to order_engineers changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_engineers' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setOrderEngineers(prev => addUnique(prev, payload.new as unknown as OrderEngineer, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setOrderEngineers(prev => prev.map(oe => oe.id === payload.new.id ? payload.new as unknown as OrderEngineer : oe));
-          } else if (payload.eventType === 'DELETE') {
-            setOrderEngineers(prev => prev.filter(oe => oe.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to rfqs changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'rfqs' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setRFQs(prev => addUnique(prev, payload.new as unknown as RFQ, 'id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setRFQs(prev => prev.map(r => r.id === payload.new.id ? payload.new as unknown as RFQ : r));
-          } else if (payload.eventType === 'DELETE') {
-            setRFQs(prev => prev.filter(r => r.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to supplier_inquiries changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'supplier_inquiries' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setSupplierInquiries(prev => addUnique(prev, payload.new as unknown as SupplierInquiry, 'id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setSupplierInquiries(prev => prev.map(si => si.id === payload.new.id ? payload.new as unknown as SupplierInquiry : si));
-          } else if (payload.eventType === 'DELETE') {
-            setSupplierInquiries(prev => prev.filter(si => si.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to supplier_quotes changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'supplier_quotes' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setSupplierQuotes(prev => addUnique(prev, payload.new as unknown as SupplierQuote, 'id', true));
-          } else if (payload.eventType === 'UPDATE') {
-            setSupplierQuotes(prev => prev.map(sq => sq.id === payload.new.id ? payload.new as unknown as SupplierQuote : sq));
-          } else if (payload.eventType === 'DELETE') {
-            setSupplierQuotes(prev => prev.filter(sq => sq.id !== payload.old.id));
-          }
-        }
-      );
-
-      // Subscribe to rfq_line_items changes
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'rfq_line_items' },
-        (payload: RealtimePayload) => {
-          if (payload.eventType === 'INSERT') {
-            setRFQLineItems(prev => addUnique(prev, payload.new as unknown as RFQLineItem, 'id'));
-          } else if (payload.eventType === 'UPDATE') {
-            setRFQLineItems(prev => prev.map(li => li.id === payload.new.id ? payload.new as unknown as RFQLineItem : li));
-          } else if (payload.eventType === 'DELETE') {
-            setRFQLineItems(prev => prev.filter(li => li.id !== payload.old.id));
-          }
-        }
-      );
+      // clients/prospects/vendors realtime moved to their T2-2 hooks; orders/
+      // orderEngineers/rfqs/supplierInquiries/supplierQuotes/rfqLineItems
+      // moved to their T2-3 hooks -- each subscribes only while a page using
+      // the domain is mounted.
 
       // Subscribe to follow_up_actions changes
       channel.on(
@@ -740,14 +647,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.from('orders').insert(o).select().single();
     if (error || !data) throw new Error('Failed to create order');
     const order = data as Order;
-    setOrders(prev => [order, ...prev]);
+    queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
     return order;
-  }, [clients]);
+  }, [clients, queryClient]);
 
   const addOrderEngineer = useCallback(async (oe: Omit<OrderEngineer, 'id'>) => {
-    const { data } = await supabase.from('order_engineers').insert(oe).select().single();
-    if (data) setOrderEngineers(prev => [...prev, data as OrderEngineer]);
-  }, []);
+    const { error } = await supabase.from('order_engineers').insert(oe).select().single();
+    if (!error) queryClient.invalidateQueries({ queryKey: ORDER_ENGINEERS_QUERY_KEY });
+  }, [queryClient]);
 
   // convertProspect moved to useConvertProspect (src/hooks/useProspects.ts),
   // which also fixes its stale-local-state read of the prospect row.
@@ -773,9 +680,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       updates.payment_due_date = businessDaysFromNow(paymentTerms);
     }
 
-    const { data } = await supabase.from('orders').update(updates).eq('id', orderId).select().single();
-    if (data) {
-      setOrders(prev => prev.map(o => o.id === orderId ? data as Order : o));
+    const { data, error } = await supabase.from('orders').update(updates).eq('id', orderId).select().single();
+    if (!error && data) {
+      queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
 
       // Auto-trigger: delivered → follow up on payment after payment terms window
       if (status === 'delivered') {
@@ -791,22 +698,22 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
-  }, [orders, autoFollowUp]);
+  }, [orders, autoFollowUp, queryClient]);
 
   const updateCommissioningStatus = useCallback(async (oeId: string, status: CommissioningStatus) => {
-    const { data } = await supabase
+    const { error } = await supabase
       .from('order_engineers')
       .update({ commissioning_status: status })
       .eq('id', oeId)
       .select()
       .single();
-    if (data) setOrderEngineers(prev => prev.map(oe => oe.id === oeId ? data as OrderEngineer : oe));
-  }, []);
+    if (!error) queryClient.invalidateQueries({ queryKey: ORDER_ENGINEERS_QUERY_KEY });
+  }, [queryClient]);
 
   const addRFQ = useCallback(async (rfq: Omit<RFQ, 'id' | 'converted_order_id'>) => {
     const { data } = await supabase.from('rfqs').insert({ ...rfq, converted_order_id: null }).select().single();
     if (data) {
-      setRFQs(prev => [data as RFQ, ...prev]);
+      queryClient.invalidateQueries({ queryKey: RFQS_QUERY_KEY });
       // Auto-trigger: new RFQ received → float to supplier
       autoFollowUp({
         title: `Float RFQ to supplier — ${rfq.company_name}`,
@@ -818,7 +725,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         daysFromNow: 1,
       });
     }
-  }, [autoFollowUp]);
+  }, [autoFollowUp, queryClient]);
 
   const updateRFQStatus = useCallback(async (rfqId: string, status: RFQStatus) => {
     const rfq = rfqs.find(r => r.id === rfqId);
@@ -828,7 +735,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }
     const { data } = await supabase.from('rfqs').update(updates).eq('id', rfqId).select().single();
     if (data) {
-      setRFQs(prev => prev.map(r => r.id === rfqId ? data as RFQ : r));
+      queryClient.invalidateQueries({ queryKey: RFQS_QUERY_KEY });
       // Auto-trigger: RFQ quoted → follow up with client in 3 days
       if (status === 'quoted' && rfq) {
         autoFollowUp({
@@ -842,12 +749,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
-  }, [rfqs, autoFollowUp]);
+  }, [rfqs, autoFollowUp, queryClient]);
 
   const updateRFQPriority = useCallback(async (rfqId: string, priority: RFQPriority) => {
-    const { data } = await supabase.from('rfqs').update({ priority }).eq('id', rfqId).select().single();
-    if (data) setRFQs(prev => prev.map(r => r.id === rfqId ? data as RFQ : r));
-  }, []);
+    const { error } = await supabase.from('rfqs').update({ priority }).eq('id', rfqId).select().single();
+    if (!error) queryClient.invalidateQueries({ queryKey: RFQS_QUERY_KEY });
+  }, [queryClient]);
 
   const convertRFQToOrder = useCallback(async (
     rfqId: string,
@@ -877,8 +784,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     }).single();
     if (orderError || !newOrder) throw new Error(orderError?.message || 'Failed to create order');
     const order = newOrder as unknown as Order;
-    setOrders(prev => [order, ...prev]);
-    setRFQs(prev => prev.map(r => r.id === rfqId ? { ...r, status: 'converted' as const, converted_order_id: order.id } : r));
+    queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: RFQS_QUERY_KEY });
     // Auto-trigger: order created → pay supplier within 5 days to move to procurement
     const vendor = vendors.find(v => v.id === orderData.vendor_id);
     autoFollowUp({
@@ -890,12 +797,12 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
       priority: 'high',
       daysFromNow: 5,
     });
-  }, [vendors, autoFollowUp]);
+  }, [vendors, autoFollowUp, queryClient]);
 
   const addSupplierInquiry = useCallback(async (inquiry: Omit<SupplierInquiry, 'id'>) => {
     const { data } = await supabase.from('supplier_inquiries').insert(inquiry).select().single();
     if (data) {
-      setSupplierInquiries(prev => [data as SupplierInquiry, ...prev]);
+      queryClient.invalidateQueries({ queryKey: SUPPLIER_INQUIRIES_QUERY_KEY });
       // Auto-trigger: inquiry sent → follow up for supplier response in 48 hours
       const vendor = vendors.find(v => v.id === inquiry.vendor_id);
       const rfq = rfqs.find(r => r.id === inquiry.rfq_id);
@@ -909,58 +816,58 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         daysFromNow: 2, // 48 hours
       });
     }
-  }, [vendors, rfqs, autoFollowUp]);
+  }, [vendors, rfqs, autoFollowUp, queryClient]);
 
   const addSupplierQuote = useCallback(async (quote: Omit<SupplierQuote, 'id'>) => {
-    const { data } = await supabase.from('supplier_quotes').insert(quote).select().single();
-    if (data) setSupplierQuotes(prev => [data as SupplierQuote, ...prev]);
-  }, []);
+    const { error } = await supabase.from('supplier_quotes').insert(quote).select().single();
+    if (!error) queryClient.invalidateQueries({ queryKey: SUPPLIER_QUOTES_QUERY_KEY });
+  }, [queryClient]);
 
   const updateSupplierQuote = useCallback(async (quoteId: string, updates: Partial<Omit<SupplierQuote, 'id'>>) => {
-    const { data } = await supabase
+    const { error } = await supabase
       .from('supplier_quotes')
       .update(updates)
       .eq('id', quoteId)
       .select()
       .single();
-    if (data) setSupplierQuotes(prev => prev.map(sq => sq.id === quoteId ? data as SupplierQuote : sq));
-  }, []);
+    if (!error) queryClient.invalidateQueries({ queryKey: SUPPLIER_QUOTES_QUERY_KEY });
+  }, [queryClient]);
 
   const addRFQLineItem = useCallback(async (item: Omit<RFQLineItem, 'id'>) => {
-    const { data } = await supabase.from('rfq_line_items').insert(item).select().single();
-    if (data) setRFQLineItems(prev => [...prev, data as RFQLineItem]);
-  }, []);
+    const { error } = await supabase.from('rfq_line_items').insert(item).select().single();
+    if (!error) queryClient.invalidateQueries({ queryKey: RFQ_LINE_ITEMS_QUERY_KEY });
+  }, [queryClient]);
 
   const updateRFQLineItem = useCallback(async (id: string, updates: Partial<Pick<RFQLineItem, 'product_type' | 'quantity' | 'specification'>>) => {
-    const { data } = await supabase.from('rfq_line_items').update(updates).eq('id', id).select().single();
-    if (data) setRFQLineItems(prev => prev.map(li => li.id === id ? data as RFQLineItem : li));
-  }, []);
+    const { error } = await supabase.from('rfq_line_items').update(updates).eq('id', id).select().single();
+    if (!error) queryClient.invalidateQueries({ queryKey: RFQ_LINE_ITEMS_QUERY_KEY });
+  }, [queryClient]);
 
   const deleteRFQLineItem = useCallback(async (id: string) => {
     const { error } = await supabase.from('rfq_line_items').delete().eq('id', id);
     if (error) throw new Error(`Failed to delete line item: ${error.message}`);
-    setRFQLineItems(prev => prev.filter(li => li.id !== id));
-  }, []);
+    queryClient.invalidateQueries({ queryKey: RFQ_LINE_ITEMS_QUERY_KEY });
+  }, [queryClient]);
 
   const updateInquiryStatus = useCallback(async (inquiryId: string, status: SupplierInquiryStatus) => {
-    const { data } = await supabase
+    const { error } = await supabase
       .from('supplier_inquiries')
       .update({ status })
       .eq('id', inquiryId)
       .select()
       .single();
-    if (data) setSupplierInquiries(prev => prev.map(si => si.id === inquiryId ? data as SupplierInquiry : si));
-  }, []);
+    if (!error) queryClient.invalidateQueries({ queryKey: SUPPLIER_INQUIRIES_QUERY_KEY });
+  }, [queryClient]);
 
   const updateSupplierInquiry = useCallback(async (inquiryId: string, updates: Partial<Omit<SupplierInquiry, 'id'>>) => {
-    const { data } = await supabase
+    const { error } = await supabase
       .from('supplier_inquiries')
       .update(updates)
       .eq('id', inquiryId)
       .select()
       .single();
-    if (data) setSupplierInquiries(prev => prev.map(si => si.id === inquiryId ? data as SupplierInquiry : si));
-  }, []);
+    if (!error) queryClient.invalidateQueries({ queryKey: SUPPLIER_INQUIRIES_QUERY_KEY });
+  }, [queryClient]);
 
   const getRFQMetrics = useCallback((dateStr: string) => {
     const rfqsToday = rfqs.filter(r => r.rfq_date === dateStr);
@@ -982,24 +889,24 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, [rfqs, supplierInquiries, supplierQuotes]);
 
   const updateRFQ = useCallback(async (rfqId: string, updates: Partial<Omit<RFQ, 'id' | 'converted_order_id'>>) => {
-    const { data } = await supabase
+    const { error } = await supabase
       .from('rfqs')
       .update(updates)
       .eq('id', rfqId)
       .select()
       .single();
-    if (data) setRFQs(prev => prev.map(r => r.id === rfqId ? data as RFQ : r));
-  }, []);
+    if (!error) queryClient.invalidateQueries({ queryKey: RFQS_QUERY_KEY });
+  }, [queryClient]);
 
   const updateOrder = useCallback(async (orderId: string, updates: Partial<Omit<Order, 'id' | 'rfq_id'>>) => {
-    const { data } = await supabase
+    const { error } = await supabase
       .from('orders')
       .update(updates)
       .eq('id', orderId)
       .select()
       .single();
-    if (data) setOrders(prev => prev.map(o => o.id === orderId ? data as Order : o));
-  }, []);
+    if (!error) queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
+  }, [queryClient]);
 
   const deleteRFQ = useCallback(async (rfqId: string) => {
     // Delete all follow-up actions for this RFQ from database
@@ -1009,9 +916,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.from('rfqs').delete().eq('id', rfqId);
     if (error) throw new Error(`Failed to delete RFQ: ${error.message}`);
 
-    setRFQs(prev => prev.filter(r => r.id !== rfqId));
+    queryClient.invalidateQueries({ queryKey: RFQS_QUERY_KEY });
     setFollowUpActions(prev => prev.filter(a => !(a.entity_id === rfqId && a.entity_type === 'rfq')));
-  }, []);
+  }, [queryClient]);
 
   const deleteOrder = useCallback(async (orderId: string) => {
     // Delete all follow-up actions for this order from database
@@ -1033,13 +940,13 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
           .update({ status: 'quoted', converted_order_id: null })
           .eq('id', order.rfq_id);
         if (rfqError) console.error('Failed to reset RFQ after order delete:', rfqError.message);
-        else setRFQs(prev => prev.map(r => r.id === order.rfq_id ? { ...r, status: 'quoted' as RFQStatus, converted_order_id: null } : r));
+        else queryClient.invalidateQueries({ queryKey: RFQS_QUERY_KEY });
       }
     }
 
-    setOrders(prev => prev.filter(o => o.id !== orderId));
+    queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
     setFollowUpActions(prev => prev.filter(a => !(a.entity_id === orderId && a.entity_type === 'order')));
-  }, [orders]);
+  }, [orders, queryClient]);
 
   const deleteClient = useCallback(async (clientId: string) => {
     // RFQs/orders are NOT deleted here -- orders.client_id and rfqs.client_id
@@ -1055,8 +962,8 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     if (error) throw new Error(`Failed to delete client: ${error.message}`);
 
     queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY });
-    setRFQs(prev => prev.map(r => r.client_id === clientId ? { ...r, client_id: null } : r));
-    setOrders(prev => prev.map(o => o.client_id === clientId ? { ...o, client_id: null } : o));
+    queryClient.invalidateQueries({ queryKey: RFQS_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
     setFollowUpActions(prev => prev.filter(a => !(a.entity_id === clientId && a.entity_type === 'client')));
   }, [queryClient]);
 
@@ -1688,19 +1595,14 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
-      // Update local state
-      setOrders(prev => prev.map(o =>
-        o.id === orderId
-          ? { ...o, ...costs }
-          : o
-      ));
+      queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
 
       return { success: true };
     } catch (error) {
       console.error('Error updating order costs:', error);
       return { success: false, error };
     }
-  }, []);
+  }, [queryClient]);
 
   const getOrderWithProfitability = useCallback(async (orderId: string) => {
     try {
@@ -1858,13 +1760,11 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
-      setSupplierQuotes(prev => prev.map(q =>
-        q.id === quoteId ? { ...q, is_recommended: isRecommended } : q
-      ));
+      queryClient.invalidateQueries({ queryKey: SUPPLIER_QUOTES_QUERY_KEY });
     } catch (error) {
       console.error('Error updating quote recommendation:', error);
     }
-  }, []);
+  }, [queryClient]);
 
   const getRecommendedQuote = useCallback(async (rfqId: string) => {
     try {
@@ -2175,8 +2075,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   // consumer in the app on EVERY render of the provider. All functions are
   // useCallback-wrapped, so listing them as deps keeps this stable.
   const contextValue = useMemo(() => ({
-    loading, users, orders, orderEngineers, rfqs,
-    supplierInquiries, supplierQuotes, rfqLineItems,
+    loading, users,
     getUserName, getClientName, getVendorName,
     addProspect, addOrder, addOrderEngineer,
     updateOrderStatus, updateCommissioningStatus,
@@ -2204,8 +2103,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     deleteFollowUp, getOverdueFollowUps, getFollowUpsForEntity, getUserWorkload,
     applySequence, getRecentActivity, getPatternInsights,
   }), [
-    loading, users, orders, orderEngineers, rfqs,
-    supplierInquiries, supplierQuotes, rfqLineItems,
+    loading, users,
     getUserName, getClientName, getVendorName,
     addProspect, addOrder, addOrderEngineer,
     updateOrderStatus, updateCommissioningStatus,

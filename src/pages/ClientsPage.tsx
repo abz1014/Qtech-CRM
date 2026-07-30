@@ -4,6 +4,7 @@ import { useState, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useClients, useAddClient } from '@/hooks/useClients';
+import { useRFQs } from '@/hooks/useRFQs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -25,8 +26,9 @@ const rfqStatusColors: Record<RFQStatus, string> = {
 
 export default function ClientsPage() {
   const navigate = useNavigate();
-  const { deleteClient, rfqs, loading } = useCRM();
+  const { deleteClient, loading } = useCRM();
   const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const { data: rfqs = [] } = useRFQs();
   const addClient = useAddClient();
   const { user, isAdmin } = useAuth();
   const [showForm, setShowForm] = useState(false);

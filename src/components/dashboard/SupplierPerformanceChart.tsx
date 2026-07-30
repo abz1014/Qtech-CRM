@@ -1,9 +1,11 @@
 import { useCRM } from '@/contexts/CRMContext';
+import { useOrders } from '@/hooks/useOrders';
 import { useVendors } from '@/hooks/useVendors';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export function SupplierPerformanceChart() {
-  const { orders, getVendorName } = useCRM();
+  const { getVendorName } = useCRM();
+  const { data: orders = [] } = useOrders();
   const { data: vendors = [] } = useVendors();
 
   // Calculate vendor metrics

@@ -75,6 +75,49 @@ the state out of habit.
   hook invalidating both keys (`useConvertProspect` → prospects + clients),
   and read their inputs fresh from the DB, not from a cached copy.
 
+## Additions from T2-3 (rfqs / orders / orderEngineers / supplierInquiries / supplierQuotes / rfqLineItems)
+
+The RFQ/order domain took the "cross-domain stays in context" exception from
+T2-2 much further: **every mutation stayed in `CRMContext`**, not just one or
+two. Only the six arrays' state, initial load, and realtime subscriptions
+moved out.
+
+Why: `addOrder`, `updateOrderStatus`, `addRFQ`, `updateRFQStatus`,
+`convertRFQToOrder`, `addSupplierInquiry`, and the rest all read across
+multiple domains in one function body (`vendors.find(...)`,
+`clients.find(...)`, `rfqs.find(...)`, `orders.find(...)`) and fire
+`autoFollowUp(...)`, which itself owns `followUpActions` state. Splitting
+these into per-domain mutation hooks would mean either (a) threading five
+other domains' data into six new hook files as parameters, which just moves
+the coupling rather than removing it, or (b) a real redesign of the
+auto-follow-up engine — out of scope for a data-layer migration.
+
+**The resulting shape differs from T2-1/T2-2:**
+- `useOrders.ts` / `useRFQs.ts` / etc. export only a query-only variant
+  (`useXQuery()`, no realtime — used internally by `CRMContext`) and a
+  view-scoped realtime variant (`useX()` — used by every page). No mutation
+  hooks in these files at all.
+- `CRMContext` reads all six via the query-only variants (replacing their old
+  `useState`), and every mutation function that used to call `setOrders`/
+  `setRFQs`/etc. now calls `queryClient.invalidateQueries({ queryKey: ... })`
+  instead — same function, same call sites for every consumer, zero
+  `.mutate`/`.mutateAsync` conversions needed anywhere (unlike T2-2).
+- The context's own `loading` flag became an aggregate:
+  `baseLoading || ordersLoading || rfqsLoading || ...` for these six queries,
+  so every existing `if (loading) return <Skeleton />` consumer kept working
+  without modification — the six domains used to load as part of the same
+  `Promise.all` `loading` already covered.
+
+**Loading-gate rule of thumb, applied per consumer page:** if the array is
+the page's core render content (the table body, the KPI math, the dropdown
+whose absence blocks a required `<select>`), merge the hook's `isLoading`
+into that page's own loading gate. If it's a supplementary lookup (a label
+on a follow-up card, a linked-order info panel) that degrades gracefully to
+an empty/zero state while loading, don't — gating the whole page on a
+side lookup just delays the page for no user benefit. Get this wrong and
+either the page flashes empty/zero data it used to load synchronously, or a
+required dropdown briefly renders with no options.
+
 ## What stays out of scope until later tickets
 
 - Server-side pagination/filtering: not needed for small tables (employees);

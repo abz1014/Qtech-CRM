@@ -2,6 +2,10 @@ import { toast } from 'sonner';
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useRFQs } from '@/hooks/useRFQs';
+import { useOrders } from '@/hooks/useOrders';
+import { useSupplierInquiries } from '@/hooks/useSupplierInquiries';
+import { useSupplierQuotes } from '@/hooks/useSupplierQuotes';
 import { BarChart3, Calendar, Download, Filter, ChevronRight } from 'lucide-react';
 import { formatDate, formatPKR } from '@/lib/format';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
@@ -16,7 +20,11 @@ interface FilterState {
 
 export function DailyRFQReportPage() {
   const navigate = useNavigate();
-  const { rfqs, supplierInquiries, supplierQuotes, orders, getClientName, getUserName } = useCRM();
+  const { getClientName, getUserName } = useCRM();
+  const { data: rfqs = [] } = useRFQs();
+  const { data: supplierInquiries = [] } = useSupplierInquiries();
+  const { data: supplierQuotes = [] } = useSupplierQuotes();
+  const { data: orders = [] } = useOrders();
   const today = businessToday();
 
   const [filters, setFilters] = useState<FilterState>({

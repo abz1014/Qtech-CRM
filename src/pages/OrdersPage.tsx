@@ -6,6 +6,7 @@ import { usePersistedNumber } from '@/hooks/useURLState';
 import { useCRM } from '@/contexts/CRMContext';
 import { useClients } from '@/hooks/useClients';
 import { useVendors, useAddVendor } from '@/hooks/useVendors';
+import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/contexts/AuthContext';
 import { Pagination } from '@/components/Pagination';
 import { formatPKR } from '@/lib/format';
@@ -35,9 +36,10 @@ const statusLabels: Record<string, string> = {
 const productTypes: ProductType[] = ['DVR', 'SVG', 'AHF', 'Automation', 'Software'];
 
 export default function OrdersPage() {
-  const { orders, addOrder, updateOrder, deleteOrder, getClientName, getVendorName, getUserName, loading } = useCRM();
+  const { addOrder, updateOrder, deleteOrder, getClientName, getVendorName, getUserName, loading } = useCRM();
   const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { data: vendors = [], isLoading: vendorsLoading } = useVendors();
+  const { data: orders = [], isLoading: ordersLoading } = useOrders();
   const addVendorMutation = useAddVendor();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -87,7 +89,9 @@ export default function OrdersPage() {
   // vendors also feeds handleSubmit's reuse-vs-create dedupe check, so the
   // form must not be reachable until the vendors query has settled -- the
   // pre-T2-2 context load gave that guarantee via `loading` alone.
-  if (loading || clientsLoading || vendorsLoading) return <TableSkeleton cols={6} rows={8} headers={['PO #', 'Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
+  // orders is the core dataset this whole page renders (table/cards/CSV
+  // export/total count), so its loading state joins the gate too (T2-3).
+  if (loading || clientsLoading || vendorsLoading || ordersLoading) return <TableSkeleton cols={6} rows={8} headers={['PO #', 'Client', 'Vendor', 'Product', 'Order Value', 'Status']} />;
 
   const paginatedOrders = filtered.slice(
     (currentPage - 1) * itemsPerPage,

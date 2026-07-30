@@ -1,4 +1,5 @@
 import { useCRM } from '@/contexts/CRMContext';
+import { useOrders } from '@/hooks/useOrders';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { OrderStatus } from '@/types/crm';
 
@@ -11,7 +12,7 @@ const statusColors: Record<OrderStatus, string> = {
 };
 
 export function OrderHealthChart() {
-  const { orders } = useCRM();
+  const { data: orders = [] } = useOrders();
 
   // Count orders by status
   const statusCounts = orders.reduce((acc, order) => {

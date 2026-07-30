@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useVendors, useAddVendor, useUpdateVendor, useDeleteVendor } from '@/hooks/useVendors';
+import { useOrders } from '@/hooks/useOrders';
+import { useSupplierInquiries } from '@/hooks/useSupplierInquiries';
 import { Pagination } from '@/components/Pagination';
 import { Plus, X, Search, Trash2, Download, Pencil } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,8 +16,10 @@ import { TableSkeleton } from '@/components/ui/skeleton';
 
 export default function VendorsPage() {
   const navigate = useNavigate();
-  const { orders, supplierInquiries, loading } = useCRM();
+  const { loading } = useCRM();
   const { data: vendors = [], isLoading: vendorsLoading } = useVendors();
+  const { data: orders = [] } = useOrders();
+  const { data: supplierInquiries = [] } = useSupplierInquiries();
   const addVendor = useAddVendor();
   const updateVendor = useUpdateVendor();
   const deleteVendor = useDeleteVendor();

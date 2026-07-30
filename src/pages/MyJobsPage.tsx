@@ -1,5 +1,7 @@
 import { useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOrders } from '@/hooks/useOrders';
+import { useOrderEngineers } from '@/hooks/useOrderEngineers';
 
 import { formatDate } from '@/lib/format';
 import { Navigate } from 'react-router-dom';
@@ -13,7 +15,9 @@ const commColors: Record<CommissioningStatus, string> = {
 };
 
 export default function MyJobsPage() {
-  const { orderEngineers, orders, updateCommissioningStatus, getClientName } = useCRM();
+  const { updateCommissioningStatus, getClientName } = useCRM();
+  const { data: orders = [] } = useOrders();
+  const { data: orderEngineers = [] } = useOrderEngineers();
   const { user, isEngineer } = useAuth();
 
   if (!isEngineer) return <Navigate to="/dashboard" replace />;

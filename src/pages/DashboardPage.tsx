@@ -2,6 +2,10 @@ import { Navigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useClients } from '@/hooks/useClients';
 import { useProspects } from '@/hooks/useProspects';
+import { useOrders } from '@/hooks/useOrders';
+import { useRFQs } from '@/hooks/useRFQs';
+import { useSupplierInquiries } from '@/hooks/useSupplierInquiries';
+import { useSupplierQuotes } from '@/hooks/useSupplierQuotes';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Order } from '@/types/crm';
 import { formatPKR } from '@/lib/format';
@@ -13,9 +17,13 @@ import { supabase } from '@/lib/supabase';
 import { businessToday, businessDaysFromNow } from '@/lib/dates';
 
 export default function DashboardPage() {
-  const { orders, rfqs, supplierInquiries, supplierQuotes, followUpActions, getClientName, getVendorName, getUserName, loading } = useCRM();
+  const { followUpActions, getClientName, getVendorName, getUserName, loading } = useCRM();
   const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { data: prospects = [], isLoading: prospectsLoading } = useProspects();
+  const { data: orders = [], isLoading: ordersLoading } = useOrders();
+  const { data: rfqs = [], isLoading: rfqsLoading } = useRFQs();
+  const { data: supplierInquiries = [], isLoading: supplierInquiriesLoading } = useSupplierInquiries();
+  const { data: supplierQuotes = [], isLoading: supplierQuotesLoading } = useSupplierQuotes();
   const { user, isAdmin, isSales } = useAuth();
   const navigate = useNavigate();
 
@@ -268,7 +276,7 @@ export default function DashboardPage() {
   // ══════════════════════════════════════════════════════════════════════════
 
   if (!isAdmin && !isSales) return <Navigate to="/" replace />;
-  if (loading || clientsLoading || prospectsLoading) return <DashboardSkeleton />;
+  if (loading || clientsLoading || prospectsLoading || ordersLoading || rfqsLoading || supplierInquiriesLoading || supplierQuotesLoading) return <DashboardSkeleton />;
 
   const todayKpis = [
     { label: 'RFQs Received', value: last10Metrics.received, icon: FileText, color: 'text-primary' },

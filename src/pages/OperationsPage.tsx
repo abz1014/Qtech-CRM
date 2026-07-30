@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
+import { useRFQs } from '@/hooks/useRFQs';
+import { useOrders } from '@/hooks/useOrders';
+import { useSupplierInquiries } from '@/hooks/useSupplierInquiries';
+import { useSupplierQuotes } from '@/hooks/useSupplierQuotes';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { FileText, Send, MessageSquare, ShoppingCart, AlertTriangle, ChevronRight, X } from 'lucide-react';
@@ -28,7 +32,11 @@ const orderStatusLabel: Record<string, string> = {
 
 export default function OperationsPage() {
   const navigate = useNavigate();
-  const { rfqs, orders, supplierInquiries, supplierQuotes, getClientName, updateOrder } = useCRM();
+  const { getClientName, updateOrder } = useCRM();
+  const { data: rfqs = [] } = useRFQs();
+  const { data: orders = [] } = useOrders();
+  const { data: supplierInquiries = [] } = useSupplierInquiries();
+  const { data: supplierQuotes = [] } = useSupplierQuotes();
   const { isAdmin } = useAuth();
   const confirm = useConfirm();
   const today = businessToday();

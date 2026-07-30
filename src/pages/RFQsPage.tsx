@@ -12,6 +12,10 @@ import { useNavigate } from 'react-router-dom';
 import { usePersistedNumber } from '@/hooks/useURLState';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useClients } from '@/hooks/useClients';
+import { useRFQs } from '@/hooks/useRFQs';
+import { useSupplierInquiries } from '@/hooks/useSupplierInquiries';
+import { useSupplierQuotes } from '@/hooks/useSupplierQuotes';
+import { useRFQLineItems } from '@/hooks/useRFQLineItems';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { lossReasonLabel, lossReasonIcon } from '@/lib/lossReasons';
 
@@ -30,8 +34,12 @@ const priorityColors: Record<RFQPriority, string> = {
 };
 
 export default function RFQsPage() {
-  const { rfqs, users, supplierInquiries, supplierQuotes, rfqLineItems, addRFQ, updateRFQStatus, updateRFQPriority, deleteRFQ, getUserName, loading } = useCRM();
+  const { users, addRFQ, updateRFQStatus, updateRFQPriority, deleteRFQ, getUserName, loading } = useCRM();
   const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const { data: rfqs = [], isLoading: rfqsLoading } = useRFQs();
+  const { data: supplierInquiries = [] } = useSupplierInquiries();
+  const { data: supplierQuotes = [] } = useSupplierQuotes();
+  const { data: rfqLineItems = [] } = useRFQLineItems();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
@@ -128,7 +136,7 @@ export default function RFQsPage() {
     };
   }, [rfqs]);
 
-  if (loading || clientsLoading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Products', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
+  if (loading || clientsLoading || rfqsLoading) return <TableSkeleton cols={7} rows={8} headers={['RFQ #', 'Company', 'Products', 'RFQ Date', 'Status', 'Priority', 'Assigned To']} />;
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedRFQs = filtered.slice(

@@ -1,6 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useCRM } from '@/contexts/CRMContext';
 import { useVendors, useUpdateVendor, useDeleteVendor } from '@/hooks/useVendors';
+import { useOrders } from '@/hooks/useOrders';
+import { useRFQs } from '@/hooks/useRFQs';
+import { useSupplierInquiries } from '@/hooks/useSupplierInquiries';
+import { useSupplierQuotes } from '@/hooks/useSupplierQuotes';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useState, useMemo } from 'react';
@@ -11,8 +14,11 @@ import { formatPKR, formatDate } from '@/lib/format';
 export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { supplierInquiries, supplierQuotes, orders, rfqs } = useCRM();
   const { data: vendors = [] } = useVendors();
+  const { data: supplierInquiries = [] } = useSupplierInquiries();
+  const { data: supplierQuotes = [] } = useSupplierQuotes();
+  const { data: orders = [] } = useOrders();
+  const { data: rfqs = [] } = useRFQs();
   const updateVendor = useUpdateVendor();
   const deleteVendor = useDeleteVendor();
   const { isAdmin } = useAuth();

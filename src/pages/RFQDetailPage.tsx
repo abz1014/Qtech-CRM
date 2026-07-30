@@ -5,6 +5,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useClients } from '@/hooks/useClients';
 import { useVendors, useAddVendor } from '@/hooks/useVendors';
+import { useRFQs } from '@/hooks/useRFQs';
+import { useOrders } from '@/hooks/useOrders';
+import { useSupplierInquiries } from '@/hooks/useSupplierInquiries';
+import { useSupplierQuotes } from '@/hooks/useSupplierQuotes';
+import { useRFQLineItems } from '@/hooks/useRFQLineItems';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -28,7 +33,7 @@ export default function RFQDetailPage() {
   const { isAdmin, isSales, user } = useAuth();
   const confirm = useConfirm();
   const {
-    rfqs, supplierInquiries, supplierQuotes, rfqLineItems, orders, users,
+    users,
     addSupplierInquiry, addSupplierQuote, updateSupplierQuote, addRFQLineItem, updateRFQLineItem, deleteRFQLineItem, updateSupplierInquiry, updateInquiryStatus,
     getVendorName, updateRFQStatus, updateRFQ, deleteRFQ, getClientName, convertRFQToOrder, getUserName,
     getFollowUpsForEntity, calculateValueScore,
@@ -36,6 +41,11 @@ export default function RFQDetailPage() {
   const { data: vendors = [] } = useVendors();
   const { data: clients = [] } = useClients();
   const addVendorMutation = useAddVendor();
+  const { data: rfqs = [] } = useRFQs();
+  const { data: orders = [] } = useOrders();
+  const { data: supplierInquiries = [] } = useSupplierInquiries();
+  const { data: supplierQuotes = [] } = useSupplierQuotes();
+  const { data: rfqLineItems = [] } = useRFQLineItems();
 
   const rfq = rfqs.find(r => r.id === id);
   // All orders linked to this RFQ (supports multiple orders per RFQ)

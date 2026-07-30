@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
+import { useOrders } from '@/hooks/useOrders';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { formatPKR, formatDate } from '@/lib/format';
@@ -106,11 +107,12 @@ const monthLabel = (key: string) => {
 
 export default function FinancePage() {
   const {
-    orders, orderPayments, supplierPayments, expenses,
+    orderPayments, supplierPayments, expenses,
     addOrderPayment, addSupplierPayment, addExpense, deleteExpense,
     recurringExpenses, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense, postRecurringExpenses,
     getClientName, getVendorName,
   } = useCRM();
+  const { data: orders = [] } = useOrders();
   const { user, isAdmin } = useAuth();
   const confirm = useConfirm();
   const navigate = useNavigate();

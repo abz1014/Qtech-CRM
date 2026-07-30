@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
 import { useClients, useUpdateClient } from '@/hooks/useClients';
+import { useOrders } from '@/hooks/useOrders';
+import { useRFQs } from '@/hooks/useRFQs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useState, useEffect, useMemo } from 'react';
@@ -28,8 +30,10 @@ const orderStatusColor: Record<string, string> = {
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { rfqs, orders, deleteClient } = useCRM();
+  const { deleteClient } = useCRM();
   const { data: clients = [] } = useClients();
+  const { data: rfqs = [] } = useRFQs();
+  const { data: orders = [] } = useOrders();
   const updateClient = useUpdateClient();
   const { isAdmin, isSales } = useAuth();
   const confirm = useConfirm();
