@@ -1465,43 +1465,30 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const recordPayment = useCallback(async (payment: CreatePaymentInput, recordedBy: string): Promise<PaymentRecord> => {
-    const { data: paymentData, error: paymentError } = await supabase
-      .from('payment_records')
-      .insert({
-        ...payment,
-        recorded_by: recordedBy,
-      })
-      .select()
-      .single();
-    if (paymentError || !paymentData) throw new Error('Failed to record payment');
-
-    const paymentRecord = paymentData as PaymentRecord;
+    // T1-2 (part 2/3): insert + recompute amount_paid + status update happen
+    // atomically in one Postgres function (record_invoice_payment), which
+    // locks the invoice row first so two concurrent payments on the same
+    // invoice can't race. Previously three separate calls (insert, sum,
+    // updateInvoice) with the same partial-failure exposure as
+    // record_order_payment. See
+    // supabase/migrations/20260730_t1_record_invoice_payment_rpc.sql.
+    const { data, error } = await supabase.rpc('record_invoice_payment', {
+      p_invoice_id: payment.invoice_id,
+      p_amount: payment.amount,
+      p_payment_date: payment.payment_date,
+      p_payment_method: payment.payment_method ?? null,
+      p_notes: payment.notes ?? null,
+      p_recorded_by: recordedBy,
+    }).single();
+    if (error || !data) throw new Error(`Failed to record payment: ${error?.message ?? 'unknown error'}`);
+    const paymentRecord = data as PaymentRecord;
     setPaymentRecords(prev => addUnique(prev, paymentRecord, 'payment_id', true));
-
-    // Recompute amount_paid from the DATABASE (not local state) — local state
-    // was race-prone across concurrent users and could double-count when the
-    // realtime echo landed first.
-    const { data: allPayments } = await supabase
-      .from('payment_records')
-      .select('amount')
-      .eq('invoice_id', payment.invoice_id);
-    const totalPaid = (allPayments ?? []).reduce((sum, p) => sum + p.amount, 0);
-
-    // Compare in paisa to avoid float-equality misses
-    const invoice = invoices.find(inv => inv.invoice_id === payment.invoice_id);
-    let newStatus: 'Pending' | 'Paid' | 'Overdue' | 'Partial' = 'Partial';
-    if (invoice && Math.round(totalPaid * 100) >= Math.round(invoice.invoice_amount * 100)) {
-      newStatus = 'Paid';
-    }
-
-    await updateInvoice(payment.invoice_id, {
-      amount_paid: totalPaid,
-      payment_status: newStatus,
-      payment_method: payment.payment_method,
-    });
-
+    // The invoice's amount_paid/payment_status update is reflected via the
+    // existing `invoices` realtime subscription (isAdmin-gated, but the only
+    // caller of recordPayment is FinancePage, which is itself
+    // RequireRole ['admin'] — so the calling session is always subscribed).
     return paymentRecord;
-  }, [invoices, updateInvoice]);
+  }, []);
 
   const getDashboardMetrics = useCallback((): DashboardMetrics => {
     const todayStr = businessToday();
