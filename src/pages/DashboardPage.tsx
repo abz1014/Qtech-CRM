@@ -361,7 +361,8 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                   {overdueActions.slice(0, 2).map(a => (
                     <span key={a.id}
-                      className="text-[12px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[280px]"
+                      title={a.title}
+                      className="text-[12px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[200px] sm:max-w-[280px]"
                       style={{ background: 'hsl(0 60% 30% / 0.6)', border: '1px solid hsl(0 60% 45% / 0.4)' }}>
                       {a.title}
                     </span>
@@ -414,7 +415,8 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                   {todayActions.slice(0, 2).map(a => (
                     <span key={a.id}
-                      className="text-[12px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[280px]"
+                      title={a.title}
+                      className="text-[12px] font-medium px-2 py-0.5 rounded-md text-white/90 truncate max-w-[200px] sm:max-w-[280px]"
                       style={{ background: 'hsl(30 70% 25% / 0.6)', border: '1px solid hsl(35 60% 45% / 0.4)' }}>
                       {a.title}
                     </span>
