@@ -1,4 +1,3 @@
-import { toast } from 'sonner';
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCRM } from '@/contexts/CRMContext';
@@ -125,51 +124,47 @@ export function DailyRFQReportPage() {
     return str;
   };
 
-  const handleExport = (format: 'csv' | 'pdf') => {
-    if (format === 'csv') {
-      const headers = [
-        'RFQ Date', 'Client', 'Contact Person', 'Phone', 'Email',
-        'Status', 'Priority', 'Assigned To',
-        'Inquiries Sent', 'Quotes Received',
-        'Quoted Price (PKR)', 'Quote Sent Date', 'Quote Expiry Date',
-        'Loss Reason', 'Loss Notes', 'Notes',
-      ];
-      const rows = filteredRFQs.map(rfq => [
-        rfq.rfq_date,
-        getClientName(rfq.client_id),
-        rfq.contact_person,
-        rfq.phone,
-        rfq.email,
-        rfq.status.replace(/_/g, ' ').toUpperCase(),
-        rfq.priority.toUpperCase(),
-        getUserName(rfq.assigned_to),
-        supplierInquiries.filter(si => si.rfq_id === rfq.id).length,
-        supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length,
-        rfq.quoted_price ?? '',
-        rfq.quote_sent_date ?? '',
-        rfq.quote_expiry_date ?? '',
-        rfq.loss_reason?.replace(/_/g, ' ') ?? '',
-        rfq.loss_notes ?? '',
-        rfq.notes || '',
-      ]);
+  const handleExportCSV = () => {
+    const headers = [
+      'RFQ Date', 'Client', 'Contact Person', 'Phone', 'Email',
+      'Status', 'Priority', 'Assigned To',
+      'Inquiries Sent', 'Quotes Received',
+      'Quoted Price (PKR)', 'Quote Sent Date', 'Quote Expiry Date',
+      'Loss Reason', 'Loss Notes', 'Notes',
+    ];
+    const rows = filteredRFQs.map(rfq => [
+      rfq.rfq_date,
+      getClientName(rfq.client_id),
+      rfq.contact_person,
+      rfq.phone,
+      rfq.email,
+      rfq.status.replace(/_/g, ' ').toUpperCase(),
+      rfq.priority.toUpperCase(),
+      getUserName(rfq.assigned_to),
+      supplierInquiries.filter(si => si.rfq_id === rfq.id).length,
+      supplierQuotes.filter(sq => sq.rfq_id === rfq.id).length,
+      rfq.quoted_price ?? '',
+      rfq.quote_sent_date ?? '',
+      rfq.quote_expiry_date ?? '',
+      rfq.loss_reason?.replace(/_/g, ' ') ?? '',
+      rfq.loss_notes ?? '',
+      rfq.notes || '',
+    ]);
 
-      // Sanitize (formula injection) AND escape embedded quotes — an
-      // unescaped " inside a note used to corrupt every following column.
-      const sanitizedRows = rows.map(row =>
-        row.map(cell => sanitizeCSVCell(cell).replace(/"/g, '""'))
-      );
+    // Sanitize (formula injection) AND escape embedded quotes — an
+    // unescaped " inside a note used to corrupt every following column.
+    const sanitizedRows = rows.map(row =>
+      row.map(cell => sanitizeCSVCell(cell).replace(/"/g, '""'))
+    );
 
-      const csv = [headers, ...sanitizedRows]
-        .map(row => row.map(cell => `"${cell}"`).join(','))
-        .join('\n');
+    const csv = [headers, ...sanitizedRows]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
 
-      const element = document.createElement('a');
-      element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
-      element.setAttribute('download', `rfq-report-${today}.csv`);
-      element.click();
-    } else if (format === 'pdf') {
-      toast.info('PDF export coming soon!');
-    }
+    const element = document.createElement('a');
+    element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+    element.setAttribute('download', `rfq-report-${today}.csv`);
+    element.click();
   };
 
   const RFQTable = ({ rfqs, title, isConverted }: { rfqs: RFQ[]; title: string; isConverted?: boolean }) => (
@@ -353,21 +348,14 @@ export function DailyRFQReportPage() {
           </div>
         </div>
 
-        {/* Export Buttons */}
+        {/* Export */}
         <div className="flex gap-2 pt-4 border-t border-border">
           <button
-            onClick={() => handleExport('csv')}
+            onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
           >
             <Download className="w-4 h-4" />
             Export CSV
-          </button>
-          <button
-            onClick={() => handleExport('pdf')}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Export PDF (Coming Soon)
           </button>
         </div>
       </div>

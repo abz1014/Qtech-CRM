@@ -37,6 +37,17 @@ const PRIORITY_STYLES: Record<string, string> = {
   low:    'border-blue-500/50 bg-blue-500/10 text-blue-500',
 };
 
+// Tailwind's build-time scanner can't see classes assembled from a runtime
+// variable (`text-${accent}`), so it never generates them — the section
+// headings rendered unstyled. This map keeps every class string static and
+// literal so the scanner picks them up.
+type SectionAccent = 'destructive' | 'warning' | 'muted-foreground';
+const ACCENT_STYLES: Record<SectionAccent, { heading: string; badge: string }> = {
+  destructive:        { heading: 'text-destructive',      badge: 'bg-destructive/15 text-destructive' },
+  warning:             { heading: 'text-warning',          badge: 'bg-warning/15 text-warning' },
+  'muted-foreground':  { heading: 'text-muted-foreground', badge: 'bg-muted text-muted-foreground' },
+};
+
 function getDaysOverdue(due_date: string): number {
   // Compare in the business timezone (same date source as the tab filters)
   // so a card's "overdue" badge never disagrees with which tab it's in.
@@ -402,18 +413,19 @@ export default function ActionsPage() {
   const renderSection = (
     actions: FollowUpAction[],
     title: string,
-    accent: string,       // tailwind colour token like 'destructive' | 'warning' | 'primary'
+    accent: SectionAccent,
     icon: React.ReactNode,
   ) => {
     if (actions.length === 0) return null;
+    const styles = ACCENT_STYLES[accent];
     return (
       <div className="space-y-2">
         <div className={`flex items-center gap-2 px-1`}>
           {icon}
-          <h3 className={`text-sm font-bold uppercase tracking-widest text-${accent}`}>
+          <h3 className={cn('text-sm font-bold uppercase tracking-widest', styles.heading)}>
             {title}
           </h3>
-          <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-${accent}/15 text-${accent}`}>
+          <span className={cn('ml-auto text-xs font-bold px-2 py-0.5 rounded-full', styles.badge)}>
             {actions.length}
           </span>
         </div>
