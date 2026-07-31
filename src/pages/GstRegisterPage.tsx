@@ -206,6 +206,7 @@ export default function GstRegisterPage() {
       const path = await uploadGstReceipt(g.id, file);
       await updateGstInvoice(g.id, { wasif_receipt_file_path: path });
       if (oldPath) await deleteGstReceipt(oldPath).catch(() => { /* best-effort cleanup of the replaced file */ });
+      setDetail(d => (d && d.id === g.id ? { ...d, wasif_receipt_file_path: path } : d));
       toast.success('Receipt attached');
     } catch (err) {
       toast.error(err instanceof ReceiptUploadError ? err.message : (err instanceof Error ? err.message : 'Failed to attach receipt'));
@@ -228,6 +229,7 @@ export default function GstRegisterPage() {
     try {
       await deleteGstReceipt(g.wasif_receipt_file_path);
       await updateGstInvoice(g.id, { wasif_receipt_file_path: null });
+      setDetail(d => (d && d.id === g.id ? { ...d, wasif_receipt_file_path: null } : d));
       toast.success('Receipt removed');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to remove receipt');
