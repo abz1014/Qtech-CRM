@@ -21,11 +21,16 @@ type StatusBucket = 'not_floated' | 'floated' | 'responded' | 'converted';
 // Every class string below is written out literally (not assembled from a
 // variable) so Tailwind's build-time scanner can actually see and generate
 // it — see ActionsPage.tsx for the bug this pattern avoids.
-const BUCKET_CONFIG: Record<StatusBucket, { label: string; tableTitle: string; text: string; ring: string }> = {
-  not_floated: { label: 'Not Floated', tableTitle: '🔴 Not Yet Floated to Suppliers', text: 'text-destructive', ring: 'ring-destructive' },
-  floated:     { label: 'Floated',     tableTitle: '🟡 Floated — Awaiting Response',  text: 'text-warning',     ring: 'ring-warning' },
-  responded:   { label: 'Responded',   tableTitle: '🟢 Responses Received',           text: 'text-info',        ring: 'ring-info' },
-  converted:   { label: 'Converted',   tableTitle: '✅ Converted to Orders',          text: 'text-success',     ring: 'ring-success' },
+//
+// The active-card indicator uses `outline`, not `ring` (which is really a
+// box-shadow under the hood) — .glass-card sets its own box-shadow and
+// compiles after Tailwind's ring utilities in this project's build, so a
+// ring is silently overridden and never actually renders.
+const BUCKET_CONFIG: Record<StatusBucket, { label: string; tableTitle: string; text: string; outline: string }> = {
+  not_floated: { label: 'Not Floated', tableTitle: '🔴 Not Yet Floated to Suppliers', text: 'text-destructive', outline: 'outline-destructive' },
+  floated:     { label: 'Floated',     tableTitle: '🟡 Floated — Awaiting Response',  text: 'text-warning',     outline: 'outline-warning' },
+  responded:   { label: 'Responded',   tableTitle: '🟢 Responses Received',           text: 'text-info',        outline: 'outline-info' },
+  converted:   { label: 'Converted',   tableTitle: '✅ Converted to Orders',          text: 'text-success',     outline: 'outline-success' },
 };
 const BUCKET_ORDER: StatusBucket[] = ['not_floated', 'floated', 'responded', 'converted'];
 
@@ -270,7 +275,7 @@ export function DailyRFQReportPage() {
               key={bucket}
               type="button"
               onClick={() => setActiveStatus(bucket)}
-              className={`glass-card p-5 text-left transition-all hover:bg-muted/40 ${isActive ? `ring-2 ${config.ring}` : ''}`}
+              className={`glass-card p-5 text-left transition-all hover:bg-muted/40 outline outline-2 outline-offset-2 ${isActive ? config.outline : 'outline-transparent'}`}
               aria-pressed={isActive}
             >
               <p className="text-sm text-muted-foreground">{config.label}</p>
