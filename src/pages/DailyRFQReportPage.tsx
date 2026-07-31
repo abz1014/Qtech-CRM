@@ -11,11 +11,23 @@ import { businessToday, businessDaysFromNow } from '@/lib/dates';
 import { RFQ } from '@/types/crm';
 
 interface FilterState {
-  status: string;
   priority: string;
   client: string;
   dateRange: 'today' | 'week' | 'month' | 'all' | 'custom';
 }
+
+type StatusBucket = 'not_floated' | 'floated' | 'responded' | 'converted';
+
+// Every class string below is written out literally (not assembled from a
+// variable) so Tailwind's build-time scanner can actually see and generate
+// it — see ActionsPage.tsx for the bug this pattern avoids.
+const BUCKET_CONFIG: Record<StatusBucket, { label: string; tableTitle: string; text: string; ring: string }> = {
+  not_floated: { label: 'Not Floated', tableTitle: '🔴 Not Yet Floated to Suppliers', text: 'text-destructive', ring: 'ring-destructive' },
+  floated:     { label: 'Floated',     tableTitle: '🟡 Floated — Awaiting Response',  text: 'text-warning',     ring: 'ring-warning' },
+  responded:   { label: 'Responded',   tableTitle: '🟢 Responses Received',           text: 'text-info',        ring: 'ring-info' },
+  converted:   { label: 'Converted',   tableTitle: '✅ Converted to Orders',          text: 'text-success',     ring: 'ring-success' },
+};
+const BUCKET_ORDER: StatusBucket[] = ['not_floated', 'floated', 'responded', 'converted'];
 
 export function DailyRFQReportPage() {
   const navigate = useNavigate();
@@ -27,7 +39,6 @@ export function DailyRFQReportPage() {
   const today = businessToday();
 
   const [filters, setFilters] = useState<FilterState>({
-    status: 'all',
     priority: 'all',
     client: 'all',
     dateRange: 'month'  // default to last 30 days — always shows data
@@ -35,6 +46,8 @@ export function DailyRFQReportPage() {
   // Default custom range to last 30 days so it's not blank when user switches to custom
   const [startDate, setStartDate] = useState(businessDaysFromNow(-29));
   const [endDate, setEndDate] = useState(today);
+  // Which bucket's table is shown below — defaults to the most actionable one
+  const [activeStatus, setActiveStatus] = useState<StatusBucket>('not_floated');
 
   // Get filtered RFQs
   const filteredRFQs = useMemo(() => {
@@ -57,23 +70,6 @@ export function DailyRFQReportPage() {
       result = result.filter(r => r.rfq_date >= startDate && r.rfq_date <= endDate);
     }
 
-    // Status filter — definitions MUST match the section buckets below so the
-    // dropdown always yields exactly the rows shown in the matching section.
-    if (filters.status !== 'all') {
-      const hasInquiry = (r: RFQ) => supplierInquiries.some(si => si.rfq_id === r.id);
-      const hasQuote = (r: RFQ) => supplierQuotes.some(sq => sq.rfq_id === r.id);
-      if (filters.status === 'not_floated') {
-        result = result.filter(r => !hasInquiry(r) && r.status !== 'converted');
-      } else if (filters.status === 'floated') {
-        // Floated & still awaiting a response — excludes responded RFQs
-        result = result.filter(r => hasInquiry(r) && !hasQuote(r) && r.status !== 'converted');
-      } else if (filters.status === 'responded') {
-        result = result.filter(r => hasQuote(r) && r.status !== 'converted');
-      } else if (filters.status === 'converted') {
-        result = result.filter(r => r.status === 'converted');
-      }
-    }
-
     // Priority filter
     if (filters.priority !== 'all') {
       result = result.filter(r => r.priority === filters.priority);
@@ -85,7 +81,7 @@ export function DailyRFQReportPage() {
     }
 
     return result;
-  }, [rfqs, filters, startDate, endDate, today, supplierInquiries, supplierQuotes]);
+  }, [rfqs, filters, startDate, endDate, today]);
 
   // Get unique clients for filter dropdown
   const uniqueClients = useMemo(() => {
@@ -113,6 +109,13 @@ export function DailyRFQReportPage() {
       converted: converted.sort(byDate),
     };
   }, [filteredRFQs, supplierInquiries, supplierQuotes]);
+
+  const bucketRFQs: Record<StatusBucket, RFQ[]> = {
+    not_floated: metrics.notFloated,
+    floated: metrics.floated,
+    responded: metrics.responded,
+    converted: metrics.converted,
+  };
 
   // Sanitize cell values to prevent CSV formula injection
   const sanitizeCSVCell = (cell: unknown): string => {
@@ -253,24 +256,28 @@ export function DailyRFQReportPage() {
         <p className="text-muted-foreground mt-1">Track RFQ status and progression through the sales pipeline</p>
       </div>
 
-      {/* Summary Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Summary Metrics — the four bucket cards double as the table filter below */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="glass-card p-5">
           <p className="text-sm text-muted-foreground">Total RFQs</p>
           <p className="text-3xl font-bold text-primary mt-2">{filteredRFQs.length}</p>
         </div>
-        <div className="glass-card p-5">
-          <p className="text-sm text-muted-foreground">Not Floated</p>
-          <p className="text-3xl font-bold text-warning mt-2">{metrics.notFloated.length}</p>
-        </div>
-        <div className="glass-card p-5">
-          <p className="text-sm text-muted-foreground">Floated</p>
-          <p className="text-3xl font-bold text-info mt-2">{metrics.floated.length}</p>
-        </div>
-        <div className="glass-card p-5">
-          <p className="text-sm text-muted-foreground">Responses</p>
-          <p className="text-3xl font-bold text-success mt-2">{metrics.responded.length}</p>
-        </div>
+        {BUCKET_ORDER.map(bucket => {
+          const config = BUCKET_CONFIG[bucket];
+          const isActive = activeStatus === bucket;
+          return (
+            <button
+              key={bucket}
+              type="button"
+              onClick={() => setActiveStatus(bucket)}
+              className={`glass-card p-5 text-left transition-all hover:bg-muted/40 ${isActive ? `ring-2 ${config.ring}` : ''}`}
+              aria-pressed={isActive}
+            >
+              <p className="text-sm text-muted-foreground">{config.label}</p>
+              <p className={`text-3xl font-bold mt-2 ${config.text}`}>{bucketRFQs[bucket].length}</p>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filters */}
@@ -360,13 +367,12 @@ export function DailyRFQReportPage() {
         </div>
       </div>
 
-      {/* RFQ Tables by Status */}
-      <div className="space-y-6">
-        <RFQTable rfqs={metrics.converted} title="✅ Converted to Orders" isConverted={true} />
-        <RFQTable rfqs={metrics.responded} title="🟢 Responses Received" />
-        <RFQTable rfqs={metrics.floated} title="🟡 Floated - Awaiting Response" />
-        <RFQTable rfqs={metrics.notFloated} title="🔴 Not Yet Floated to Suppliers" />
-      </div>
+      {/* Selected bucket's RFQs — pick a card above to switch */}
+      <RFQTable
+        rfqs={bucketRFQs[activeStatus]}
+        title={BUCKET_CONFIG[activeStatus].tableTitle}
+        isConverted={activeStatus === 'converted'}
+      />
     </div>
   );
 }
