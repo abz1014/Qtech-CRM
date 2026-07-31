@@ -164,6 +164,12 @@ export interface GstInvoice {
   fbr_status: FbrStatus;
   wasif_receipt_received: boolean;
   wasif_receipt_date: string;
+  // Path within the `gst-receipts` Storage bucket, not the file itself --
+  // optional so the main edit form (which never touches this field) doesn't
+  // have to carry it; the upload/delete flow sets it directly via a scoped
+  // updateGstInvoice() call. Absent from an update payload leaves the
+  // existing value untouched (Supabase only writes keys you actually send).
+  wasif_receipt_file_path?: string | null;
   psid: string;
   tax_deposit_date: string;
   tax_deposit_amount: number;

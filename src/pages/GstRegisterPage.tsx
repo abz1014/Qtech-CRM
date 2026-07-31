@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useCRM } from '@/contexts/CRMContext';
 import { useOrders } from '@/hooks/useOrders';
 import { useGstInvoices } from '@/hooks/useGstInvoices';
@@ -10,7 +10,7 @@ import { businessToday } from '@/lib/dates';
 import { toast } from 'sonner';
 import {
   FileText, Plus, X, Search, Pencil, Trash2, AlertTriangle,
-  Link2, Download, Receipt, Landmark,
+  Link2, Download, Receipt, Landmark, Paperclip, Eye, Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Pagination } from '@/components/Pagination';
@@ -18,6 +18,7 @@ import { TableSkeleton } from '@/components/ui/skeleton';
 import type { GstInvoice, FbrStatus, CreateGstInvoiceInput } from '@/types/bookkeeping';
 import { FBR_STATUSES } from '@/types/bookkeeping';
 import { needsFbrAttention as fbrNeedsAttention } from '@/lib/gst/fbr';
+import { uploadGstReceipt, getGstReceiptUrl, deleteGstReceipt, ReceiptUploadError } from '@/lib/storage/gstReceipts';
 
 const FBR_BADGE: Record<FbrStatus, string> = {
   'Pending':          'bg-amber-500/15 text-amber-600 dark:text-amber-400',
@@ -93,6 +94,7 @@ export default function GstRegisterPage() {
   const [detail, setDetail] = useState<GstInvoice | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [receiptBusyId, setReceiptBusyId] = useState<string | null>(null);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -193,6 +195,43 @@ export default function GstRegisterPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save invoice');
     } finally { setSaving(false); }
+  };
+
+  // ── FBR challan receipt (Wasif & Co.) — stored in Supabase Storage, only
+  // a path lives on the row. See src/lib/storage/gstReceipts.ts.
+  const handleAttachReceipt = async (g: GstInvoice, file: File) => {
+    setReceiptBusyId(g.id);
+    try {
+      const oldPath = g.wasif_receipt_file_path;
+      const path = await uploadGstReceipt(g.id, file);
+      await updateGstInvoice(g.id, { wasif_receipt_file_path: path });
+      if (oldPath) await deleteGstReceipt(oldPath).catch(() => { /* best-effort cleanup of the replaced file */ });
+      toast.success('Receipt attached');
+    } catch (err) {
+      toast.error(err instanceof ReceiptUploadError ? err.message : (err instanceof Error ? err.message : 'Failed to attach receipt'));
+    } finally { setReceiptBusyId(null); }
+  };
+
+  const handleViewReceipt = async (path: string) => {
+    try {
+      const url = await getGstReceiptUrl(path);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to open receipt');
+    }
+  };
+
+  const handleRemoveReceipt = async (g: GstInvoice) => {
+    if (!g.wasif_receipt_file_path) return;
+    if (!(await confirm({ title: 'Remove receipt?', message: 'Remove the attached FBR challan receipt from this invoice?', confirmLabel: 'Remove' }))) return;
+    setReceiptBusyId(g.id);
+    try {
+      await deleteGstReceipt(g.wasif_receipt_file_path);
+      await updateGstInvoice(g.id, { wasif_receipt_file_path: null });
+      toast.success('Receipt removed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove receipt');
+    } finally { setReceiptBusyId(null); }
   };
 
   const handleDelete = async (g: GstInvoice) => {
@@ -555,6 +594,16 @@ export default function GstRegisterPage() {
                   <DField label="Tax deposit date" value={detail.tax_deposit_date ? formatDate(detail.tax_deposit_date) : '—'} />
                   <DField label="Tax deposit amount" value={detail.tax_deposit_amount ? formatPKR(detail.tax_deposit_amount) : '—'} />
                   <DField label="Deposit bank" value={detail.tax_deposit_bank || '—'} />
+                  <div className="col-span-2 md:col-span-3">
+                    <dt className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1">FBR challan receipt (scan/photo)</dt>
+                    <ReceiptAttachment
+                      invoice={detail}
+                      busy={receiptBusyId === detail.id}
+                      onAttach={file => handleAttachReceipt(detail, file)}
+                      onView={() => detail.wasif_receipt_file_path && handleViewReceipt(detail.wasif_receipt_file_path)}
+                      onRemove={() => handleRemoveReceipt(detail)}
+                    />
+                  </div>
                 </dl>
               </section>
 
@@ -577,6 +626,55 @@ function DField({ label, value }: { label: string; value: React.ReactNode }) {
     <div>
       <dt className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</dt>
       <dd className="text-sm text-foreground mt-0.5 break-words">{value}</dd>
+    </div>
+  );
+}
+
+// Attach/view/replace/remove the FBR challan receipt for one GST invoice.
+// The file itself lives in Supabase Storage; `invoice.wasif_receipt_file_path`
+// is just the object path.
+function ReceiptAttachment({ invoice, busy, onAttach, onView, onRemove }: {
+  invoice: GstInvoice;
+  busy: boolean;
+  onAttach: (file: File) => void;
+  onView: () => void;
+  onRemove: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hasReceipt = !!invoice.wasif_receipt_file_path;
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (file) onAttach(file);
+          e.target.value = ''; // allow re-selecting the same file later
+        }}
+      />
+      {busy ? (
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading…</span>
+      ) : hasReceipt ? (
+        <>
+          <button type="button" onClick={onView}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+            <Eye className="w-3.5 h-3.5" /> View receipt
+          </button>
+          <button type="button" onClick={() => inputRef.current?.click()}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors">Replace</button>
+          <button type="button" onClick={onRemove}
+            className="text-xs text-muted-foreground hover:text-destructive transition-colors">Remove</button>
+        </>
+      ) : (
+        <button type="button" onClick={() => inputRef.current?.click()}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-muted text-foreground hover:bg-muted/80 transition-colors border border-border">
+          <Paperclip className="w-3.5 h-3.5" /> Attach receipt
+        </button>
+      )}
     </div>
   );
 }
