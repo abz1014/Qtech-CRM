@@ -246,21 +246,21 @@ export default function GstRegisterPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="kpi-card">
+        <div className="kpi-card min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">Invoices</p>
-          <p className="text-2xl font-extrabold text-foreground tracking-tight mt-1">{kpis.count}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight mt-1 tabular-nums">{kpis.count}</p>
         </div>
-        <div className="kpi-card">
+        <div className="kpi-card min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">Total GST</p>
-          <p className="text-2xl font-extrabold text-foreground tracking-tight mt-1">{formatPKR(kpis.totalGst)}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight mt-1 tabular-nums truncate" title={formatPKR(kpis.totalGst)}>{formatPKR(kpis.totalGst)}</p>
         </div>
-        <div className="kpi-card">
+        <div className="kpi-card min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">FBR not deposited</p>
-          <p className="text-2xl font-extrabold text-foreground tracking-tight mt-1">{kpis.pending}</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight mt-1 tabular-nums">{kpis.pending}</p>
         </div>
-        <div className="kpi-card">
+        <div className="kpi-card min-w-0">
           <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">Needs attention {kpis.attention > 0 && <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}</p>
-          <p className={cn('text-2xl font-extrabold tracking-tight mt-1', kpis.attention > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground')}>{kpis.attention}</p>
+          <p className={cn('text-xl sm:text-2xl font-extrabold tracking-tight mt-1 tabular-nums', kpis.attention > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground')}>{kpis.attention}</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">prior-month, tax not deposited</p>
         </div>
       </div>
