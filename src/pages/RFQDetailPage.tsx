@@ -377,7 +377,7 @@ export default function RFQDetailPage() {
       </button>
 
       {/* RFQ Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           {rfq.rfq_number && (
             <span className="inline-flex items-center text-xs font-mono font-semibold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg mb-2">
@@ -387,7 +387,7 @@ export default function RFQDetailPage() {
           <h1 className="text-2xl font-bold text-foreground">{rfq.company_name}</h1>
           <p className="text-muted-foreground mt-1">{rfq.contact_person} · {rfq.email}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {rfq.status !== 'lost' && quotes.length > 0 && (
             <button onClick={() => { setShowConvertOrder(true); setItemVendors({}); setConvertForm(p => ({ ...p, client_id: rfq.client_id || '' })); }} className="flex items-center gap-1.5 px-3 py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors">
               <ShoppingCart className="w-4 h-4" /> Create Order

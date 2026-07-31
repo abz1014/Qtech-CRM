@@ -126,13 +126,13 @@ export default function VendorDetailPage() {
         <ArrowLeft className="w-4 h-4" /> Back to Vendors
       </button>
 
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{vendor.name}</h1>
           <p className="text-muted-foreground mt-1">{vendor.country}</p>
         </div>
         {isAdmin && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-2 bg-muted rounded-lg text-sm text-foreground hover:bg-muted/80 transition-colors">
               <Edit2 className="w-4 h-4" /> Edit
             </button>

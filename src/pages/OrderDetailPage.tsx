@@ -174,12 +174,12 @@ export default function OrderDetailPage() {
         <ArrowLeft className="w-4 h-4" /> Back to Orders
       </button>
 
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{getClientName(order.client_id)}</h1>
           <p className="text-muted-foreground mt-1">{order.product_type} — {getVendorName(order.vendor_id)}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <AddFollowUpButton
             entityType="order"
             entityId={order.id}

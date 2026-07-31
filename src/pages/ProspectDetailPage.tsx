@@ -85,12 +85,12 @@ export default function ProspectDetailPage() {
         <ArrowLeft className="w-4 h-4" /> Back to Prospects
       </button>
 
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{prospect.company_name}</h1>
           <p className="text-muted-foreground mt-1">{prospect.contact_person} · {prospect.email}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <AddFollowUpButton
             entityType="prospect"
             entityId={prospect.id}
